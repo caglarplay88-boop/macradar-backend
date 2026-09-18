@@ -1,6 +1,13 @@
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const { pool, initDb } = require('./db');
+
+function loadSeedData() {
+  const b64 = fs.readFileSync(path.join(__dirname, '..', 'seed-data.gz.b64'), 'utf8').trim();
+  const json = zlib.gunzipSync(Buffer.from(b64, 'base64')).toString('utf8');
+  return JSON.parse(json);
+}
 
 async function seed() {
   await initDb();
@@ -8,7 +15,7 @@ async function seed() {
   const snapCount = Number((await pool.query('SELECT COUNT(*)::int AS c FROM snapshots')).rows[0].c);
   if (count || snapCount) return { skipped: true, count, snapCount };
 
-  const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'seed-data.json'), 'utf8'));
+  const data = loadSeedData();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

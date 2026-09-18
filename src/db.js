@@ -38,8 +38,24 @@ async function initDb() {
       btts_no DOUBLE PRECISION
     );
 
+    CREATE TABLE IF NOT EXISTS worker_runs (
+      id BIGSERIAL PRIMARY KEY,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      finished_at TIMESTAMPTZ,
+      status TEXT NOT NULL DEFAULT 'running',
+      total INTEGER NOT NULL DEFAULT 0,
+      processed INTEGER NOT NULL DEFAULT 0,
+      ok_count INTEGER NOT NULL DEFAULT 0,
+      fail_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      error TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_snapshots_event_time
       ON snapshots(event_id, captured_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_worker_runs_started
+      ON worker_runs(started_at DESC);
   `);
 }
 
@@ -130,6 +146,7 @@ async function getMatch(eventId) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(r);
   }
+
   const history = [...groups.entries()].map(([captured_at, a]) => ({
     captured_at,
     ms1: median(a.map(x => x.ms1)),
@@ -148,9 +165,66 @@ async function getMatch(eventId) {
 
 async function setActive(eventId, active) {
   const r = await pool.query(
-    'UPDATE matches SET active=$2,updated_at=NOW() WHERE event_id=$1 RETURNING *', [eventId, active]
+    'UPDATE matches SET active=$2,updated_at=NOW() WHERE event_id=$1 RETURNING *',
+    [eventId, active]
   );
   return r.rows[0] || null;
 }
 
-module.exports = { pool, initDb, upsertMatch, saveSnapshot, listMatches, getMatch, setActive };
+async function createWorkerRun(total) {
+  const r = await pool.query(
+    'INSERT INTO worker_runs(total) VALUES($1) RETURNING *',
+    [total]
+  );
+  return r.rows[0];
+}
+
+async function updateWorkerRun(id, fields = {}) {
+  const current = (await pool.query('SELECT * FROM worker_runs WHERE id=$1', [id])).rows[0];
+  if (!current) return null;
+  const next = {
+    processed: fields.processed ?? current.processed,
+    ok_count: fields.ok_count ?? current.ok_count,
+    fail_count: fields.fail_count ?? current.fail_count,
+    skipped_count: fields.skipped_count ?? current.skipped_count,
+    status: fields.status ?? current.status,
+    error: fields.error ?? current.error,
+    finished_at: fields.finished_at ?? current.finished_at
+  };
+  const r = await pool.query(`
+    UPDATE worker_runs
+    SET processed=$2,ok_count=$3,fail_count=$4,skipped_count=$5,status=$6,error=$7,finished_at=$8
+    WHERE id=$1
+    RETURNING *
+  `, [
+    id, next.processed, next.ok_count, next.fail_count, next.skipped_count,
+    next.status, next.error, next.finished_at
+  ]);
+  return r.rows[0];
+}
+
+async function getWorkerStatus() {
+  const last = (await pool.query(
+    'SELECT * FROM worker_runs ORDER BY started_at DESC LIMIT 1'
+  )).rows[0] || null;
+  const active = Number((await pool.query(
+    'SELECT COUNT(*)::int AS c FROM matches WHERE active=TRUE'
+  )).rows[0].c);
+  const snapshots = Number((await pool.query(
+    'SELECT COUNT(*)::int AS c FROM snapshots'
+  )).rows[0].c);
+  return { last_run: last, active_matches: active, snapshot_rows: snapshots };
+}
+
+module.exports = {
+  pool,
+  initDb,
+  upsertMatch,
+  saveSnapshot,
+  listMatches,
+  getMatch,
+  setActive,
+  createWorkerRun,
+  updateWorkerRun,
+  getWorkerStatus
+};

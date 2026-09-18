@@ -82,7 +82,7 @@ async function pullOdds(rawUrl) {
   const page = await newConfiguredPage(browser);
 
   try {
-    await page.goto(parsed.url, { waitUntil: 'domcontentloaded', timeout: 40000 });
+    await page.goto(parsed.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await sleep(1600);
 
     await page.evaluate(() => {
@@ -110,19 +110,26 @@ async function pullOdds(rawUrl) {
 
     async function fetchMarket(type) {
       return page.evaluate(async ({ eventId, type }) => {
-        const r = await fetch(`/match-odds/${eventId}/0/${type}/odds/?lang=en`, {
-          credentials: 'include',
-          headers: {
-            'x-requested-with': 'XMLHttpRequest',
-            'accept': 'application/json,text/javascript,*/*;q=0.01'
-          }
-        });
-        const text = await r.text();
-        if (!r.ok) throw new Error(`${type} HTTP ${r.status}`);
-        let data;
-        try { data = JSON.parse(text); }
-        catch { throw new Error(`${type} JSON değil`); }
-        return data.odds || '';
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        try {
+          const r = await fetch(`/match-odds/${eventId}/0/${type}/odds/?lang=en`, {
+            credentials: 'include',
+            signal: controller.signal,
+            headers: {
+              'x-requested-with': 'XMLHttpRequest',
+              'accept': 'application/json,text/javascript,*/*;q=0.01'
+            }
+          });
+          const text = await r.text();
+          if (!r.ok) throw new Error(`${type} HTTP ${r.status}`);
+          let data;
+          try { data = JSON.parse(text); }
+          catch { throw new Error(`${type} JSON değil`); }
+          return data.odds || '';
+        } finally {
+          clearTimeout(timer);
+        }
       }, { eventId: parsed.eventId, type });
     }
 

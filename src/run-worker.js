@@ -30,7 +30,9 @@ async function runWorkerOnce({ force = false } = {}) {
     );
     locked = Boolean(lock.rows[0]?.locked);
     if (!locked) {
-      return { skipped: true, reason: 'worker_already_running' };
+      console.log(`[worker] bitti: processed=${processed} ok=${ok} fail=${fail} skipped=${skippedCount}`);
+
+    return { skipped: true, reason: 'worker_already_running' };
     }
 
     const matches = await listMatches({ activeOnly: true });
@@ -41,6 +43,7 @@ async function runWorkerOnce({ force = false } = {}) {
     });
 
     const due = matches.filter(m => dueForRefresh(m, force));
+    console.log(`[worker] aktif=${matches.length} çekilecek=${due.length} taze=${matches.length - due.length}`);
     const skippedCount = matches.length - due.length;
 
     const run = await createWorkerRun(matches.length);
@@ -55,7 +58,9 @@ async function runWorkerOnce({ force = false } = {}) {
 
     for (let i = 0; i < due.length; i++) {
       const m = due[i];
+      console.log(`[worker] ${i + 1}/${due.length} başlıyor: ${m.match_slug || m.event_id}`);
       const result = await pullAndSave(m.url, { attempts: 3 });
+      console.log(`[worker] ${m.event_id} ${result.ok ? 'OK' : 'HATA'} ${result.ok ? (result.rows + ' satır') : result.error}`);
       processed++;
       if (result.ok) ok++;
       else fail++;

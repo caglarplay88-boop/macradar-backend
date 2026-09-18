@@ -1,6 +1,11 @@
-const { pullOdds } = require('./odds');
+const { pullOdds, closeBrowser } = require('./odds');
 const { saveSnapshot } = require('./db');
 const { sleep } = require('./util');
+
+function shouldRecycleBrowser(error) {
+  const s = String(error?.message || error || '');
+  return /Target|Protocol|browser|closed|disconnected|Navigation|ERR_|timeout|timed out/i.test(s);
+}
 
 async function pullAndSave(url, { attempts = 3 } = {}) {
   let last;
@@ -14,13 +19,24 @@ async function pullAndSave(url, { attempts = 3 } = {}) {
         rows: data.rows,
         capturedAt: data.capturedAt
       });
-      return { ok: true, eventId: data.eventId, rows: data.rows.length, capturedAt: data.capturedAt, meta: data.meta };
+      return {
+        ok: true,
+        eventId: data.eventId,
+        rows: data.rows.length,
+        capturedAt: data.capturedAt,
+        meta: data.meta,
+        attempt
+      };
     } catch (e) {
       last = e;
-      if (attempt < attempts) await sleep(20000);
+      if (shouldRecycleBrowser(e)) await closeBrowser();
+      if (attempt < attempts) {
+        const waitMs = attempt === 1 ? 8000 : 18000;
+        await sleep(waitMs);
+      }
     }
   }
-  return { ok: false, error: last?.message || String(last) };
+  return { ok: false, error: last?.message || String(last), attempts };
 }
 
 module.exports = { pullAndSave };

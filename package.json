@@ -10,7 +10,7 @@
     "seed": "node src/seed.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "dependencies": {
     "pg": "^8.16.3",

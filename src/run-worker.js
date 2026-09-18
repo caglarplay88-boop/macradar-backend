@@ -29,10 +29,10 @@ async function runWorkerOnce({ force = false } = {}) {
       [LOCK_ID]
     );
     locked = Boolean(lock.rows[0]?.locked);
-    if (!locked) {
-      console.log(`[worker] bitti: processed=${processed} ok=${ok} fail=${fail} skipped=${skippedCount}`);
 
-    return { skipped: true, reason: 'worker_already_running' };
+    if (!locked) {
+      console.log('[worker] başka tur zaten çalışıyor, bu tetik atlandı');
+      return { skipped: true, reason: 'worker_already_running' };
     }
 
     const matches = await listMatches({ activeOnly: true });
@@ -43,8 +43,9 @@ async function runWorkerOnce({ force = false } = {}) {
     });
 
     const due = matches.filter(m => dueForRefresh(m, force));
-    console.log(`[worker] aktif=${matches.length} çekilecek=${due.length} taze=${matches.length - due.length}`);
     const skippedCount = matches.length - due.length;
+
+    console.log(`[worker] aktif=${matches.length} çekilecek=${due.length} taze=${skippedCount}`);
 
     const run = await createWorkerRun(matches.length);
     runId = run.id;
@@ -59,11 +60,17 @@ async function runWorkerOnce({ force = false } = {}) {
     for (let i = 0; i < due.length; i++) {
       const m = due[i];
       console.log(`[worker] ${i + 1}/${due.length} başlıyor: ${m.match_slug || m.event_id}`);
+
       const result = await pullAndSave(m.url, { attempts: 3 });
-      console.log(`[worker] ${m.event_id} ${result.ok ? 'OK' : 'HATA'} ${result.ok ? (result.rows + ' satır') : result.error}`);
+
       processed++;
       if (result.ok) ok++;
       else fail++;
+
+      console.log(
+        `[worker] ${m.event_id} ${result.ok ? 'OK' : 'HATA'} ` +
+        `${result.ok ? (result.rows + ' satır') : result.error}`
+      );
 
       results.push({
         eventId: m.event_id,
@@ -84,6 +91,7 @@ async function runWorkerOnce({ force = false } = {}) {
     }
 
     const status = fail === 0 ? 'ok' : (ok > 0 ? 'partial' : 'failed');
+
     await updateWorkerRun(runId, {
       processed,
       ok_count: ok,
@@ -92,6 +100,10 @@ async function runWorkerOnce({ force = false } = {}) {
       status,
       finished_at: new Date()
     });
+
+    console.log(
+      `[worker] bitti: processed=${processed} ok=${ok} fail=${fail} skipped=${skippedCount}`
+    );
 
     return {
       skipped: false,
@@ -117,9 +129,13 @@ async function runWorkerOnce({ force = false } = {}) {
     throw e;
   } finally {
     await closeBrowser();
+
     if (locked) {
-      try { await lockClient.query('SELECT pg_advisory_unlock($1)', [LOCK_ID]); } catch {}
+      try {
+        await lockClient.query('SELECT pg_advisory_unlock($1)', [LOCK_ID]);
+      } catch {}
     }
+
     lockClient.release();
   }
 }

@@ -5,6 +5,7 @@ const { getBulletin } = require('./bulletin');
 const { pullAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey } = require('./util');
 const { seed } = require('./seed');
+const { runWorkerOnce } = require('./run-worker');
 
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = String(process.env.API_KEY || '');
@@ -119,7 +120,17 @@ const server = http.createServer(async (req, res) => {
   await initDb();
   const seedResult = await seed();
   console.log('Seed:', seedResult);
-  server.listen(PORT, '0.0.0.0', () => console.log(`MacRadar backend ${PORT} portunda.`));
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`MacRadar backend ${PORT} portunda.`);
+    setTimeout(() => runWorkerOnce().then(
+      r => console.log('Startup worker:', JSON.stringify(r)),
+      e => console.error('Startup worker error:', e)
+    ), 5000);
+    setInterval(() => runWorkerOnce().then(
+      r => console.log('Hourly worker:', JSON.stringify(r)),
+      e => console.error('Hourly worker error:', e)
+    ), 60 * 60 * 1000);
+  });
 })().catch(e => {
   console.error(e);
   process.exit(1);

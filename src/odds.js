@@ -1,6 +1,8 @@
 const puppeteer = require('puppeteer');
 const { parseBetExplorerUrl, sleep } = require('./util');
 
+let browserPromise = null;
+
 function clean(rows, n = 3) {
   const seen = new Set();
   const out = [];
@@ -14,32 +16,81 @@ function clean(rows, n = 3) {
   return out;
 }
 
-async function pullOdds(rawUrl) {
-  const parsed = parseBetExplorerUrl(rawUrl);
+async function launchBrowser() {
   const browser = await puppeteer.launch({
     headless: true,
     args: [
-      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-      '--disable-gpu', '--no-zygote'
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-extensions',
+      '--disable-sync'
     ]
   });
+  browser.on('disconnected', () => {
+    browserPromise = null;
+  });
+  return browser;
+}
+
+async function getBrowser() {
+  if (!browserPromise) browserPromise = launchBrowser();
+  let browser;
+  try {
+    browser = await browserPromise;
+    if (!browser.connected) throw new Error('browser disconnected');
+    return browser;
+  } catch (e) {
+    browserPromise = null;
+    throw e;
+  }
+}
+
+async function closeBrowser() {
+  const p = browserPromise;
+  browserPromise = null;
+  if (!p) return;
+  try {
+    const browser = await p;
+    if (browser.connected) await browser.close();
+  } catch {}
+}
+
+async function newConfiguredPage(browser) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 412, height: 915, deviceScaleFactor: 1 });
+  await page.setUserAgent(
+    'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36'
+  );
+  await page.setExtraHTTPHeaders({ 'accept-language': 'en-US,en;q=0.9' });
+  await page.setRequestInterception(true);
+  page.on('request', req => {
+    const t = req.resourceType();
+    if (t === 'image' || t === 'media' || t === 'font') req.abort();
+    else req.continue();
+  });
+  return page;
+}
+
+async function pullOdds(rawUrl) {
+  const parsed = parseBetExplorerUrl(rawUrl);
+  const browser = await getBrowser();
+  const page = await newConfiguredPage(browser);
 
   try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 412, height: 915, deviceScaleFactor: 1 });
-    await page.setUserAgent(
-      'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36'
-    );
-    await page.setExtraHTTPHeaders({ 'accept-language': 'en-US,en;q=0.9' });
-    await page.goto(parsed.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await sleep(2500);
+    await page.goto(parsed.url, { waitUntil: 'domcontentloaded', timeout: 40000 });
+    await sleep(1600);
 
     await page.evaluate(() => {
       const buttons = [...document.querySelectorAll('button')];
       const b = buttons.find(x => /18|confirm|yes|sim/i.test((x.innerText || '').trim()));
       if (b) b.click();
     }).catch(() => {});
-    await sleep(2500);
+    await sleep(900);
 
     const meta = await page.evaluate(() => {
       const body = (document.body?.innerText || '').replace(/\r/g, '');
@@ -110,11 +161,16 @@ async function pullOdds(rawUrl) {
     }
 
     const [h1x2, hou, hbts] = await Promise.all([
-      fetchMarket('1x2'), fetchMarket('ou'), fetchMarket('bts')
+      fetchMarket('1x2'),
+      fetchMarket('ou'),
+      fetchMarket('bts')
     ]);
-    const oneXtwo = await parseHtml(h1x2, '1x2');
-    const ou = await parseHtml(hou, 'ou');
-    const bts = await parseHtml(hbts, 'bts');
+
+    const [oneXtwo, ou, bts] = await Promise.all([
+      parseHtml(h1x2, '1x2'),
+      parseHtml(hou, 'ou'),
+      parseHtml(hbts, 'bts')
+    ]);
 
     const ms = clean(oneXtwo);
     const ou15 = clean(ou.filter(r => r.total === '1.5'));
@@ -126,6 +182,7 @@ async function pullOdds(rawUrl) {
       if (!byBook.has(bookmaker)) byBook.set(bookmaker, { bookmaker });
       return byBook.get(bookmaker);
     };
+
     for (const r of ms) Object.assign(row(r.bookmaker), { ms1: r.values[0], msx: r.values[1], ms2: r.values[2] });
     for (const r of ou15) Object.assign(row(r.bookmaker), { ou15_over: r.values[0], ou15_under: r.values[1] });
     for (const r of ou25) Object.assign(row(r.bookmaker), { ou25_over: r.values[0], ou25_under: r.values[1] });
@@ -135,12 +192,13 @@ async function pullOdds(rawUrl) {
       ['ms1','msx','ms2','ou15_over','ou15_under','ou25_over','ou25_under','btts_yes','btts_no']
         .some(k => Number.isFinite(r[k]))
     );
+
     if (!rows.length) throw new Error('Ayrıştırılabilir oran bulunamadı.');
 
     return { ...parsed, meta, rows, capturedAt: new Date() };
   } finally {
-    await browser.close();
+    try { await page.close(); } catch {}
   }
 }
 
-module.exports = { pullOdds };
+module.exports = { pullOdds, closeBrowser };

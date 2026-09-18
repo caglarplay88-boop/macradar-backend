@@ -1,0 +1,19 @@
+{
+  "name": "macradar-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BetExplorer bulletin and odds tracker migrated from the working Termux system.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "worker": "node src/worker.js",
+    "seed": "node src/seed.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.16.3",
+    "puppeteer": "^24.22.3"
+  }
+}

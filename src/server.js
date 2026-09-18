@@ -1,6 +1,6 @@
 const http = require('http');
 const { URL } = require('url');
-const { initDb, listMatches, getMatch, setActive, pool } = require('./db');
+const { initDb, listMatches, getMatch, setActive, getWorkerStatus, pool } = require('./db');
 const { getBulletin } = require('./bulletin');
 const { pullAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey } = require('./util');
@@ -62,6 +62,9 @@ const server = http.createServer(async (req, res) => {
       const data = await getBulletin(date, { force });
       const active = new Set((await listMatches({ activeOnly: true })).map(m => m.url));
       return json(res, 200, { ...data, matches: data.matches.map(m => ({ ...m, followed: active.has(m.url) })) });
+    }
+    if (req.method === 'GET' && u.pathname === '/api/system/status') {
+      return json(res, 200, await getWorkerStatus());
     }
     if (req.method === 'GET' && u.pathname === '/api/matches') {
       return json(res, 200, { matches: await listMatches() });

@@ -1,13 +1,176 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
 
 const String baseUrl = 'https://macradar-backend.onrender.com';
 const String mobileKey = '68427531';
 final Api api = Api();
+final FlutterLocalNotificationsPlugin localNotifications =
+    FlutterLocalNotificationsPlugin();
 
-void main() => runApp(const MacRadarApp());
+const String oddsAlertTask = 'macradarOddsAlertPoll';
+
+String niceMatchName(String slug) {
+  return slug.split('-').map((x) {
+    if (x.isEmpty) return x;
+    return x[0].toUpperCase() + x.substring(1);
+  }).join(' ');
+}
+
+Future<void> initLocalNotifications({bool requestPermission = false}) async {
+  const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+  const settings = InitializationSettings(android: android);
+  await localNotifications.initialize(settings);
+
+  if (requestPermission) {
+    await localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestNotificationsPermission();
+  }
+}
+
+Future<Map<String, dynamic>> fetchAlerts(int afterId) async {
+  final r = await http
+      .get(
+        Uri.parse(
+          baseUrl +
+              '/api/alerts?after_id=' +
+              afterId.toString() +
+              '&limit=50',
+        ),
+      )
+      .timeout(const Duration(seconds: 60));
+
+  if (r.statusCode < 200 || r.statusCode >= 300) {
+    throw Exception('Alert sunucusu ' + r.statusCode.toString());
+  }
+
+  final decoded = jsonDecode(r.body);
+  return decoded is Map
+      ? Map<String, dynamic>.from(decoded)
+      : <String, dynamic>{};
+}
+
+Future<void> checkOddsAlerts({
+  bool showNotifications = true,
+  bool primeOnly = false,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+  final hasCursor = prefs.containsKey('last_alert_id');
+  final currentId = prefs.getInt('last_alert_id') ?? 0;
+
+  final data = await fetchAlerts(currentId);
+  final latestId = (data['latest_id'] as num?)?.toInt() ?? currentId;
+
+  if (!hasCursor || primeOnly) {
+    await prefs.setInt('last_alert_id', latestId);
+    return;
+  }
+
+  final alerts = data['alerts'] is List ? data['alerts'] as List : const [];
+
+  if (showNotifications) {
+    for (final raw in alerts.whereType<Map>()) {
+      final a = Map<String, dynamic>.from(raw);
+      final id = (a['id'] as num?)?.toInt() ?? 0;
+      final slug = a['match_slug']?.toString() ?? 'Maç';
+      final market = a['market']?.toString() ?? '';
+      final selection = a['selection']?.toString() ?? '';
+      final before = (a['previous_odd'] as num?)?.toDouble();
+      final after = (a['current_odd'] as num?)?.toDouble();
+      final pct = (a['drop_pct'] as num?)?.toDouble();
+      final bookmaker = a['bookmaker']?.toString() ?? '1xBet';
+
+      if (before == null || after == null || pct == null) continue;
+
+      const androidDetails = AndroidNotificationDetails(
+        'macradar_odds_drop',
+        'Oran Düşüşleri',
+        channelDescription: 'Anlamlı oran düşüşü uyarıları',
+        importance: Importance.high,
+        priority: Priority.high,
+      );
+
+      await localNotifications.show(
+        id % 2147483647,
+        'MacRadar · Anlamlı oran düşüşü',
+        niceMatchName(slug) +
+            ' · ' +
+            market +
+            ' ' +
+            selection +
+            ' · ' +
+            before.toStringAsFixed(2) +
+            ' → ' +
+            after.toStringAsFixed(2) +
+            ' (-%' +
+            pct.toStringAsFixed(1) +
+            ') · ' +
+            bookmaker,
+        const NotificationDetails(android: androidDetails),
+      );
+    }
+  }
+
+  await prefs.setInt('last_alert_id', latestId);
+}
+
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    WidgetsFlutterBinding.ensureInitialized();
+    DartPluginRegistrant.ensureInitialized();
+
+    try {
+      await initLocalNotifications();
+      await checkOddsAlerts(showNotifications: true);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  });
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await initLocalNotifications(requestPermission: true);
+
+  Workmanager().initialize(
+    callbackDispatcher,
+  );
+
+  await Workmanager().registerPeriodicTask(
+    'macradar-hourly-alerts',
+    oddsAlertTask,
+    frequency: const Duration(hours: 1),
+    initialDelay: const Duration(minutes: 5),
+    constraints: Constraints(
+      networkType: NetworkType.connected,
+    ),
+  );
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('last_alert_id')) {
+      await checkOddsAlerts(
+        showNotifications: false,
+        primeOnly: true,
+      );
+    } else {
+      await checkOddsAlerts(showNotifications: true);
+    }
+  } catch (_) {}
+
+  runApp(const MacRadarApp());
+}
+
 
 class Api {
   Map<String, String> get writeHeaders => {

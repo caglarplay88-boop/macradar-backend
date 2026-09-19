@@ -101,6 +101,7 @@ function parseDailyFootball(html) {
         || body.match(/<a[^>]*data-live-cell="matchlink"[^>]*href="(\/football\/[^"]+\/([A-Za-z0-9]{6,12})\/)"[^>]*>([\s\S]*?)<\/a>/i);
       if (!link) continue;
       const timeM = body.match(/data-live-cell="time"[^>]*>\s*([^<\n]+)/i);
+      const rawTime = decodeHtml(timeM?.[1] || '');
       const teams = [...link[3].matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map(x => decodeHtml(x[1])).filter(Boolean);
       let name = '';
       if (teams.length >= 2) name = `${teams[0]} - ${teams[teams.length - 1]}`;
@@ -108,12 +109,24 @@ function parseDailyFootball(html) {
         const slug = link[1].split('/').filter(Boolean).slice(-2, -1)[0] || '';
         name = slug.replace(/-/g, ' ');
       }
+
+      const resultM =
+        body.match(/<[^>]*class="[^"]*(?:table-main__result|table-matches__result)[^"]*"[^>]*>([\s\S]*?)<\/(?:td|div|span)>/i) ||
+        body.match(/data-live-cell="(?:score|result)"[^>]*>([\s\S]*?)<\/(?:td|div|span)>/i);
+      const resultText = decodeHtml(resultM?.[1] || '');
+      const scoreM = resultText.match(/(\d+)\s*[:\-]\s*(\d+)/);
+      const finished = /^(?:FIN|FT|AET|PEN)$/i.test(rawTime);
+
       out.push({
         league: h.league,
-        time: decodeHtml(timeM?.[1] || ''),
+        time: rawTime,
         name,
         url: `https://www.betexplorer.com${link[1]}`,
-        eventId
+        eventId,
+        status: finished ? 'finished' : 'scheduled',
+        score: scoreM ? `${scoreM[1]}-${scoreM[2]}` : null,
+        homeScore: scoreM ? Number(scoreM[1]) : null,
+        awayScore: scoreM ? Number(scoreM[2]) : null
       });
     }
   }
@@ -156,7 +169,10 @@ async function getBulletin(date, { force = false } = {}) {
   const eventRaw = (html.match(/data-event-id=/g) || []).length;
   if (!eventRaw) throw new Error('BetExplorer bülten verisi gelmedi.');
   const matches = parseDailyFootball(html).map(match => {
-    const local = betExplorerTimeToTurkey(date, match.time);
+    const local = /^\d{1,2}:\d{2}$/.test(String(match.time || ''))
+      ? betExplorerTimeToTurkey(date, match.time)
+      : { date, time: match.time };
+
     return {
       ...match,
       source_time: match.time,

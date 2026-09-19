@@ -138,27 +138,24 @@ void callbackDispatcher() {
   });
 }
 
-Future<void> _initBackgroundServices() async {
-  // Uygulama arayüzünü hiçbir servis başlangıcı bekletmesin.
-  try {
-    await initLocalNotifications(requestPermission: true);
-  } catch (_) {}
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    await Workmanager().initialize(
-      callbackDispatcher,
-    );
+  await initLocalNotifications(requestPermission: true);
 
-    await Workmanager().registerPeriodicTask(
-      'macradar-hourly-alerts',
-      oddsAlertTask,
-      frequency: const Duration(hours: 1),
-      initialDelay: const Duration(minutes: 5),
-      constraints: Constraints(
-        networkType: NetworkType.connected,
-      ),
-    );
-  } catch (_) {}
+  Workmanager().initialize(
+    callbackDispatcher,
+  );
+
+  await Workmanager().registerPeriodicTask(
+    'macradar-hourly-alerts',
+    oddsAlertTask,
+    frequency: const Duration(hours: 1),
+    initialDelay: const Duration(minutes: 5),
+    constraints: Constraints(
+      networkType: NetworkType.connected,
+    ),
+  );
 
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -171,15 +168,8 @@ Future<void> _initBackgroundServices() async {
       await checkOddsAlerts(showNotifications: true);
     }
   } catch (_) {}
-}
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Önce arayüzü aç. Bildirim/WorkManager/ilk ağ isteği sonradan başlasın.
   runApp(const MacRadarApp());
-
-  Future.microtask(_initBackgroundServices);
 }
 
 
@@ -299,56 +289,6 @@ class MacRadarApp extends StatelessWidget {
   }
 }
 
-class _BettingMark extends StatelessWidget {
-  const _BettingMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFF183126),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.show_chart_rounded,
-                  size: 22,
-                  color: Color(0xFFFFC857),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: -2,
-            bottom: -2,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFF0D1117),
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(2),
-                child: Icon(
-                  Icons.sports_soccer_rounded,
-                  size: 13,
-                  color: Color(0xFFE6ECE8),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class Home extends StatefulWidget {
   const Home({super.key});
 
@@ -372,8 +312,8 @@ class _HomeState extends State<Home> {
       appBar: AppBar(
         title: Row(
           children: [
-            const _BettingMark(),
-            const SizedBox(width: 8),
+            const Icon(Icons.sports_soccer_rounded, size: 22),
+            const SizedBox(width: 7),
             Text('MacRadar · ' + names[index]),
           ],
         ),

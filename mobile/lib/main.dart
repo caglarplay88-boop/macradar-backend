@@ -138,24 +138,27 @@ void callbackDispatcher() {
   });
 }
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+Future<void> _initBackgroundServices() async {
+  // Uygulama arayüzünü hiçbir servis başlangıcı bekletmesin.
+  try {
+    await initLocalNotifications(requestPermission: true);
+  } catch (_) {}
 
-  await initLocalNotifications(requestPermission: true);
+  try {
+    await Workmanager().initialize(
+      callbackDispatcher,
+    );
 
-  Workmanager().initialize(
-    callbackDispatcher,
-  );
-
-  await Workmanager().registerPeriodicTask(
-    'macradar-hourly-alerts',
-    oddsAlertTask,
-    frequency: const Duration(hours: 1),
-    initialDelay: const Duration(minutes: 5),
-    constraints: Constraints(
-      networkType: NetworkType.connected,
-    ),
-  );
+    await Workmanager().registerPeriodicTask(
+      'macradar-hourly-alerts',
+      oddsAlertTask,
+      frequency: const Duration(hours: 1),
+      initialDelay: const Duration(minutes: 5),
+      constraints: Constraints(
+        networkType: NetworkType.connected,
+      ),
+    );
+  } catch (_) {}
 
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -168,8 +171,15 @@ Future<void> main() async {
       await checkOddsAlerts(showNotifications: true);
     }
   } catch (_) {}
+}
 
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Önce arayüzü aç. Bildirim/WorkManager/ilk ağ isteği sonradan başlasın.
   runApp(const MacRadarApp());
+
+  Future.microtask(_initBackgroundServices);
 }
 
 

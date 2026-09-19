@@ -585,11 +585,11 @@ async function resolveTeamUrl(browser, teamName) {
       const body = await response.text();
       if (!foldName(body).includes(foldName(teamName))) return;
 
-      const re = /(?:https?:\\/\\/www\\.fotmob\\.com)?(\\/(?:[a-z]{2}\\/)?teams\\/\\d+\\/(?:overview|fixtures|table|squad|stats)?\\/?[^"'\\s<]*)/gi;
+      const re = /(?:https?:\/\/www\.fotmob\.com)?(\/(?:[a-z]{2}\/)?teams\/\d+\/(?:overview|fixtures|table|squad|stats)?\/?[^"'\s<]*)/gi;
       let m;
       while ((m = re.exec(body))) {
         candidates.push({
-          href: 'https://www.fotmob.com' + m[1].replace(/^\\/[a-z]{2}(?=\\/teams\\/)/, ''),
+          href: 'https://www.fotmob.com' + m[1].replace(/^\/[a-z]{2}(?=\/teams\/)/, ''),
           text: teamName,
         });
       }
@@ -614,11 +614,11 @@ async function resolveTeamUrl(browser, teamName) {
       if (href.startsWith('/')) href = 'https://www.fotmob.com' + href;
       try {
         const u = new URL(href);
-        if (!/(^|\\.)fotmob\\.com$/i.test(u.hostname)) continue;
-        const mm = u.pathname.match(/\\/teams\\/(\\d+)(?:\\/[^/]+)?(?:\\/([^/?#]+))?/i);
+        if (!/(^|\.)fotmob\.com$/i.test(u.hostname)) continue;
+        const mm = u.pathname.match(/\/teams\/(\d+)(?:\/[^/]+)?(?:\/([^/?#]+))?/i);
         if (!mm) continue;
         const id = mm[1];
-        const slug = mm[2] || foldName(teamName).replace(/\\s+/g, '-');
+        const slug = mm[2] || foldName(teamName).replace(/\s+/g, '-');
         candidates.push({
           href: 'https://www.fotmob.com/teams/' + id + '/fixtures/' + slug,
           text: x.text || '',
@@ -631,11 +631,11 @@ async function resolveTeamUrl(browser, teamName) {
     if (!best) throw new Error('FotMob takım sayfası bulunamadı: ' + teamName);
 
     const u = new URL(best.href);
-    const mm = u.pathname.match(/\\/teams\\/(\\d+)(?:\\/[^/]+)?(?:\\/([^/?#]+))?/i);
+    const mm = u.pathname.match(/\/teams\/(\d+)(?:\/[^/]+)?(?:\/([^/?#]+))?/i);
     if (!mm) throw new Error('FotMob takım adresi çözülemedi: ' + teamName);
 
     return 'https://www.fotmob.com/teams/' + mm[1] + '/fixtures/' +
-      (mm[2] || foldName(teamName).replace(/\\s+/g, '-'));
+      (mm[2] || foldName(teamName).replace(/\s+/g, '-'));
   } finally {
     await page.close().catch(() => {});
   }

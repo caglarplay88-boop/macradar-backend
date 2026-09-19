@@ -276,6 +276,131 @@ class Api {
   }
 }
 
+const String performanceCachePrefix = 'macradar_performance_v2_';
+final Map<String, Future<Map<String, dynamic>>> performanceInFlight = {};
+
+Future<Map<String, dynamic>?> readLocalPerformance(String eventId) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(performanceCachePrefix + eventId);
+    if (raw == null || raw.isEmpty) return null;
+    final decoded = jsonDecode(raw);
+    return decoded is Map
+        ? Map<String, dynamic>.from(decoded)
+        : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<void> saveLocalPerformance(
+  String eventId,
+  Map<String, dynamic> data,
+) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      performanceCachePrefix + eventId,
+      jsonEncode(data),
+    );
+  } catch (_) {}
+}
+
+bool _hasPerformanceData(Map<String, dynamic> d) {
+  return d['evTakimi'] is Map && d['deplasmanTakimi'] is Map;
+}
+
+String _friendlyPerformanceError(Object e) {
+  final raw = e.toString().replaceFirst('Exception: ', '');
+  final low = raw.toLowerCase();
+
+  if (low.contains('connection abort') ||
+      low.contains('connection reset') ||
+      low.contains('timed out') ||
+      low.contains('timeout')) {
+    return 'Bağlantı kesildi. Hazırlama sunucuda devam ediyor olabilir.';
+  }
+
+  return raw;
+}
+
+Future<Map<String, dynamic>> _fetchPerformanceFromServer(
+  String eventId, {
+  bool force = false,
+}) async {
+  final path = '/api/matches/' + eventId + '/performance';
+
+  final trigger = await api.post(
+    path,
+    {'force': force},
+  );
+
+  if (_hasPerformanceData(trigger)) {
+    await saveLocalPerformance(eventId, trigger);
+    return trigger;
+  }
+
+  Object? lastError;
+
+  // Sunucu veriyi arka planda hazırlar. Uzun tek HTTP isteği yerine
+  // kısa sorgularla sonucu beklediğimiz için Android bağlantıyı kesmez.
+  for (int attempt = 0; attempt < 48; attempt++) {
+    await Future.delayed(const Duration(seconds: 4));
+
+    try {
+      final d = await api.get(path);
+
+      if (_hasPerformanceData(d)) {
+        await saveLocalPerformance(eventId, d);
+        return d;
+      }
+
+      if (d['status']?.toString() == 'failed') {
+        throw Exception(
+          d['error']?.toString() ?? 'Performans verisi hazırlanamadı.',
+        );
+      }
+    } catch (e) {
+      lastError = e;
+      final msg = e.toString().toLowerCase();
+
+      // Sunucu açıkça "failed" döndürdüyse boşuna bekleme.
+      if (msg.contains('hazırlanamadı') ||
+          msg.contains('takım sayfası bulunamadı')) {
+        rethrow;
+      }
+    }
+  }
+
+  throw lastError ??
+      Exception('Performans verisi hazırlanırken süre aşıldı.');
+}
+
+Future<Map<String, dynamic>> fetchPerformancePersistent(
+  String eventId, {
+  bool force = false,
+}) {
+  if (!force) {
+    final current = performanceInFlight[eventId];
+    if (current != null) return current;
+  }
+
+  final future = _fetchPerformanceFromServer(
+    eventId,
+    force: force,
+  );
+
+  performanceInFlight[eventId] = future;
+
+  future.whenComplete(() {
+    if (identical(performanceInFlight[eventId], future)) {
+      performanceInFlight.remove(eventId);
+    }
+  });
+
+  return future;
+}
+
 class MacRadarApp extends StatelessWidget {
   const MacRadarApp({super.key});
 
@@ -1845,7 +1970,10 @@ class PerformancePanel extends StatefulWidget {
 class _PerformancePanelState extends State<PerformancePanel>
     with AutomaticKeepAliveClientMixin {
   bool loading = true;
+  bool refreshing = false;
+  bool loadedFromCache = false;
   String error = '';
+  String refreshError = '';
   Map<String, dynamic> data = {};
 
   @override
@@ -1890,24 +2018,75 @@ class _PerformancePanelState extends State<PerformancePanel>
         'M';
   }
 
-  Future<void> load() async {
+  Future<void> load({bool force = false}) async {
+    if (!force) {
+      final cached = await readLocalPerformance(widget.eventId);
+
+      if (cached != null && _hasPerformanceData(cached)) {
+        data = cached;
+        loadedFromCache = true;
+
+        if (mounted) {
+          setState(() {
+            loading = false;
+            refreshing = false;
+            error = '';
+            refreshError = '';
+          });
+        }
+        return;
+      }
+    }
+
     if (mounted) {
       setState(() {
-        loading = true;
+        if (data.isEmpty) {
+          loading = true;
+        } else {
+          refreshing = true;
+        }
         error = '';
+        refreshError = '';
       });
     }
 
     try {
-      data = await api.postLong(
-        '/api/matches/' + widget.eventId + '/performance',
-        {},
+      final fresh = await fetchPerformancePersistent(
+        widget.eventId,
+        force: force,
       );
-    } catch (e) {
-      error = e.toString().replaceFirst('Exception: ', '');
-    }
 
-    if (mounted) setState(() => loading = false);
+      data = fresh;
+      loadedFromCache = false;
+
+      if (mounted) {
+        setState(() {
+          loading = false;
+          refreshing = false;
+          error = '';
+          refreshError = '';
+        });
+      }
+    } catch (e) {
+      final message = _friendlyPerformanceError(e);
+
+      if (mounted) {
+        setState(() {
+          loading = false;
+          refreshing = false;
+
+          if (data.isEmpty) {
+            error = message;
+          } else {
+            refreshError = message;
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> refresh() async {
+    await load(force: true);
   }
 
   Widget _sectionTitle(String text, {String? trailing}) {
@@ -2469,13 +2648,93 @@ class _PerformancePanelState extends State<PerformancePanel>
     }
 
     return RefreshIndicator(
-      onRefresh: load,
+      onRefresh: refresh,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
         children: [
           _sectionTitle('Genel karşılaştırma', trailing: 'FotMob'),
           _summaryCard(home, away),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(3, 8, 3, 0),
+            child: Row(
+              children: [
+                Icon(
+                  loadedFromCache
+                      ? Icons.offline_pin_outlined
+                      : Icons.cloud_done_outlined,
+                  size: 13,
+                  color: const Color(0xFF6F7C74),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    loadedFromCache
+                        ? 'Telefona kaydedilmiş performans verisi'
+                        : 'Performans verisi telefona kaydedildi',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Color(0xFF6F7C74),
+                    ),
+                  ),
+                ),
+                if (refreshing)
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                  )
+                else
+                  InkWell(
+                    onTap: refresh,
+                    borderRadius: BorderRadius.circular(20),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.refresh_rounded,
+                            size: 13,
+                            color: Color(0xFF8BE2BE),
+                          ),
+                          SizedBox(width: 3),
+                          Text(
+                            'Yenile',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF8BE2BE),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (refreshError.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(top: 7),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 9,
+                vertical: 7,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2B2117),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(
+                refreshError + ' · Kayıtlı veri gösteriliyor.',
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: Color(0xFFFFC88A),
+                ),
+              ),
+            ),
           _sectionTitle('Kadro durumu'),
           _availabilityCard(home, away),
           const SizedBox(height: 8),

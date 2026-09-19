@@ -1,5 +1,4 @@
 const { Pool } = require('pg');
-const { median } = require('./util');
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL tanımlı değil.');
@@ -27,6 +26,7 @@ async function initDb() {
       event_id TEXT NOT NULL,
       captured_at TIMESTAMPTZ NOT NULL,
       bookmaker TEXT NOT NULL,
+      bookmaker_rank INTEGER,
       ms1 DOUBLE PRECISION,
       msx DOUBLE PRECISION,
       ms2 DOUBLE PRECISION,
@@ -50,6 +50,9 @@ async function initDb() {
       skipped_count INTEGER NOT NULL DEFAULT 0,
       error TEXT
     );
+
+    ALTER TABLE snapshots
+      ADD COLUMN IF NOT EXISTS bookmaker_rank INTEGER;
 
     CREATE INDEX IF NOT EXISTS idx_snapshots_event_time
       ON snapshots(event_id, captured_at DESC);
@@ -85,14 +88,15 @@ async function saveSnapshot({ eventId, url, slug, rows, capturedAt = new Date() 
         updated_at=EXCLUDED.updated_at
     `, [eventId, url, slug, capturedAt]);
 
-    for (const r of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
       await client.query(`
         INSERT INTO snapshots(
-          event_id,captured_at,bookmaker,ms1,msx,ms2,
+          event_id,captured_at,bookmaker,bookmaker_rank,ms1,msx,ms2,
           ou15_over,ou15_under,ou25_over,ou25_under,btts_yes,btts_no
-        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       `, [
-        eventId, capturedAt, r.bookmaker,
+        eventId, capturedAt, r.bookmaker, i + 1,
         r.ms1 ?? null, r.msx ?? null, r.ms2 ?? null,
         r.ou15_over ?? null, r.ou15_under ?? null,
         r.ou25_over ?? null, r.ou25_under ?? null,
@@ -112,7 +116,8 @@ async function listMatches({ activeOnly = false } = {}) {
   const q = `
     SELECT m.*,
       (SELECT MAX(s.captured_at) FROM snapshots s WHERE s.event_id=m.event_id) AS last_capture,
-      (SELECT COUNT(*)::int FROM snapshots s WHERE s.event_id=m.event_id) AS row_count
+      (SELECT COUNT(*)::int FROM snapshots s WHERE s.event_id=m.event_id) AS row_count,
+      (SELECT COUNT(DISTINCT s.captured_at)::int FROM snapshots s WHERE s.event_id=m.event_id) AS capture_count
     FROM matches m
     ${activeOnly ? 'WHERE m.active=TRUE' : ''}
     ORDER BY COALESCE((SELECT MAX(s2.captured_at) FROM snapshots s2 WHERE s2.event_id=m.event_id),m.updated_at) DESC
@@ -132,7 +137,7 @@ async function getMatch(eventId) {
   let rows = [];
   if (latest) {
     rows = (await pool.query(
-      'SELECT * FROM snapshots WHERE event_id=$1 AND captured_at=$2 ORDER BY bookmaker', [eventId, latest]
+      'SELECT * FROM snapshots WHERE event_id=$1 AND captured_at=$2 ORDER BY bookmaker_rank NULLS LAST, id', [eventId, latest]
     )).rows;
   }
 
@@ -147,20 +152,46 @@ async function getMatch(eventId) {
     groups.get(key).push(r);
   }
 
-  const history = [...groups.entries()].map(([captured_at, a]) => ({
-    captured_at,
-    ms1: median(a.map(x => x.ms1)),
-    msx: median(a.map(x => x.msx)),
-    ms2: median(a.map(x => x.ms2)),
-    ou15_over: median(a.map(x => x.ou15_over)),
-    ou15_under: median(a.map(x => x.ou15_under)),
-    ou25_over: median(a.map(x => x.ou25_over)),
-    ou25_under: median(a.map(x => x.ou25_under)),
-    btts_yes: median(a.map(x => x.btts_yes)),
-    btts_no: median(a.map(x => x.btts_no))
-  }));
+  const keyOf = name => String(name || '').toLowerCase().replace(/\s+/g, '');
+  const preferred =
+    rows.find(x => keyOf(x.bookmaker).startsWith('1xbet')) ||
+    rows[0] ||
+    null;
+  const preferredKey = keyOf(preferred?.bookmaker);
 
-  return { ...m, latest_capture: latest, latest_rows: rows, history };
+  const history = [...groups.entries()].map(([captured_at, a]) => {
+    const ordered = [...a].sort((x, y) =>
+      (x.bookmaker_rank ?? 999) - (y.bookmaker_rank ?? 999) || Number(x.id) - Number(y.id)
+    );
+    const picked =
+      (preferredKey ? ordered.find(x => keyOf(x.bookmaker) === preferredKey) : null) ||
+      ordered.find(x => keyOf(x.bookmaker).startsWith('1xbet')) ||
+      ordered[0];
+
+    if (!picked) return null;
+
+    return {
+      captured_at,
+      bookmaker: picked.bookmaker,
+      ms1: picked.ms1,
+      msx: picked.msx,
+      ms2: picked.ms2,
+      ou15_over: picked.ou15_over,
+      ou15_under: picked.ou15_under,
+      ou25_over: picked.ou25_over,
+      ou25_under: picked.ou25_under,
+      btts_yes: picked.btts_yes,
+      btts_no: picked.btts_no
+    };
+  }).filter(Boolean);
+
+  return {
+    ...m,
+    latest_capture: latest,
+    latest_rows: rows,
+    history_bookmaker: preferred?.bookmaker || null,
+    history
+  };
 }
 
 async function setActive(eventId, active) {

@@ -3,7 +3,8 @@ const {
   listMatches,
   createWorkerRun,
   updateWorkerRun,
-  getRefreshMinutes
+  getRefreshMinutes,
+  setActive
 } = require('./db');
 const { pullAndSave } = require('./puller');
 const { closeBrowser } = require('./odds');
@@ -16,6 +17,25 @@ function dueForRefresh(match, force, refreshMinutes) {
   if (force || !match.last_capture) return true;
   const ageMs = Date.now() - new Date(match.last_capture).getTime();
   return ageMs >= refreshMinutes * 60 * 1000;
+}
+
+function kickoffAtMs(match) {
+  if (!match?.match_date || !match?.kickoff_time) return null;
+
+  const date = String(match.match_date).slice(0, 10);
+  const m = String(match.kickoff_time).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !m) return null;
+
+  const hh = String(Number(m[1])).padStart(2, '0');
+  const mm = String(Number(m[2])).padStart(2, '0');
+  const ms = new Date(`${date}T${hh}:${mm}:00+03:00`).getTime();
+
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function hasStarted(match, now = Date.now()) {
+  const kickoff = kickoffAtMs(match);
+  return kickoff !== null && now >= kickoff;
 }
 
 async function runWorkerOnce({ force = false, eventIds = null } = {}) {
@@ -37,6 +57,19 @@ async function runWorkerOnce({ force = false, eventIds = null } = {}) {
 
     const refreshMinutes = await getRefreshMinutes();
     let matches = await listMatches({ activeOnly: true });
+
+    // Bu sistem yalnızca PRE-MATCH oranlarını takip eder.
+    // Başlama saati gelen maçları otomatik pasife al; live oranları asla kaydetme.
+    const startedMatches = matches.filter(m => hasStarted(m));
+    for (const m of startedMatches) {
+      await setActive(m.event_id, false);
+      console.log(`[worker] maç başladı, takip durduruldu: ${m.match_slug || m.event_id} (${m.match_date || ''} ${m.kickoff_time || ''})`);
+    }
+    if (startedMatches.length) {
+      const startedIds = new Set(startedMatches.map(m => String(m.event_id)));
+      matches = matches.filter(m => !startedIds.has(String(m.event_id)));
+    }
+
     if (Array.isArray(eventIds) && eventIds.length) {
       const wanted = new Set(eventIds.map(String));
       matches = matches.filter(m => wanted.has(String(m.event_id)));

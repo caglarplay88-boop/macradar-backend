@@ -1,0 +1,76 @@
+name: FotMob Probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fotmob-probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe FotMob data routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const H={
+            'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/149 Mobile Safari/537.36',
+            'accept':'application/json,text/plain,*/*',
+            'referer':'https://www.fotmob.com/'
+          };
+          async function j(url){
+            const r=await fetch(url,{headers:H});
+            console.log('GET',url,'=>',r.status,r.headers.get('content-type'));
+            const t=await r.text();
+            if(!r.ok) throw new Error(t.slice(0,500));
+            return JSON.parse(t);
+          }
+          function walk(o,path='root',cb){
+            if(!o||typeof o!=='object') return;
+            cb(o,path);
+            if(Array.isArray(o)) o.forEach((v,i)=>walk(v,path+'['+i+']',cb));
+            else for(const [k,v] of Object.entries(o)) if(v&&typeof v==='object') walk(v,path+'.'+k,cb);
+          }
+          const search=await j('https://www.fotmob.com/api/data/search/suggest?hits=20&lang=en&term=Brann');
+          console.log('SEARCH',JSON.stringify(search).slice(0,3500));
+          let team=null;
+          walk(search,'root',(o,p)=>{
+            const n=String(o.name??o.teamName??o.title??'');
+            const type=String(o.type??o.entityType??'');
+            if(!team && /brann/i.test(n) && (/team/i.test(type)||o.teamId||/\/teams\//.test(String(o.pageUrl??o.url??'')))){
+              team={o,p};
+            }
+          });
+          console.log('TEAMCAND',JSON.stringify(team));
+          const id=Number(team?.o?.id??team?.o?.teamId??team?.o?.entityId??8468);
+          const td=await j('https://www.fotmob.com/api/data/teams?id='+id+'&ccode3=NOR');
+          let matches=[];
+          walk(td,'root',(o,p)=>{
+            const home=String(o.home?.name??o.homeTeam?.name??'');
+            const away=String(o.away?.name??o.awayTeam?.name??'');
+            const mid=o.id??o.matchId??o.eventId;
+            if(mid && home && away) matches.push({id:mid,home,away,path:p,status:o.status});
+          });
+          console.log('TEAM MATCHES',JSON.stringify(matches.slice(0,8)));
+          const m=matches[0];
+          if(!m) throw new Error('no match');
+          const md=await j('https://www.fotmob.com/api/data/matchDetails?matchId='+m.id);
+          let hits=[];
+          walk(md,'root',(o,p)=>{
+            const k=String(o.key??o.statKey??'');
+            const title=String(o.title??o.name??o.label??'');
+            if(/expected.?goals|\bxg\b/i.test(k+' '+title)){
+              hits.push({path:p,obj:o});
+            }
+          });
+          console.log('XG HITS',JSON.stringify(hits.slice(0,20)).slice(0,9000));
+          let un=[];
+          walk(md,'root',(o,p)=>{
+            if(Array.isArray(o.homeTeam?.unavailable)||Array.isArray(o.awayTeam?.unavailable)){
+              un.push({path:p,home:o.homeTeam?.unavailable,away:o.awayTeam?.unavailable});
+            }
+          });
+          console.log('UNAVAILABLE',JSON.stringify(un.slice(0,3)).slice(0,5000));
+          NODE

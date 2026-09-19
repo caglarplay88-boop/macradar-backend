@@ -545,29 +545,148 @@ function matchBetweenUpcoming(matches, a, b) {
     .sort((x,y) => Math.abs(Date.parse(x.date) - Date.now()) - Math.abs(Date.parse(y.date) - Date.now()))[0] || null;
 }
 
+
+function foldName(v) {
+  return String(v || '')
+    .toLowerCase()
+    .replace(/ø/g, 'o')
+    .replace(/æ/g, 'ae')
+    .replace(/å/g, 'a')
+    .replace(/ß/g, 'ss')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function scoreTeamCandidate(candidate, teamName) {
+  const target = foldName(teamName);
+  const text = foldName(candidate.text);
+  const href = foldName(candidate.href);
+  if (!target) return 0;
+  if (text === target) return 100;
+  if (text.startsWith(target) || target.startsWith(text)) return 90;
+  if (text.includes(target) || target.includes(text)) return 80;
+
+  const targetParts = target.split(' ').filter(x => x.length > 2);
+  const hits = targetParts.filter(x => text.includes(x) || href.includes(x)).length;
+  if (targetParts.length && hits === targetParts.length) return 70;
+  return hits * 12;
+}
+
+async function resolveTeamUrl(browser, teamName) {
+  const page = await newPage(browser);
+  const candidates = [];
+
+  page.on('response', async response => {
+    try {
+      const type = response.headers()['content-type'] || '';
+      if (!/json|javascript/i.test(type)) return;
+      const body = await response.text();
+      if (!foldName(body).includes(foldName(teamName))) return;
+
+      const re = /(?:https?:\\/\\/www\\.fotmob\\.com)?(\\/(?:[a-z]{2}\\/)?teams\\/\\d+\\/(?:overview|fixtures|table|squad|stats)?\\/?[^"'\\s<]*)/gi;
+      let m;
+      while ((m = re.exec(body))) {
+        candidates.push({
+          href: 'https://www.fotmob.com' + m[1].replace(/^\\/[a-z]{2}(?=\\/teams\\/)/, ''),
+          text: teamName,
+        });
+      }
+    } catch {}
+  });
+
+  try {
+    const searchUrl = 'https://www.fotmob.com/search?q=' + encodeURIComponent(teamName);
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await sleep(2500);
+
+    const dom = await page.evaluate(() => {
+      return [...document.querySelectorAll('a[href*="/teams/"]')].map(a => ({
+        href: a.getAttribute('href') || '',
+        text: (a.textContent || '').trim(),
+      }));
+    }).catch(() => []);
+
+    for (const x of dom) {
+      let href = String(x.href || '');
+      if (!href) continue;
+      if (href.startsWith('/')) href = 'https://www.fotmob.com' + href;
+      try {
+        const u = new URL(href);
+        if (!/(^|\\.)fotmob\\.com$/i.test(u.hostname)) continue;
+        const mm = u.pathname.match(/\\/teams\\/(\\d+)(?:\\/[^/]+)?(?:\\/([^/?#]+))?/i);
+        if (!mm) continue;
+        const id = mm[1];
+        const slug = mm[2] || foldName(teamName).replace(/\\s+/g, '-');
+        candidates.push({
+          href: 'https://www.fotmob.com/teams/' + id + '/fixtures/' + slug,
+          text: x.text || '',
+        });
+      } catch {}
+    }
+
+    candidates.sort((a, b) => scoreTeamCandidate(b, teamName) - scoreTeamCandidate(a, teamName));
+    const best = candidates.find(x => scoreTeamCandidate(x, teamName) >= 24);
+    if (!best) throw new Error('FotMob takım sayfası bulunamadı: ' + teamName);
+
+    const u = new URL(best.href);
+    const mm = u.pathname.match(/\\/teams\\/(\\d+)(?:\\/[^/]+)?(?:\\/([^/?#]+))?/i);
+    if (!mm) throw new Error('FotMob takım adresi çözülemedi: ' + teamName);
+
+    return 'https://www.fotmob.com/teams/' + mm[1] + '/fixtures/' +
+      (mm[2] || foldName(teamName).replace(/\\s+/g, '-'));
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 async function buildPerformancePackage({ home, away }) {
-  if (!home?.name || !home?.url || !away?.name || !away?.url) throw new Error('home/away name ve FotMob url gerekli.');
-  for (const x of [home.url, away.url]) {
-    const u = new URL(x);
-    if (!/(^|\.)fotmob\.com$/i.test(u.hostname)) throw new Error('Yalnız FotMob URL kabul edilir.');
+  if (!home?.name || !away?.name) {
+    throw new Error('home/away takım adı gerekli.');
   }
 
-  const cacheKey = JSON.stringify([home.name,home.url,away.name,away.url]);
+  const cacheKey = JSON.stringify([home.name, home.url || '', away.name, away.url || '']);
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < CACHE_MS) return { ...hit.data, cache: true };
 
   const browser = await launchBrowser();
   try {
-    const homePack = await buildTeam(browser, home, away.name);
-    const awayPack = await buildTeam(browser, away, home.name);
+    const homeInfo = {
+      name: home.name,
+      url: home.url || await resolveTeamUrl(browser, home.name),
+    };
+    const awayInfo = {
+      name: away.name,
+      url: away.url || await resolveTeamUrl(browser, away.name),
+    };
+
+    for (const x of [homeInfo.url, awayInfo.url]) {
+      const u = new URL(x);
+      if (!/(^|\.)fotmob\.com$/i.test(u.hostname)) {
+        throw new Error('Yalnız FotMob URL kabul edilir.');
+      }
+    }
+
+    const resolvedCacheKey = JSON.stringify([homeInfo.name, homeInfo.url, awayInfo.name, awayInfo.url]);
+    const resolvedHit = cache.get(resolvedCacheKey);
+    if (resolvedHit && Date.now() - resolvedHit.at < CACHE_MS) {
+      return { ...resolvedHit.data, cache: true };
+    }
+
+    const homePack = await buildTeam(browser, homeInfo, awayInfo.name);
+    const awayPack = await buildTeam(browser, awayInfo, homeInfo.name);
 
     const targetMatch =
-      matchBetweenUpcoming(homePack._allMatches, home.name, away.name) ||
-      matchBetweenUpcoming(awayPack._allMatches, home.name, away.name);
+      matchBetweenUpcoming(homePack._allMatches, homeInfo.name, awayInfo.name) ||
+      matchBetweenUpcoming(awayPack._allMatches, homeInfo.name, awayInfo.name);
 
     const unavailable = await getUnavailable(browser, targetMatch?.url);
 
-    const homeIsMatchHome = targetMatch ? normalizeName(targetMatch.home).includes(normalizeName(home.name)) : true;
+    const homeIsMatchHome = targetMatch
+      ? normalizeName(targetMatch.home).includes(normalizeName(homeInfo.name))
+      : true;
+
     homePack.eksikler = homeIsMatchHome ? unavailable.home : unavailable.away;
     awayPack.eksikler = homeIsMatchHome ? unavailable.away : unavailable.home;
 
@@ -582,15 +701,26 @@ async function buildPerformancePackage({ home, away }) {
         deplasman: targetMatch.away,
         tarih: targetMatch.date,
         url: targetMatch.url
-      } : { ev: home.name, deplasman: away.name, tarih: null, url: null },
+      } : {
+        ev: homeInfo.name,
+        deplasman: awayInfo.name,
+        tarih: null,
+        url: null
+      },
       evTakimi: homePack,
       deplasmanTakimi: awayPack,
       h2h: { bulunan: h2h.length, hedef: 4, maclar: h2h },
-      meta: { kaynak: 'FotMob', olusturmaZamani: new Date().toISOString() },
+      meta: {
+        kaynak: 'FotMob',
+        olusturmaZamani: new Date().toISOString(),
+        homeUrl: homeInfo.url,
+        awayUrl: awayInfo.url,
+      },
       cache: false
     };
 
     cache.set(cacheKey, { at: Date.now(), data });
+    cache.set(resolvedCacheKey, { at: Date.now(), data });
     return data;
   } finally {
     await browser.close().catch(() => {});

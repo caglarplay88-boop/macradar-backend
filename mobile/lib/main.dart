@@ -667,20 +667,9 @@ class _TrackedPageState extends State<TrackedPage> {
           ? x
               .whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
-              .where((e) => e['active'] == true)
+              .where((e) => e['active'] == true || e['archived'] == true)
               .toList()
           : [];
-
-      matches.sort((a, b) {
-        final ad = a['match_date']?.toString() ?? '9999-12-31';
-        final bd = b['match_date']?.toString() ?? '9999-12-31';
-        final dateCmp = ad.compareTo(bd);
-        if (dateCmp != 0) return dateCmp;
-
-        final at = a['kickoff_time']?.toString() ?? '99:99';
-        final bt = b['kickoff_time']?.toString() ?? '99:99';
-        return at.compareTo(bt);
-      });
     } catch (e) {
       error = e.toString();
     }
@@ -729,6 +718,29 @@ class _TrackedPageState extends State<TrackedPage> {
     return nice(slug);
   }
 
+  String resultText(Map<String, dynamic> m) {
+    final h = m['home_score'];
+    final a = m['away_score'];
+    if (h is num && a is num) return '${h.toInt()}-${a.toInt()}';
+    return '';
+  }
+
+  int scheduleKey(Map<String, dynamic> m) {
+    final d = m['match_date']?.toString();
+    final t = m['kickoff_time']?.toString();
+    if (d == null || t == null) return 0;
+    final dm = RegExp(r'(\d{4})-(\d{2})-(\d{2})').firstMatch(d);
+    final tm = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(t);
+    if (dm == null || tm == null) return 0;
+    return DateTime(
+      int.parse(dm.group(1)!),
+      int.parse(dm.group(2)!),
+      int.parse(dm.group(3)!),
+      int.parse(tm.group(1)!),
+      int.parse(tm.group(2)!),
+    ).millisecondsSinceEpoch;
+  }
+
   Future<void> remove(Map<String, dynamic> m) async {
     try {
       await api.delete('/api/matches/' + m['event_id'].toString());
@@ -741,98 +753,165 @@ class _TrackedPageState extends State<TrackedPage> {
     }
   }
 
+  Widget sectionTitle(String title, int count) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 5),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .8,
+              color: Color(0xFF9AA8B6),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            count.toString(),
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF9AA8B6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget matchCard(Map<String, dynamic> m, {required bool archived}) {
+    final score = resultText(m);
+    final lifecycle = m['lifecycle']?.toString() ?? '';
+    final statusLine = archived
+        ? (lifecycle == 'finished'
+            ? (score.isNotEmpty ? 'Bitti · $score' : 'Bitti')
+            : 'Maç başladı · oran takibi kilitlendi')
+        : 'Oran takibi aktif';
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(10, 2, 10, 4),
+      child: ListTile(
+        dense: true,
+        visualDensity: const VisualDensity(vertical: -1),
+        leading: CircleAvatar(
+          radius: 18,
+          child: Icon(
+            archived ? Icons.lock_outline : Icons.sports_soccer,
+            size: 19,
+          ),
+        ),
+        title: Text(
+          trackedTitle(m),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              matchDateLabel(m['match_date']) +
+                  '  ·  ' +
+                  (m['kickoff_time']?.toString().isNotEmpty == true
+                      ? m['kickoff_time'].toString()
+                      : '--:--') +
+                  (m['league']?.toString().isNotEmpty == true
+                      ? '  ·  ' + m['league'].toString()
+                      : ''),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              statusLine +
+                  '  ·  Son oran: ' +
+                  shortStamp(m['last_capture']) +
+                  '  ·  ' +
+                  (m['capture_count']?.toString() ?? '0') +
+                  ' tur',
+              style: TextStyle(
+                fontSize: 10,
+                color: archived
+                    ? const Color(0xFFA8B3AC)
+                    : const Color(0xFF86D8B4),
+              ),
+            ),
+          ],
+        ),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MatchDetail(
+                eventId: m['event_id'].toString(),
+                title: trackedTitle(m),
+              ),
+            ),
+          );
+          if (mounted) load();
+        },
+        trailing: PopupMenuButton<String>(
+          onSelected: (x) {
+            if (x == 'remove') remove(m);
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: 'remove',
+              child: Text(archived ? 'Geçmişten kaldır' : 'Takibi bırak'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
     if (error.isNotEmpty) return ErrorPane(message: error, retry: load);
 
+    final active = matches.where((m) => m['active'] == true).toList()
+      ..sort((a, b) => scheduleKey(a).compareTo(scheduleKey(b)));
+
+    final archived = matches.where((m) => m['archived'] == true).toList()
+      ..sort((a, b) => scheduleKey(b).compareTo(scheduleKey(a)));
+
+    if (active.isEmpty && archived.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 170),
+            Icon(Icons.bookmark_border, size: 46),
+            SizedBox(height: 10),
+            Center(child: Text('Takip edilen maç yok.')),
+          ],
+        ),
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: load,
-      child: matches.isEmpty
-          ? ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: const [
-                SizedBox(height: 170),
-                Icon(Icons.bookmark_border, size: 46),
-                SizedBox(height: 10),
-                Center(child: Text('Takip edilen maç yok.')),
-              ],
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(10),
-              itemCount: matches.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 5),
-              itemBuilder: (context, i) {
-                final m = matches[i];
-                final slug = m['match_slug']?.toString() ??
-                    m['event_id'].toString();
-
-                return Card(
-                  child: ListTile(
-                    dense: true,
-                    visualDensity: const VisualDensity(vertical: -1),
-                    leading: const CircleAvatar(
-                      radius: 18,
-                      child: Icon(Icons.sports_soccer, size: 19),
-                    ),
-                    title: Text(
-                      trackedTitle(m),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          matchDateLabel(m['match_date']) +
-                              '  ·  ' +
-                              (m['kickoff_time']?.toString().isNotEmpty == true
-                                  ? m['kickoff_time'].toString()
-                                  : '--:--') +
-                              (m['league']?.toString().isNotEmpty == true
-                                  ? '  ·  ' + m['league'].toString()
-                                  : ''),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Son oran: ' + shortStamp(m['last_capture']) +
-                              '  ·  ' +
-                              (m['capture_count']?.toString() ?? '0') +
-                              ' tur',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ],
-                    ),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MatchDetail(
-                          eventId: m['event_id'].toString(),
-                          title: trackedTitle(m),
-                        ),
-                      ),
-                    ),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (x) {
-                        if (x == 'remove') remove(m);
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: 'remove',
-                          child: Text('Takipten çıkar'),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 18),
+        children: [
+          if (active.isNotEmpty) ...[
+            sectionTitle('AKTİF TAKİP', active.length),
+            for (final m in active) matchCard(m, archived: false),
+          ],
+          if (archived.isNotEmpty) ...[
+            sectionTitle('BİTEN / KİLİTLİ', archived.length),
+            for (final m in archived) matchCard(m, archived: true),
+          ],
+        ],
+      ),
     );
   }
 }

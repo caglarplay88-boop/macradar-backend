@@ -404,7 +404,19 @@ class _BulletinPageState extends State<BulletinPage> {
     setState(() => saving = true);
 
     try {
-      final d = await api.post('/api/follow', {'urls': selected.toList()});
+      final chosen = matches
+          .where((m) => selected.contains(m['url']?.toString() ?? ''))
+          .map((m) => {
+                'url': m['url']?.toString() ?? '',
+                'eventId': m['eventId']?.toString() ?? '',
+                'name': m['name']?.toString() ?? '',
+                'league': m['league']?.toString() ?? '',
+                'date': iso(date),
+                'time': m['time']?.toString() ?? '',
+              })
+          .toList();
+
+      final d = await api.post('/api/follow', {'matches': chosen});
       final rows = d['results'] is List ? d['results'] as List : [];
       final ok = rows.where((e) => e is Map && e['ok'] == true).length;
 
@@ -641,6 +653,17 @@ class _TrackedPageState extends State<TrackedPage> {
               .where((e) => e['active'] == true)
               .toList()
           : [];
+
+      matches.sort((a, b) {
+        final ad = a['match_date']?.toString() ?? '9999-12-31';
+        final bd = b['match_date']?.toString() ?? '9999-12-31';
+        final dateCmp = ad.compareTo(bd);
+        if (dateCmp != 0) return dateCmp;
+
+        final at = a['kickoff_time']?.toString() ?? '99:99';
+        final bt = b['kickoff_time']?.toString() ?? '99:99';
+        return at.compareTo(bt);
+      });
     } catch (e) {
       error = e.toString();
     }
@@ -669,6 +692,24 @@ class _TrackedPageState extends State<TrackedPage> {
     } catch (_) {
       return raw.toString();
     }
+  }
+
+  String matchDateLabel(dynamic raw) {
+    if (raw == null || raw.toString().isEmpty) return 'Tarih yok';
+    final s = raw.toString();
+    try {
+      final p = s.substring(0, 10).split('-');
+      return p[2] + '/' + p[1] + '/' + p[0];
+    } catch (_) {
+      return s;
+    }
+  }
+
+  String trackedTitle(Map<String, dynamic> m) {
+    final display = m['display_name']?.toString().trim() ?? '';
+    if (display.isNotEmpty) return display;
+    final slug = m['match_slug']?.toString() ?? m['event_id'].toString();
+    return nice(slug);
   }
 
   Future<void> remove(Map<String, dynamic> m) async {
@@ -718,25 +759,45 @@ class _TrackedPageState extends State<TrackedPage> {
                       child: Icon(Icons.sports_soccer, size: 19),
                     ),
                     title: Text(
-                      nice(slug),
+                      trackedTitle(m),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    subtitle: Text(
-                      'Son: ' + shortStamp(m['last_capture']) +
-                          '  ·  ' +
-                          (m['capture_count']?.toString() ?? '0') +
-                          ' tur',
-                      style: const TextStyle(fontSize: 11),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          matchDateLabel(m['match_date']) +
+                              '  ·  ' +
+                              (m['kickoff_time']?.toString().isNotEmpty == true
+                                  ? m['kickoff_time'].toString()
+                                  : '--:--') +
+                              (m['league']?.toString().isNotEmpty == true
+                                  ? '  ·  ' + m['league'].toString()
+                                  : ''),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Son oran: ' + shortStamp(m['last_capture']) +
+                              '  ·  ' +
+                              (m['capture_count']?.toString() ?? '0') +
+                              ' tur',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ],
                     ),
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => MatchDetail(
                           eventId: m['event_id'].toString(),
-                          title: nice(slug),
+                          title: trackedTitle(m),
                         ),
                       ),
                     ),
@@ -779,6 +840,7 @@ class _MatchDetailState extends State<MatchDetail> {
   bool autoRequested = false;
   String error = '';
   String refreshMessage = '';
+  String selectedMarket = 'MS';
   Map<String, dynamic> data = {};
 
   @override
@@ -1137,54 +1199,86 @@ class _MatchDetailState extends State<MatchDetail> {
                         for (final row in latest)
                           LatestBookmakerCard(row: row),
                       const SizedBox(height: 10),
-                      MarketSection(
-                        title: 'MS 1 / X / 2',
-                        marketCode: 'MS',
-                        bookmaker: historyBookmaker,
-                        history: history,
-                        series: msSeries,
-                        report: marketReport(
-                          history,
-                          'MS',
-                          msSeries,
+                      const Text(
+                        'ORAN HAREKETİ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
                         ),
                       ),
-                      MarketSection(
-                        title: '1.5 Alt / Üst',
-                        marketCode: '1.5 Alt / Üst',
-                        bookmaker: historyBookmaker,
-                        history: history,
-                        series: ou15Series,
-                        report: marketReport(
-                          history,
-                          '1.5 Alt / Üst',
-                          ou15Series,
-                        ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final item in const [
+                            ('MS', 'MS'),
+                            ('1.5', '1.5'),
+                            ('2.5', '2.5'),
+                            ('KG', 'KG'),
+                          ])
+                            ChoiceChip(
+                              label: Text(
+                                item.$1,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              selected: selectedMarket == item.$2,
+                              onSelected: (_) {
+                                setState(() => selectedMarket = item.$2);
+                              },
+                            ),
+                        ],
                       ),
-                      MarketSection(
-                        title: '2.5 Alt / Üst',
-                        marketCode: '2.5 Alt / Üst',
-                        bookmaker: historyBookmaker,
-                        history: history,
-                        series: ou25Series,
-                        report: marketReport(
-                          history,
-                          '2.5 Alt / Üst',
-                          ou25Series,
+                      const SizedBox(height: 7),
+                      if (selectedMarket == 'MS')
+                        MarketSection(
+                          title: 'MS 1 / X / 2',
+                          marketCode: 'MS',
+                          bookmaker: historyBookmaker,
+                          history: history,
+                          series: msSeries,
+                          report: marketReport(history, 'MS', msSeries),
+                        )
+                      else if (selectedMarket == '1.5')
+                        MarketSection(
+                          title: '1.5 Alt / Üst',
+                          marketCode: '1.5 Alt / Üst',
+                          bookmaker: historyBookmaker,
+                          history: history,
+                          series: ou15Series,
+                          report: marketReport(
+                            history,
+                            '1.5 Alt / Üst',
+                            ou15Series,
+                          ),
+                        )
+                      else if (selectedMarket == '2.5')
+                        MarketSection(
+                          title: '2.5 Alt / Üst',
+                          marketCode: '2.5 Alt / Üst',
+                          bookmaker: historyBookmaker,
+                          history: history,
+                          series: ou25Series,
+                          report: marketReport(
+                            history,
+                            '2.5 Alt / Üst',
+                            ou25Series,
+                          ),
+                        )
+                      else
+                        MarketSection(
+                          title: 'KG Yok / Var',
+                          marketCode: 'KG Yok / Var',
+                          bookmaker: historyBookmaker,
+                          history: history,
+                          series: kgSeries,
+                          report: marketReport(
+                            history,
+                            'KG Yok / Var',
+                            kgSeries,
+                          ),
                         ),
-                      ),
-                      MarketSection(
-                        title: 'KG Yok / Var',
-                        marketCode: 'KG Yok / Var',
-                        bookmaker: historyBookmaker,
-                        history: history,
-                        series: kgSeries,
-                        report: marketReport(
-                          history,
-                          'KG Yok / Var',
-                          kgSeries,
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -2045,8 +2139,10 @@ class SystemPage extends StatefulWidget {
 
 class _SystemPageState extends State<SystemPage> {
   bool loading = true;
+  bool savingInterval = false;
   String error = '';
   Map<String, dynamic> data = {};
+  int refreshMinutes = 50;
 
   @override
   void initState() {
@@ -2064,11 +2160,55 @@ class _SystemPageState extends State<SystemPage> {
 
     try {
       data = await api.get('/api/system/status');
+      refreshMinutes =
+          (data['refresh_minutes'] as num?)?.toInt() ?? 50;
     } catch (e) {
       error = e.toString();
     }
 
     if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> saveInterval(int minutes) async {
+    if (savingInterval || minutes == refreshMinutes) return;
+
+    setState(() => savingInterval = true);
+
+    try {
+      final d = await api.post(
+        '/api/settings/refresh-interval',
+        {'minutes': minutes},
+      );
+
+      final saved =
+          (d['refresh_minutes'] as num?)?.toInt() ?? minutes;
+
+      if (mounted) {
+        setState(() {
+          refreshMinutes = saved;
+          savingInterval = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Oran çekme aralığı ' +
+                  saved.toString() +
+                  ' dakika oldu.',
+            ),
+          ),
+        );
+      }
+
+      await load();
+    } catch (e) {
+      if (mounted) {
+        setState(() => savingInterval = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    }
   }
 
   Widget stat(String k, dynamic v) {
@@ -2090,8 +2230,12 @@ class _SystemPageState extends State<SystemPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return const Center(child: CircularProgressIndicator());
-    if (error.isNotEmpty) return ErrorPane(message: error, retry: load);
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (error.isNotEmpty) {
+      return ErrorPane(message: error, retry: load);
+    }
 
     final run = data['last_run'] is Map
         ? Map<String, dynamic>.from(data['last_run'])
@@ -2103,8 +2247,8 @@ class _SystemPageState extends State<SystemPage> {
         padding: const EdgeInsets.all(14),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          const Icon(Icons.cloud_done_rounded, size: 44),
-          const SizedBox(height: 7),
+          const Icon(Icons.cloud_done_rounded, size: 42),
+          const SizedBox(height: 6),
           const Center(
             child: Text(
               'Sunucu bağlı',
@@ -2114,7 +2258,55 @@ class _SystemPageState extends State<SystemPage> {
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Oran çekme sıklığı',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Bütün aktif takip maçları için geçerlidir. Manuel “Şimdi güncelle” her zaman ayrıca çalışır.',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFFA7B0B8),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: [
+                      for (final minutes in const [15, 30, 45, 60])
+                        ChoiceChip(
+                          label: Text(
+                            minutes.toString() + ' dk',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          selected: refreshMinutes == minutes,
+                          onSelected: savingInterval
+                              ? null
+                              : (_) => saveInterval(minutes),
+                        ),
+                    ],
+                  ),
+                  if (savingInterval) ...[
+                    const SizedBox(height: 8),
+                    const LinearProgressIndicator(),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           stat('Aktif maç', data['active_matches']),
           stat('Toplam oran satırı', data['snapshot_rows']),
           stat('Son tur', run['status']),

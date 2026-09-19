@@ -18,7 +18,7 @@ function dueForRefresh(match, force) {
   return ageMs >= MIN_REFRESH_MINUTES * 60 * 1000;
 }
 
-async function runWorkerOnce({ force = false } = {}) {
+async function runWorkerOnce({ force = false, eventIds = null } = {}) {
   const lockClient = await pool.connect();
   let locked = false;
   let runId = null;
@@ -35,7 +35,11 @@ async function runWorkerOnce({ force = false } = {}) {
       return { skipped: true, reason: 'worker_already_running' };
     }
 
-    const matches = await listMatches({ activeOnly: true });
+    let matches = await listMatches({ activeOnly: true });
+    if (Array.isArray(eventIds) && eventIds.length) {
+      const wanted = new Set(eventIds.map(String));
+      matches = matches.filter(m => wanted.has(String(m.event_id)));
+    }
     matches.sort((a, b) => {
       const ta = a.last_capture ? new Date(a.last_capture).getTime() : 0;
       const tb = b.last_capture ? new Date(b.last_capture).getTime() : 0;

@@ -574,71 +574,154 @@ function scoreTeamCandidate(candidate, teamName) {
   return hits * 12;
 }
 
-async function resolveTeamUrl(browser, teamName) {
-  const page = await newPage(browser);
-  const candidates = [];
+async function fotmobSearch(term) {
+  const urls = [
+    'https://www.fotmob.com/api/data/search/suggest?hits=30&lang=en&term=' + encodeURIComponent(term),
+    'https://www.fotmob.com/api/searchData?term=' + encodeURIComponent(term),
+  ];
 
-  page.on('response', async response => {
+  let lastError = null;
+
+  for (const url of urls) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
     try {
-      const type = response.headers()['content-type'] || '';
-      if (!/json|javascript/i.test(type)) return;
-      const body = await response.text();
-      if (!foldName(body).includes(foldName(teamName))) return;
+      const r = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'user-agent': UA,
+          'accept': 'application/json,text/plain,*/*',
+          'referer': 'https://www.fotmob.com/',
+          'accept-language': 'en-US,en;q=0.9',
+        },
+      });
 
-      const re = /(?:https?:\/\/www\.fotmob\.com)?(\/(?:[a-z]{2}\/)?teams\/\d+\/(?:overview|fixtures|table|squad|stats)?\/?[^"'\s<]*)/gi;
-      let m;
-      while ((m = re.exec(body))) {
-        candidates.push({
-          href: 'https://www.fotmob.com' + m[1].replace(/^\/[a-z]{2}(?=\/teams\/)/, ''),
-          text: teamName,
-        });
+      if (!r.ok) {
+        lastError = new Error('FotMob arama HTTP ' + r.status);
+        continue;
       }
-    } catch {}
-  });
 
-  try {
-    const searchUrl = 'https://www.fotmob.com/search?q=' + encodeURIComponent(teamName);
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await sleep(2500);
-
-    const dom = await page.evaluate(() => {
-      return [...document.querySelectorAll('a[href*="/teams/"]')].map(a => ({
-        href: a.getAttribute('href') || '',
-        text: (a.textContent || '').trim(),
-      }));
-    }).catch(() => []);
-
-    for (const x of dom) {
-      let href = String(x.href || '');
-      if (!href) continue;
-      if (href.startsWith('/')) href = 'https://www.fotmob.com' + href;
-      try {
-        const u = new URL(href);
-        if (!/(^|\.)fotmob\.com$/i.test(u.hostname)) continue;
-        const mm = u.pathname.match(/\/teams\/(\d+)(?:\/[^/]+)?(?:\/([^/?#]+))?/i);
-        if (!mm) continue;
-        const id = mm[1];
-        const slug = mm[2] || foldName(teamName).replace(/\s+/g, '-');
-        candidates.push({
-          href: 'https://www.fotmob.com/teams/' + id + '/fixtures/' + slug,
-          text: x.text || '',
-        });
-      } catch {}
+      const data = await r.json();
+      return data;
+    } catch (e) {
+      lastError = e;
+    } finally {
+      clearTimeout(timer);
     }
-
-    candidates.sort((a, b) => scoreTeamCandidate(b, teamName) - scoreTeamCandidate(a, teamName));
-    const best = candidates.find(x => scoreTeamCandidate(x, teamName) >= 24);
-    if (!best) throw new Error('FotMob takım sayfası bulunamadı: ' + teamName);
-
-    const u = new URL(best.href);
-    const mm = u.pathname.match(/\/teams\/(\d+)(?:\/[^/]+)?(?:\/([^/?#]+))?/i);
-    if (!mm) throw new Error('FotMob takım adresi çözülemedi: ' + teamName);
-
-    return 'https://www.fotmob.com/teams/' + mm[1] + '/fixtures/' +
-      (mm[2] || foldName(teamName).replace(/\s+/g, '-'));
-  } finally {
-    await page.close().catch(() => {});
   }
+
+  throw lastError || new Error('FotMob arama başarısız.');
+}
+
+function collectTeamCandidates(obj, out = [], path = 'root') {
+  if (obj == null) return out;
+
+  if (Array.isArray(obj)) {
+    obj.forEach((v, i) => collectTeamCandidates(v, out, path + '[' + i + ']'));
+    return out;
+  }
+
+  if (typeof obj !== 'object') return out;
+
+  const type = foldName(
+    obj.type ??
+    obj.entityType ??
+    obj.suggestionType ??
+    obj.category ??
+    obj.kind ??
+    ''
+  );
+
+  const name = String(
+    obj.name ??
+    obj.teamName ??
+    obj.title ??
+    obj.label ??
+    obj.text ??
+    obj.fullName ??
+    ''
+  ).trim();
+
+  const id =
+    num(obj.id) ??
+    num(obj.teamId) ??
+    num(obj.team_id) ??
+    num(obj.entityId) ??
+    num(obj.suggestionId);
+
+  const rawUrl = String(
+    obj.pageUrl ??
+    obj.url ??
+    obj.href ??
+    obj.link ??
+    ''
+  );
+
+  const urlTeamMatch = rawUrl.match(/\/teams\/(\d+)(?:\/[^/?#]+)?(?:\/([^/?#]+))?/i);
+  const urlId = urlTeamMatch ? Number(urlTeamMatch[1]) : null;
+
+  const teamLike =
+    type.includes('team') ||
+    Boolean(obj.teamName) ||
+    /\/teams\//i.test(rawUrl) ||
+    /team/i.test(path);
+
+  if (teamLike && name && (id != null || urlId != null)) {
+    out.push({
+      id: Number(id ?? urlId),
+      name,
+      rawUrl,
+      path,
+    });
+  }
+
+  for (const [k, v] of Object.entries(obj)) {
+    if (v && typeof v === 'object') {
+      collectTeamCandidates(v, out, path + '.' + k);
+    }
+  }
+
+  return out;
+}
+
+function scoreSearchTeam(candidate, teamName) {
+  const target = foldName(teamName);
+  const name = foldName(candidate.name);
+  const url = foldName(candidate.rawUrl);
+
+  if (!target || !name) return -1;
+  if (name === target) return 1000;
+  if (name.startsWith(target) || target.startsWith(name)) return 900;
+  if (name.includes(target) || target.includes(name)) return 800;
+
+  const parts = target.split(' ').filter(x => x.length > 1);
+  const hits = parts.filter(x => name.includes(x) || url.includes(x)).length;
+
+  return hits * 100 - Math.abs(name.length - target.length);
+}
+
+async function resolveTeamUrl(browser, teamName) {
+  const data = await fotmobSearch(teamName);
+  const candidates = collectTeamCandidates(data);
+
+  candidates.sort(
+    (a, b) => scoreSearchTeam(b, teamName) - scoreSearchTeam(a, teamName)
+  );
+
+  const best = candidates.find(x => scoreSearchTeam(x, teamName) >= 100);
+  if (!best) {
+    throw new Error('FotMob takım sayfası bulunamadı: ' + teamName);
+  }
+
+  let slug = foldName(best.name).replace(/\s+/g, '-');
+
+  if (best.rawUrl) {
+    const m = best.rawUrl.match(/\/teams\/\d+(?:\/[^/?#]+)?(?:\/([^/?#]+))?/i);
+    if (m?.[1]) slug = m[1];
+  }
+
+  return 'https://www.fotmob.com/teams/' + best.id + '/fixtures/' + slug;
 }
 
 async function buildPerformancePackage({ home, away }) {

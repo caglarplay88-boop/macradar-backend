@@ -305,16 +305,16 @@ const server = http.createServer(async (req, res) => {
       const eventId = eventFromPath(u.pathname, 'performance');
       const cached = await getPerformanceCache(eventId);
 
-      if (cached?.payload) {
-        return json(res, 200, {
-          ...cached.payload,
+      if (cached?.status === 'preparing') {
+        return json(res, 202, {
+          status: 'preparing',
           performance_cache: performanceCacheEnvelope(cached)
         });
       }
 
-      if (cached?.status === 'preparing') {
-        return json(res, 202, {
-          status: 'preparing',
+      if (cached?.payload) {
+        return json(res, 200, {
+          ...cached.payload,
           performance_cache: performanceCacheEnvelope(cached)
         });
       }

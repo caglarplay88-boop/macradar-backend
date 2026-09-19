@@ -69,6 +69,21 @@ function matchHasStarted(date, time, now = Date.now()) {
   return ms !== null && now >= ms;
 }
 
+function teamNamesFromMatch(m) {
+  const display = String(m?.display_name || '').trim();
+
+  for (const sep of [' - ', ' – ', ' — ', ' vs ', ' VS ']) {
+    const p = display.indexOf(sep);
+    if (p > 0) {
+      const home = display.slice(0, p).trim();
+      const away = display.slice(p + sep.length).trim();
+      if (home && away) return { home, away };
+    }
+  }
+
+  throw new Error('Maç takım adları bulunamadı. Bülten kaydını yenile.');
+}
+
 const pendingTargetRefreshes = new Set();
 const inFlightTargetRefreshes = new Set();
 let targetDrainRunning = false;
@@ -241,6 +256,24 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (!authorized(req)) return json(res, 401, { error: 'Yetkisiz.' });
+
+    if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/performance$/.test(u.pathname)) {
+      const eventId = eventFromPath(u.pathname, 'performance');
+      const m = await getMatch(eventId);
+      if (!m) return json(res, 404, { error: 'Maç bulunamadı.' });
+
+      const names = teamNamesFromMatch(m);
+      const data = await buildPerformancePackage({
+        home: { name: names.home },
+        away: { name: names.away }
+      });
+
+      return json(res, 200, {
+        event_id: eventId,
+        display_name: m.display_name,
+        ...data
+      });
+    }
 
     if (req.method === 'POST' && u.pathname === '/api/performance') {
       const body = await readJson(req);

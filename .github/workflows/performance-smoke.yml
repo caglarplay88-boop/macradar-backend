@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/performance-smoke.yml'
+      - 'src/performance.js'
   workflow_dispatch:
 
 jobs:

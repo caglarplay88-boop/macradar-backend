@@ -1595,13 +1595,66 @@ class CombinedHistoryTable extends StatelessWidget {
                 ),
                 for (final s in series)
                   Expanded(
-                    child: Text(
-                      odd(history[i][s.keyName]),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    child: Builder(
+                      builder: (context) {
+                        final raw = history[i][s.keyName];
+                        final current =
+                            raw is num ? raw.toDouble() : null;
+
+                        String arrow = '→';
+                        Color arrowColor =
+                            const Color(0xFF98A39D);
+
+                        if (i > 0 && current != null) {
+                          final prevRaw =
+                              history[i - 1][s.keyName];
+
+                          if (prevRaw is num) {
+                            final previous =
+                                prevRaw.toDouble();
+
+                            if (current <
+                                previous - 0.0001) {
+                              arrow = '↓';
+                              arrowColor =
+                                  const Color(0xFFFF8495);
+                            } else if (current >
+                                previous + 0.0001) {
+                              arrow = '↑';
+                              arrowColor =
+                                  const Color(0xFF6DE0AA);
+                            }
+                          }
+                        }
+
+                        return Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              current == null
+                                  ? '-'
+                                  : current
+                                      .toStringAsFixed(2),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight:
+                                    FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              arrow,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight:
+                                    FontWeight.w900,
+                                color: arrowColor,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
               ],

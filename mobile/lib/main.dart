@@ -1375,7 +1375,7 @@ class SingleSelectionPanel extends StatelessWidget {
   }
 }
 
-class SingleSeriesChart extends StatelessWidget {
+class SingleSeriesChart extends StatefulWidget {
   final List<Map<String, dynamic>> history;
   final ChartSeries series;
 
@@ -1386,15 +1386,143 @@ class SingleSeriesChart extends StatelessWidget {
   });
 
   @override
+  State<SingleSeriesChart> createState() => _SingleSeriesChartState();
+}
+
+class _SingleSeriesChartState extends State<SingleSeriesChart> {
+  int? selectedIndex;
+
+  List<Map<String, dynamic>> get validRows => widget.history
+      .where((r) => r[widget.series.keyName] is num)
+      .toList();
+
+  String selectedStamp(dynamic raw) {
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      return dt.day.toString().padLeft(2, '0') +
+          '/' +
+          dt.month.toString().padLeft(2, '0') +
+          '/' +
+          dt.year.toString() +
+          ' ' +
+          dt.hour.toString().padLeft(2, '0') +
+          ':' +
+          dt.minute.toString().padLeft(2, '0');
+    } catch (_) {
+      return '--/--/---- --:--';
+    }
+  }
+
+  void selectNearest(Offset localPosition, double width) {
+    final rows = validRows;
+    if (rows.isEmpty) return;
+
+    const left = 38.0;
+    const right = 8.0;
+    final plotWidth = math.max(1.0, width - left - right);
+
+    int index = 0;
+    if (rows.length > 1) {
+      final normalized =
+          ((localPosition.dx - left) / plotWidth).clamp(0.0, 1.0);
+      index = (normalized * (rows.length - 1)).round();
+    }
+
+    setState(() => selectedIndex = index);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final rows = validRows;
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        return CustomPaint(
-          size: Size(constraints.maxWidth, 175),
-          painter: SingleSeriesPainter(
-            history: history,
-            series: series,
-          ),
+        final selected = selectedIndex != null &&
+                selectedIndex! >= 0 &&
+                selectedIndex! < rows.length
+            ? rows[selectedIndex!]
+            : null;
+        final selectedValue = selected == null
+            ? null
+            : (selected[widget.series.keyName] as num).toDouble();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (details) =>
+                  selectNearest(details.localPosition, constraints.maxWidth),
+              onHorizontalDragUpdate: (details) =>
+                  selectNearest(details.localPosition, constraints.maxWidth),
+              child: CustomPaint(
+                size: Size(constraints.maxWidth, 175),
+                painter: SingleSeriesPainter(
+                  history: rows,
+                  series: widget.series,
+                  selectedIndex: selectedIndex,
+                ),
+              ),
+            ),
+            if (selected != null && selectedValue != null) ...[
+              const SizedBox(height: 5),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF18211D),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: widget.series.color.withValues(alpha: 0.45),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: widget.series.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        selectedStamp(selected['captured_at']),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFFB8C1BC),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      widget.series.label +
+                          '  ' +
+                          selectedValue.toStringAsFixed(2),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text(
+                  'Bir noktaya dokun: tarih, saat ve oranı göster.',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: Color(0xFF8F9994),
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -1500,10 +1628,12 @@ class SingleSeriesHistoryTable extends StatelessWidget {
 class SingleSeriesPainter extends CustomPainter {
   final List<Map<String, dynamic>> history;
   final ChartSeries series;
+  final int? selectedIndex;
 
   SingleSeriesPainter({
     required this.history,
     required this.series,
+    this.selectedIndex,
   });
 
   @override
@@ -1569,7 +1699,6 @@ class SingleSeriesPainter extends CustomPainter {
     final validRows = history
         .where((r) => r[series.keyName] is num)
         .toList();
-
     final n = validRows.length;
 
     double xFor(int i) {
@@ -1609,6 +1738,89 @@ class SingleSeriesPainter extends CustomPainter {
     }
 
     canvas.drawPath(path, linePaint);
+
+    if (selectedIndex != null &&
+        selectedIndex! >= 0 &&
+        selectedIndex! < n) {
+      final value =
+          (validRows[selectedIndex!][series.keyName] as num).toDouble();
+      final p = Offset(
+        xFor(selectedIndex!),
+        yFor(value),
+      );
+
+      final guidePaint = Paint()
+        ..color = series.color.withValues(alpha: 0.35)
+        ..strokeWidth = 1;
+
+      canvas.drawLine(
+        Offset(p.dx, plot.top),
+        Offset(p.dx, plot.bottom),
+        guidePaint,
+      );
+
+      canvas.drawCircle(
+        p,
+        7,
+        Paint()
+          ..color = const Color(0xFF0D1215)
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawCircle(
+        p,
+        5,
+        pointPaint,
+      );
+
+      final bubbleText = value.toStringAsFixed(2);
+      final bubble = TextPainter(
+        text: TextSpan(
+          text: bubbleText,
+          style: const TextStyle(
+            color: Color(0xFFF4F7F5),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final bubbleWidth = bubble.width + 14;
+      final bubbleHeight = bubble.height + 8;
+      double bx = p.dx - bubbleWidth / 2;
+      if (bx < plot.left) bx = plot.left;
+      if (bx + bubbleWidth > plot.right) {
+        bx = plot.right - bubbleWidth;
+      }
+
+      double by = p.dy - bubbleHeight - 10;
+      if (by < plot.top) by = p.dy + 10;
+
+      final bubbleRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          bx,
+          by,
+          bubbleWidth,
+          bubbleHeight,
+        ),
+        const Radius.circular(6),
+      );
+
+      canvas.drawRRect(
+        bubbleRect,
+        Paint()
+          ..color = const Color(0xFF26302C)
+          ..style = PaintingStyle.fill,
+      );
+
+      bubble.paint(
+        canvas,
+        Offset(
+          bx + 7,
+          by + 4,
+        ),
+      );
+    }
 
     final labelIndexes = <int>{
       0,
@@ -1672,7 +1884,11 @@ class SingleSeriesPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant SingleSeriesPainter oldDelegate) => true;
+  bool shouldRepaint(covariant SingleSeriesPainter oldDelegate) {
+    return oldDelegate.selectedIndex != selectedIndex ||
+        oldDelegate.history != history ||
+        oldDelegate.series != series;
+  }
 }
 
 class SystemPage extends StatefulWidget {

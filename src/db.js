@@ -117,7 +117,18 @@ async function listMatches({ activeOnly = false } = {}) {
     SELECT m.*,
       (SELECT MAX(s.captured_at) FROM snapshots s WHERE s.event_id=m.event_id) AS last_capture,
       (SELECT COUNT(*)::int FROM snapshots s WHERE s.event_id=m.event_id) AS row_count,
-      (SELECT COUNT(DISTINCT s.captured_at)::int FROM snapshots s WHERE s.event_id=m.event_id) AS capture_count
+      (
+        SELECT COUNT(DISTINCT s.captured_at)::int
+        FROM snapshots s
+        WHERE s.event_id=m.event_id
+          AND EXISTS (
+            SELECT 1
+            FROM snapshots sx
+            WHERE sx.event_id=s.event_id
+              AND sx.captured_at=s.captured_at
+              AND LOWER(sx.bookmaker) LIKE '1xbet%'
+          )
+      ) AS capture_count
     FROM matches m
     ${activeOnly ? 'WHERE m.active=TRUE' : ''}
     ORDER BY COALESCE((SELECT MAX(s2.captured_at) FROM snapshots s2 WHERE s2.event_id=m.event_id),m.updated_at) DESC
@@ -167,7 +178,9 @@ async function getMatch(eventId) {
       captured_at,
       rows: ordered.slice(0, 3)
     };
-  });
+  }).filter(group =>
+    group.rows.some(x => keyOf(x.bookmaker).startsWith('1xbet'))
+  );
 
   const history = historyGroups.map(group => {
     const ordered = group.rows;

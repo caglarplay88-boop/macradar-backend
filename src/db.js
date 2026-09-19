@@ -386,6 +386,34 @@ async function getMatch(eventId) {
   };
 }
 
+async function purgePostKickoffSnapshots() {
+  const matches = (await pool.query(
+    'SELECT event_id,match_date,kickoff_time FROM matches WHERE match_date IS NOT NULL AND kickoff_time IS NOT NULL'
+  )).rows;
+
+  let deletedSnapshots = 0;
+  let deletedAlerts = 0;
+
+  for (const match of matches) {
+    const cutoff = matchKickoffCutoff(match);
+    if (!cutoff) continue;
+
+    const s = await pool.query(
+      'DELETE FROM snapshots WHERE event_id=$1 AND captured_at >= $2',
+      [match.event_id, cutoff]
+    );
+    deletedSnapshots += s.rowCount || 0;
+
+    const a = await pool.query(
+      'DELETE FROM odds_alerts WHERE event_id=$1 AND captured_at >= $2',
+      [match.event_id, cutoff]
+    );
+    deletedAlerts += a.rowCount || 0;
+  }
+
+  return { deletedSnapshots, deletedAlerts };
+}
+
 async function setActive(eventId, active) {
   const r = await pool.query(
     'UPDATE matches SET active=$2,updated_at=NOW() WHERE event_id=$1 RETURNING *',
@@ -501,5 +529,6 @@ module.exports = {
   getLatestAlertId,
   getSetting,
   setSetting,
-  getRefreshMinutes
+  getRefreshMinutes,
+  purgePostKickoffSnapshots
 };

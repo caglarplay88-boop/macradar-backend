@@ -10,7 +10,7 @@ const { runWorkerOnce } = require('./run-worker');
 
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = String(process.env.API_KEY || '');
-const MOBILE_CODE_HASH = 'a2090b93b244df19630f87edbd8db20037e73f40842f38dd7b9001353bd1c7b6';
+const MOBILE_CODE_HASH = 'ee3a321e49e949c5ac27dc2a5504ba55a59b11eae7ab1f7b5357cd305b6e8968';
 
 function json(res, status, data) {
   const body = JSON.stringify(data);

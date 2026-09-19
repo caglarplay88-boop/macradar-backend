@@ -80,6 +80,21 @@ async function initDb() {
     ALTER TABLE matches
       ADD COLUMN IF NOT EXISTS kickoff_time TEXT;
 
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE;
+
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS lifecycle TEXT NOT NULL DEFAULT 'tracking';
+
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS home_score INTEGER;
+
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS away_score INTEGER;
+
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS result_status TEXT;
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -414,10 +429,69 @@ async function purgePostKickoffSnapshots() {
   return { deletedSnapshots, deletedAlerts };
 }
 
+async function setMatchLifecycle(eventId, {
+  active = null,
+  archived = null,
+  lifecycle = null,
+  homeScore = null,
+  awayScore = null,
+  resultStatus = null
+} = {}) {
+  const r = await pool.query(`
+    UPDATE matches
+    SET
+      active=COALESCE($2, active),
+      archived=COALESCE($3, archived),
+      lifecycle=COALESCE($4, lifecycle),
+      home_score=CASE WHEN $5::int IS NULL THEN home_score ELSE $5::int END,
+      away_score=CASE WHEN $6::int IS NULL THEN away_score ELSE $6::int END,
+      result_status=COALESCE($7, result_status),
+      updated_at=NOW()
+    WHERE event_id=$1
+    RETURNING *
+  `, [
+    eventId,
+    active,
+    archived,
+    lifecycle,
+    homeScore,
+    awayScore,
+    resultStatus
+  ]);
+  return r.rows[0] || null;
+}
+
+async function archiveStartedMatch(eventId) {
+  return setMatchLifecycle(eventId, {
+    active: false,
+    archived: true,
+    lifecycle: 'started',
+    resultStatus: 'started'
+  });
+}
+
+async function finishMatch(eventId, homeScore, awayScore) {
+  return setMatchLifecycle(eventId, {
+    active: false,
+    archived: true,
+    lifecycle: 'finished',
+    homeScore,
+    awayScore,
+    resultStatus: 'finished'
+  });
+}
+
 async function setActive(eventId, active) {
   const r = await pool.query(
-    'UPDATE matches SET active=$2,updated_at=NOW() WHERE event_id=$1 RETURNING *',
-    [eventId, active]
+    `UPDATE matches
+     SET active=$2,
+         archived=FALSE,
+         lifecycle=$3,
+         result_status=CASE WHEN $2 THEN NULL ELSE result_status END,
+         updated_at=NOW()
+     WHERE event_id=$1
+     RETURNING *`,
+    [eventId, active, active ? 'tracking' : 'removed']
   );
   return r.rows[0] || null;
 }
@@ -530,5 +604,8 @@ module.exports = {
   getSetting,
   setSetting,
   getRefreshMinutes,
-  purgePostKickoffSnapshots
+  purgePostKickoffSnapshots,
+  setMatchLifecycle,
+  archiveStartedMatch,
+  finishMatch
 };

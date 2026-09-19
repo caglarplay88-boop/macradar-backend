@@ -70,8 +70,8 @@ function queueTargetRefresh(eventIds, label = 'queued') {
 
 async function enrichActiveSchedules() {
   try {
-    const active = await listMatches({ activeOnly: true });
-    const wanted = new Map(active.map(m => [m.url, m]));
+    const tracked = await listMatches();
+    const wanted = new Map(tracked.map(m => [m.url, m]));
     if (!wanted.size) return;
 
     const baseIso = currentIsoTurkey();
@@ -88,14 +88,15 @@ async function enrichActiveSchedules() {
           if (!wanted.has(m.url)) continue;
 
           const parsed = parseBetExplorerUrl(m.url);
+          const existing = wanted.get(m.url);
           await upsertMatch({
             eventId: parsed.eventId,
             url: parsed.url,
             slug: parsed.slug,
-            active: true,
+            active: existing?.active ?? true,
             displayName: m.name || null,
             league: m.league || null,
-            matchDate: iso,
+            matchDate: m.date || iso,
             kickoffTime: m.time || null
           });
           updated++;
@@ -107,7 +108,7 @@ async function enrichActiveSchedules() {
       await sleep(250);
     }
 
-    console.log('[schedule] güncellenen aktif maç=' + updated);
+    console.log('[schedule] güncellenen takip kaydı=' + updated);
   } catch (e) {
     console.error('[schedule] hata:', e);
   }
@@ -302,11 +303,13 @@ const server = http.createServer(async (req, res) => {
   console.log('Seed:', seedResult);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`MacRadar backend ${PORT} portunda.`);
-    setTimeout(() => enrichActiveSchedules(), 1500);
-    setTimeout(() => runWorkerOnce().then(
-      r => console.log('Startup worker:', JSON.stringify(r)),
-      e => console.error('Startup worker error:', e)
-    ), 5000);
+    setTimeout(async () => {
+      await enrichActiveSchedules();
+      runWorkerOnce().then(
+        r => console.log('Startup worker:', JSON.stringify(r)),
+        e => console.error('Startup worker error:', e)
+      );
+    }, 1000);
     setInterval(() => runWorkerOnce().then(
       r => console.log('Periodic worker:', JSON.stringify(r)),
       e => console.error('Periodic worker error:', e)

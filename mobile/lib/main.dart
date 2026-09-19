@@ -289,6 +289,56 @@ class MacRadarApp extends StatelessWidget {
   }
 }
 
+class _BettingMark extends StatelessWidget {
+  const _BettingMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF183126),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.show_chart_rounded,
+                  size: 22,
+                  color: Color(0xFFFFC857),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF0D1117),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(
+                  Icons.sports_soccer_rounded,
+                  size: 13,
+                  color: Color(0xFFE6ECE8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class Home extends StatefulWidget {
   const Home({super.key});
 
@@ -312,8 +362,8 @@ class _HomeState extends State<Home> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Icon(Icons.radar_rounded, size: 22),
-            const SizedBox(width: 7),
+            const _BettingMark(),
+            const SizedBox(width: 8),
             Text('MacRadar · ' + names[index]),
           ],
         ),

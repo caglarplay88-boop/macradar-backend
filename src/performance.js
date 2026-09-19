@@ -77,7 +77,7 @@ function scanMatches(obj, target, out, path = 'root') {
   if (home && away) {
     const h = normalizeName(home);
     const a = normalizeName(away);
-    if (h.includes(target) || a.includes(target)) {
+    if (teamNameMatches(home, target) || teamNameMatches(away, target)) {
       const url = normalizeFotMobUrl(obj.pageUrl ?? obj.matchUrl ?? obj.url ?? obj.href ?? '');
       const date = dateValue(obj);
       const homeScore = scoreFrom(obj, 'home');
@@ -165,7 +165,7 @@ async function collectTeamData(browser, url, teamName) {
       if (!body.toLowerCase().includes(target)) return;
       const json = JSON.parse(body);
       jsons.push(json);
-      scanMatches(json, target, matches);
+      scanMatches(json, teamName, matches);
     } catch {}
   };
   page.on('response', onJson);
@@ -180,7 +180,7 @@ async function collectTeamData(browser, url, teamName) {
           if (!String(body).toLowerCase().includes(target)) continue;
           const json = JSON.parse(body);
           jsons.push(json);
-          scanMatches(json, target, matches);
+          scanMatches(json, teamName, matches);
         } catch {}
       }
     } catch {}
@@ -337,13 +337,13 @@ async function mapLimit(items, limit, fn) {
 
 function teamPerspective(match, teamName, pair) {
   if (!pair) return { xG: null, xGA: null };
-  const target = normalizeName(teamName);
-  const home = normalizeName(match.home).includes(target);
-  return home ? { xG: pair.home, xGA: pair.away } : { xG: pair.away, xGA: pair.home };
+  const home = teamNameMatches(match.home, teamName);
+  return home
+    ? { xG: pair.home, xGA: pair.away }
+    : { xG: pair.away, xGA: pair.home };
 }
 
 function resultSummary(matches, teamName) {
-  const target = normalizeName(teamName);
   const out = {
     mac: matches.length,
     galibiyet: 0,
@@ -355,7 +355,7 @@ function resultSummary(matches, teamName) {
     deplasman: { mac: 0, G: 0, B: 0, M: 0, attigi: 0, yedigi: 0 }
   };
   for (const m of matches) {
-    const isHome = normalizeName(m.home).includes(target);
+    const isHome = teamNameMatches(m.home, teamName);
     const gf = Number(isHome ? m.homeScore : m.awayScore);
     const ga = Number(isHome ? m.awayScore : m.homeScore);
     if (!Number.isFinite(gf) || !Number.isFinite(ga)) continue;
@@ -406,14 +406,13 @@ function normalizeTableRow(r, i) {
 }
 
 function leagueFromJsons(jsons, teamName) {
-  const target = normalizeName(teamName);
   const candidates = [];
   const walk = obj => {
     if (!obj || typeof obj !== 'object') return;
     if (Array.isArray(obj) && obj.length >= 4) {
       const rows = obj.map((r,i) => normalizeTableRow(r,i)).filter(Boolean);
       const usable = rows.filter(r => r.takim && r.puan != null);
-      if (usable.length >= 4 && usable.some(r => normalizeName(r.takim).includes(target))) candidates.push(usable);
+      if (usable.length >= 4 && usable.some(r => teamNameMatches(r.takim, teamName))) candidates.push(usable);
     }
     if (Array.isArray(obj)) obj.forEach(walk);
     else Object.values(obj).forEach(v => { if (v && typeof v === 'object') walk(v); });
@@ -421,15 +420,15 @@ function leagueFromJsons(jsons, teamName) {
   jsons.forEach(walk);
   if (!candidates.length) return null;
   candidates.sort((a,b) => {
-    const ar = a.find(r => normalizeName(r.takim).includes(target));
-    const br = b.find(r => normalizeName(r.takim).includes(target));
+    const ar = a.find(r => teamNameMatches(r.takim, teamName));
+    const br = b.find(r => teamNameMatches(r.takim, teamName));
     const ap = ar?.oynadi ?? -1;
     const bp = br?.oynadi ?? -1;
     if (bp !== ap) return bp - ap;
     return Math.abs(a.length - 16) - Math.abs(b.length - 16);
   });
   const rows = candidates[0].sort((a,b) => a.sira - b.sira);
-  const me = rows.find(r => normalizeName(r.takim).includes(target));
+  const me = rows.find(r => teamNameMatches(r.takim, teamName));
   const leader = rows[0];
   return {
     takim: me?.takim ?? teamName,
@@ -499,11 +498,12 @@ async function getUnavailable(browser, matchUrl, matchId) {
       return {
         home: cleanUnavailable(home),
         away: cleanUnavailable(away),
+        available: true,
       };
     }
   }
 
-  if (!matchUrl) return { home: [], away: [] };
+  if (!matchUrl) return { home: [], away: [], available: false };
 
   const page = await newPage(browser);
   const groups = [];
@@ -544,6 +544,7 @@ async function getUnavailable(browser, matchUrl, matchId) {
   return {
     home: cleanUnavailable(home),
     away: cleanUnavailable(away),
+    available: groups.length > 0,
   };
 }
 
@@ -557,19 +558,95 @@ function upcomingFrom(matches) {
 }
 
 function h2hFrom(matches, a, b) {
-  const A = normalizeName(a), B = normalizeName(b);
   return matches
     .filter(m => {
-      const h = normalizeName(m.home), aw = normalizeName(m.away);
-      return (h.includes(A) && aw.includes(B)) || (h.includes(B) && aw.includes(A));
+      return (
+        teamNameMatches(m.home, a) &&
+        teamNameMatches(m.away, b)
+      ) || (
+        teamNameMatches(m.home, b) &&
+        teamNameMatches(m.away, a)
+      );
     })
     .filter(isFinished)
     .sort((x,y) => Date.parse(y.date) - Date.parse(x.date))
     .slice(0,4);
 }
 
+function teamIdFromUrl(url) {
+  try {
+    const m = String(url || '').match(/\/teams\/(\d+)/i);
+    return m ? Number(m[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFotMobTeamData(teamId) {
+  if (!Number.isFinite(Number(teamId))) return null;
+
+  const urls = [
+    'https://www.fotmob.com/api/data/teams?id=' +
+      encodeURIComponent(teamId) +
+      '&ccode3=TUR',
+    'https://www.fotmob.com/api/teams?id=' +
+      encodeURIComponent(teamId),
+  ];
+
+  for (const url of urls) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const r = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'user-agent': UA,
+          'accept': 'application/json,text/plain,*/*',
+          'referer': 'https://www.fotmob.com/',
+          'accept-language': 'en-US,en;q=0.9',
+        },
+      });
+
+      if (!r.ok) continue;
+      return await r.json();
+    } catch {
+      // Browser fallback below.
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return null;
+}
+
+async function collectTeamDataSmart(browser, info) {
+  const teamId = Number(info.id ?? teamIdFromUrl(info.url));
+
+  if (Number.isFinite(teamId)) {
+    const direct = await fetchFotMobTeamData(teamId);
+
+    if (direct) {
+      const matches = [];
+      scanMatches(direct, info.name, matches);
+      const clean = dedupeMatches(matches);
+
+      if (clean.length >= 5) {
+        return {
+          matches: clean,
+          jsons: [direct],
+          source: 'direct',
+        };
+      }
+    }
+  }
+
+  const fallback = await collectTeamData(browser, info.url, info.name);
+  return { ...fallback, source: 'browser' };
+}
+
 async function buildTeam(browser, info, opponentName) {
-  const { matches, jsons } = await collectTeamData(browser, info.url, info.name);
+  const { matches, jsons, source } = await collectTeamDataSmart(browser, info);
   const finished = matches.filter(isFinished).sort((a,b) => Date.parse(b.date) - Date.parse(a.date)).slice(0,10);
   const upcoming = upcomingFrom(matches);
 
@@ -605,7 +682,8 @@ async function buildTeam(browser, info, opponentName) {
       deplasmanGol: m.awayScore,
       xG: m.xG,
       xGA: m.xGA,
-      url: m.url
+      url: m.url,
+      id: m.id
     })),
     h2h: h2hFrom(matches, info.name, opponentName).map(m => ({
       tarih: m.date,
@@ -625,16 +703,21 @@ async function buildTeam(browser, info, opponentName) {
       sonraki14Gun: upcoming.filter(m => Date.parse(m.date) <= Date.now() + 14 * 86400000).length
     },
     ligDurumu: leagueFromJsons(jsons, info.name),
+    veriKaynagi: source,
     _allMatches: matches
   };
 }
 
 function matchBetweenUpcoming(matches, a, b) {
-  const A = normalizeName(a), B = normalizeName(b);
   return matches
     .filter(m => {
-      const h = normalizeName(m.home), aw = normalizeName(m.away);
-      return (h.includes(A) && aw.includes(B)) || (h.includes(B) && aw.includes(A));
+      return (
+        teamNameMatches(m.home, a) &&
+        teamNameMatches(m.away, b)
+      ) || (
+        teamNameMatches(m.home, b) &&
+        teamNameMatches(m.away, a)
+      );
     })
     .filter(m => Number.isFinite(Date.parse(m.date)) && Date.parse(m.date) > Date.now() - 4 * 60 * 60 * 1000)
     .sort((x,y) => Math.abs(Date.parse(x.date) - Date.now()) - Math.abs(Date.parse(y.date) - Date.now()))[0] || null;
@@ -652,6 +735,35 @@ function foldName(v) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+function teamNameMatches(a, b) {
+  const A = foldName(a);
+  const B = foldName(b);
+
+  if (!A || !B) return false;
+  if (A === B) return true;
+
+  // FotMob sometimes shortens club names, e.g. Bayer Leverkusen -> Leverkusen.
+  if (A.length >= 4 && B.length >= 4 && (A.includes(B) || B.includes(A))) {
+    return true;
+  }
+
+  const stop = new Set([
+    'fc','cf','sc','afc','fk','if','bk','sv','vfl','vfb','rb','ac','as','ssc',
+    'club','football','futbol','calcio','united','city'
+  ]);
+
+  const ta = A.split(' ').filter(x => x.length > 2 && !stop.has(x));
+  const tb = B.split(' ').filter(x => x.length > 2 && !stop.has(x));
+
+  if (!ta.length || !tb.length) return false;
+
+  const small = ta.length <= tb.length ? ta : tb;
+  const large = ta.length <= tb.length ? tb : ta;
+  const hits = small.filter(x => large.includes(x)).length;
+
+  return hits >= Math.min(2, small.length);
 }
 
 function scoreTeamCandidate(candidate, teamName) {
@@ -862,11 +974,13 @@ async function buildPerformancePackage({ home, away }) {
     const unavailable = await getUnavailable(browser, targetMatch?.url, targetMatch?.id);
 
     const homeIsMatchHome = targetMatch
-      ? normalizeName(targetMatch.home).includes(normalizeName(homeInfo.name))
+      ? teamNameMatches(targetMatch.home, homeInfo.name)
       : true;
 
     homePack.eksikler = homeIsMatchHome ? unavailable.home : unavailable.away;
     awayPack.eksikler = homeIsMatchHome ? unavailable.away : unavailable.home;
+    homePack.eksikVerisi = unavailable.available === true;
+    awayPack.eksikVerisi = unavailable.available === true;
 
     delete homePack._allMatches;
     delete awayPack._allMatches;
@@ -893,6 +1007,7 @@ async function buildPerformancePackage({ home, away }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
+        engineVersion: 2,
       },
       cache: false
     };

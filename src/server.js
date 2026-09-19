@@ -52,25 +52,51 @@ function eventFromPath(pathname, suffix = '') {
   return decodeURIComponent(p[i + 1]);
 }
 
-async function queueTargetRefresh(eventIds, label = 'queued') {
-  const ids = [...new Set((eventIds || []).map(String).filter(Boolean))];
-  if (!ids.length) return;
+const pendingTargetRefreshes = new Set();
+const inFlightTargetRefreshes = new Set();
+let targetDrainRunning = false;
 
-  for (let attempt = 1; attempt <= 180; attempt++) {
-    try {
-      const r = await runWorkerOnce({ force: true, eventIds: ids });
-      if (!(r?.skipped && r?.reason === 'worker_already_running')) {
-        console.log(label + ' worker:', JSON.stringify(r));
-        return;
-      }
-    } catch (e) {
-      console.error(label + ' worker error:', e);
-      return;
-    }
-    await sleep(10000);
+function queueTargetRefresh(eventIds, label = 'queued') {
+  const ids = [...new Set((eventIds || []).map(String).filter(Boolean))];
+  for (const id of ids) {
+    if (!inFlightTargetRefreshes.has(id)) pendingTargetRefreshes.add(id);
   }
 
-  console.error(label + ' worker timeout: lock 30 dakika boyunca açılamadı');
+  if (!targetDrainRunning) {
+    targetDrainRunning = true;
+    setTimeout(() => drainTargetRefreshQueue(label), 50);
+  }
+}
+
+async function drainTargetRefreshQueue(label = 'queued') {
+  try {
+    while (pendingTargetRefreshes.size) {
+      const ids = [...pendingTargetRefreshes];
+      pendingTargetRefreshes.clear();
+      ids.forEach(id => inFlightTargetRefreshes.add(id));
+
+      try {
+        const r = await runWorkerOnce({ force: true, eventIds: ids });
+
+        if (r?.skipped && r?.reason === 'worker_already_running') {
+          ids.forEach(id => pendingTargetRefreshes.add(id));
+          await sleep(5000);
+        } else {
+          console.log(label + ' worker:', JSON.stringify(r));
+        }
+      } catch (e) {
+        console.error(label + ' worker error:', e);
+      } finally {
+        ids.forEach(id => inFlightTargetRefreshes.delete(id));
+      }
+    }
+  } finally {
+    targetDrainRunning = false;
+    if (pendingTargetRefreshes.size) {
+      targetDrainRunning = true;
+      setTimeout(() => drainTargetRefreshQueue(label), 50);
+    }
+  }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -129,7 +155,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      setTimeout(() => queueTargetRefresh(eventIds, 'Follow'), 100);
+      queueTargetRefresh(eventIds, 'Follow');
 
       return json(res, 200, { results, initial_refresh_queued: true });
     }
@@ -139,7 +165,7 @@ const server = http.createServer(async (req, res) => {
       const m = await getMatch(eventId);
       if (!m) return json(res, 404, { error: 'Maç bulunamadı.' });
 
-      setTimeout(() => queueTargetRefresh([eventId], 'Manual'), 100);
+      queueTargetRefresh([eventId], 'Manual');
       return json(res, 202, { ok: true, queued: true, eventId });
     }
 

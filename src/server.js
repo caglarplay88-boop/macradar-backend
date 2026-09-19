@@ -1,7 +1,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const { URL } = require('url');
-const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, pool } = require('./db');
+const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, archiveStartedMatch, finishMatch, pool } = require('./db');
 const { getBulletin } = require('./bulletin');
 const { pullAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
@@ -52,6 +52,22 @@ function eventFromPath(pathname, suffix = '') {
   return decodeURIComponent(p[i + 1]);
 }
 
+function turkeyKickoffMs(date, time) {
+  const dm = String(date || '').match(/(\d{4}-\d{2}-\d{2})/);
+  const tm = String(time || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!dm || !tm) return null;
+
+  const hh = String(Number(tm[1])).padStart(2, '0');
+  const mm = String(Number(tm[2])).padStart(2, '0');
+  const ms = new Date(`${dm[1]}T${hh}:${mm}:00+03:00`).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function matchHasStarted(date, time, now = Date.now()) {
+  const ms = turkeyKickoffMs(date, time);
+  return ms !== null && now >= ms;
+}
+
 const pendingTargetRefreshes = new Set();
 const inFlightTargetRefreshes = new Set();
 let targetDrainRunning = false;
@@ -70,25 +86,33 @@ function queueTargetRefresh(eventIds, label = 'queued') {
 
 async function enrichActiveSchedules() {
   try {
-    const tracked = await listMatches();
+    const all = await listMatches();
+    const tracked = all.filter(m => m.active === true || m.archived === true);
     const wanted = new Map(tracked.map(m => [m.url, m]));
     if (!wanted.size) return;
 
     const baseIso = currentIsoTurkey();
     const base = new Date(baseIso + 'T00:00:00Z');
     let updated = 0;
+    let finished = 0;
+    let locked = 0;
 
     for (let offset = -2; offset <= 7; offset++) {
       const d = new Date(base.getTime() + offset * 86400000);
       const iso = d.toISOString().slice(0, 10);
 
       try {
-        const daily = await getBulletin(iso);
+        const daily = await getBulletin(iso, { force: true });
         for (const m of daily.matches) {
           if (!wanted.has(m.url)) continue;
 
           const parsed = parseBetExplorerUrl(m.url);
           const existing = wanted.get(m.url);
+          const scheduleTime = /^\d{1,2}:\d{2}$/.test(String(m.time || ''))
+            ? m.time
+            : (existing?.kickoff_time || null);
+          const scheduleDate = m.date || existing?.match_date || iso;
+
           await upsertMatch({
             eventId: parsed.eventId,
             url: parsed.url,
@@ -96,9 +120,21 @@ async function enrichActiveSchedules() {
             active: existing?.active ?? true,
             displayName: m.name || null,
             league: m.league || null,
-            matchDate: m.date || iso,
-            kickoffTime: m.time || null
+            matchDate: scheduleDate,
+            kickoffTime: scheduleTime
           });
+
+          if (m.status === 'finished') {
+            await finishMatch(parsed.eventId, m.homeScore, m.awayScore);
+            finished++;
+          } else if (
+            existing?.lifecycle !== 'removed' &&
+            matchHasStarted(scheduleDate, scheduleTime)
+          ) {
+            await archiveStartedMatch(parsed.eventId);
+            locked++;
+          }
+
           updated++;
         }
       } catch (e) {
@@ -108,7 +144,11 @@ async function enrichActiveSchedules() {
       await sleep(250);
     }
 
-    console.log('[schedule] güncellenen takip kaydı=' + updated);
+    console.log(
+      '[schedule] güncellenen=' + updated +
+      ' kilitlenen=' + locked +
+      ' biten=' + finished
+    );
   } catch (e) {
     console.error('[schedule] hata:', e);
   }
@@ -161,8 +201,17 @@ const server = http.createServer(async (req, res) => {
       const date = u.searchParams.get('date') || currentIsoTurkey();
       const force = u.searchParams.get('force') === '1';
       const data = await getBulletin(date, { force });
-      const active = new Set((await listMatches({ activeOnly: true })).map(m => m.url));
-      return json(res, 200, { ...data, matches: data.matches.map(m => ({ ...m, followed: active.has(m.url) })) });
+      const tracked = await listMatches();
+      const active = new Set(tracked.filter(m => m.active === true).map(m => m.url));
+      const archived = new Set(tracked.filter(m => m.archived === true).map(m => m.url));
+      return json(res, 200, {
+        ...data,
+        matches: data.matches.map(m => ({
+          ...m,
+          followed: active.has(m.url),
+          archived: archived.has(m.url)
+        }))
+      });
     }
     if (req.method === 'GET' && u.pathname === '/api/system/status') {
       return json(res, 200, await getWorkerStatus());
@@ -214,23 +263,43 @@ const server = http.createServer(async (req, res) => {
         const raw = typeof item === 'string' ? item : item?.url;
         try {
           const parsed = parseBetExplorerUrl(String(raw));
+          const itemDate = item?.date || null;
+          const itemTime = item?.time || null;
+          const itemStatus = String(item?.status || '').toLowerCase();
+          const isFinished = itemStatus === 'finished' || /^(?:FIN|FT|AET|PEN)$/i.test(String(itemTime || ''));
+          const started = isFinished || matchHasStarted(itemDate, itemTime);
+
           await upsertMatch({
             eventId: parsed.eventId,
             url: parsed.url,
             slug: parsed.slug,
-            active: true,
+            active: !started,
             displayName: item?.name || null,
             league: item?.league || null,
-            matchDate: item?.date || null,
-            kickoffTime: item?.time || null
+            matchDate: itemDate,
+            kickoffTime: /^\d{1,2}:\d{2}$/.test(String(itemTime || '')) ? itemTime : null
           });
 
-          eventIds.push(parsed.eventId);
+          if (isFinished) {
+            await finishMatch(
+              parsed.eventId,
+              Number.isFinite(Number(item?.homeScore)) ? Number(item.homeScore) : null,
+              Number.isFinite(Number(item?.awayScore)) ? Number(item.awayScore) : null
+            );
+          } else if (started) {
+            await archiveStartedMatch(parsed.eventId);
+          } else {
+            await setActive(parsed.eventId, true);
+            eventIds.push(parsed.eventId);
+          }
+
           results.push({
             url: parsed.url,
             eventId: parsed.eventId,
             ok: true,
-            queued: true
+            queued: !started,
+            locked: started,
+            status: isFinished ? 'finished' : (started ? 'started' : 'tracking')
           });
         } catch (e) {
           results.push({ url: raw, ok: false, error: e.message });
@@ -241,7 +310,7 @@ const server = http.createServer(async (req, res) => {
 
       return json(res, 200, {
         results,
-        initial_refresh_queued: true
+        initial_refresh_queued: eventIds.length > 0
       });
     }
 
@@ -273,6 +342,11 @@ const server = http.createServer(async (req, res) => {
       const eventId = eventFromPath(u.pathname, 'refresh');
       const m = await getMatch(eventId);
       if (!m) return json(res, 404, { error: 'Maç bulunamadı.' });
+      if (m.active !== true) {
+        return json(res, 409, {
+          error: 'Maç başladı veya bitti. Oran geçmişi kilitlendi; yeni oran çekilmiyor.'
+        });
+      }
 
       queueTargetRefresh([eventId], 'Manual');
       return json(res, 202, { ok: true, queued: true, eventId });
@@ -286,8 +360,19 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/resume$/.test(u.pathname)) {
       const eventId = eventFromPath(u.pathname, 'resume');
+      const current = await getMatch(eventId);
+      if (!current) return json(res, 404, { error: 'Maç bulunamadı.' });
+      if (
+        current.lifecycle === 'finished' ||
+        current.archived === true ||
+        matchHasStarted(current.match_date, current.kickoff_time)
+      ) {
+        return json(res, 409, {
+          error: 'Başlamış veya bitmiş maç yeniden oran takibine alınamaz.'
+        });
+      }
       const m = await setActive(eventId, true);
-      return m ? json(res, 200, { ok: true, match: m }) : json(res, 404, { error: 'Maç bulunamadı.' });
+      return json(res, 200, { ok: true, match: m });
     }
 
     return json(res, 404, { error: 'Bulunamadı.' });
@@ -316,6 +401,9 @@ const server = http.createServer(async (req, res) => {
       r => console.log('Periodic worker:', JSON.stringify(r)),
       e => console.error('Periodic worker error:', e)
     ), 5 * 60 * 1000);
+
+    // Hafif bülten kontrolü: başlayan maçları kilitler, FIN olunca sonucu arşive yazar.
+    setInterval(() => enrichActiveSchedules(), 10 * 60 * 1000);
   });
 })().catch(e => {
   console.error(e);

@@ -68,6 +68,51 @@ function queueTargetRefresh(eventIds, label = 'queued') {
   }
 }
 
+async function enrichActiveSchedules() {
+  try {
+    const active = await listMatches({ activeOnly: true });
+    const wanted = new Map(active.map(m => [m.url, m]));
+    if (!wanted.size) return;
+
+    const baseIso = currentIsoTurkey();
+    const base = new Date(baseIso + 'T00:00:00Z');
+    let updated = 0;
+
+    for (let offset = -2; offset <= 7; offset++) {
+      const d = new Date(base.getTime() + offset * 86400000);
+      const iso = d.toISOString().slice(0, 10);
+
+      try {
+        const daily = await getBulletin(iso);
+        for (const m of daily.matches) {
+          if (!wanted.has(m.url)) continue;
+
+          const parsed = parseBetExplorerUrl(m.url);
+          await upsertMatch({
+            eventId: parsed.eventId,
+            url: parsed.url,
+            slug: parsed.slug,
+            active: true,
+            displayName: m.name || null,
+            league: m.league || null,
+            matchDate: iso,
+            kickoffTime: m.time || null
+          });
+          updated++;
+        }
+      } catch (e) {
+        console.log('[schedule] ' + iso + ' atlandı: ' + (e.message || e));
+      }
+
+      await sleep(250);
+    }
+
+    console.log('[schedule] güncellenen aktif maç=' + updated);
+  } catch (e) {
+    console.error('[schedule] hata:', e);
+  }
+}
+
 async function drainTargetRefreshQueue(label = 'queued') {
   try {
     while (pendingTargetRefreshes.size) {
@@ -257,6 +302,7 @@ const server = http.createServer(async (req, res) => {
   console.log('Seed:', seedResult);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`MacRadar backend ${PORT} portunda.`);
+    setTimeout(() => enrichActiveSchedules(), 1500);
     setTimeout(() => runWorkerOnce().then(
       r => console.log('Startup worker:', JSON.stringify(r)),
       e => console.error('Startup worker error:', e)

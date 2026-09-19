@@ -1,7 +1,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const { URL } = require('url');
-const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, pool } = require('./db');
+const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, pool } = require('./db');
 const { getBulletin } = require('./bulletin');
 const { pullAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
@@ -305,6 +305,8 @@ const server = http.createServer(async (req, res) => {
     console.log(`MacRadar backend ${PORT} portunda.`);
     setTimeout(async () => {
       await enrichActiveSchedules();
+      const cleanup = await purgePostKickoffSnapshots();
+      console.log('[cleanup] post-kickoff oran temizliği:', cleanup);
       runWorkerOnce().then(
         r => console.log('Startup worker:', JSON.stringify(r)),
         e => console.error('Startup worker error:', e)

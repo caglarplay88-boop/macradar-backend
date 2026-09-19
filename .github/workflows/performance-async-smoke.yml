@@ -1,0 +1,73 @@
+name: Async Performance Smoke
+
+on:
+  push:
+    paths:
+      - '.github/workflows/performance-async-smoke.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Test cached async performance endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          EVENT_ID="fqjrNwLr"
+          BASE="https://macradar-backend.onrender.com/api/matches/$EVENT_ID/performance"
+
+          echo "Triggering $BASE"
+
+          HTTP=$(curl --silent --show-error --max-time 30             -o trigger.json             -w "%{http_code}"             -H 'content-type: application/json'             -H 'x-api-key: 68427531'             -d '{"force":true}'             "$BASE")
+
+          echo "trigger_http=$HTTP"
+          cat trigger.json
+
+          if [ "$HTTP" != "202" ] && [ "$HTTP" != "200" ]; then
+            echo "unexpected trigger status"
+            exit 1
+          fi
+
+          node - <<'NODE'
+          const fs=require('fs');
+          const x=JSON.parse(fs.readFileSync('trigger.json','utf8'));
+          if (x.evTakimi && x.deplasmanTakimi) {
+            console.log('READY IMMEDIATELY',x.evTakimi.takim,x.deplasmanTakimi.takim);
+          } else {
+            console.log('PREPARING',x.status);
+          }
+          NODE
+
+          for i in $(seq 1 48); do
+            sleep 4
+            HTTP=$(curl --silent --show-error --max-time 25               -o result.json               -w "%{http_code}"               "$BASE" || true)
+
+            echo "poll=$i http=$HTTP"
+
+            if [ "$HTTP" = "200" ]; then
+              node - <<'NODE'
+              const fs=require('fs');
+              const x=JSON.parse(fs.readFileSync('result.json','utf8'));
+              if (!x.evTakimi || !x.deplasmanTakimi) {
+                throw new Error('missing team payload');
+              }
+              console.log('READY',x.evTakimi.takim,'vs',x.deplasmanTakimi.takim);
+              console.log('xG',x.evTakimi.son10?.xG,x.deplasmanTakimi.son10?.xG);
+              console.log('xGA',x.evTakimi.son10?.xGA,x.deplasmanTakimi.son10?.xGA);
+              console.log('missing',x.evTakimi.eksikler?.length,x.deplasmanTakimi.eksikler?.length);
+              console.log('h2h',x.h2h?.bulunan);
+              console.log('cache',x.performance_cache);
+              NODE
+              exit 0
+            fi
+
+            if [ "$HTTP" = "503" ]; then
+              cat result.json
+              exit 1
+            fi
+          done
+
+          echo "performance did not become ready in time"
+          exit 1

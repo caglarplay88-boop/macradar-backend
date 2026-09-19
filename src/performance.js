@@ -229,8 +229,50 @@ function findExpectedGoals(obj, path = 'root', out = []) {
   return out;
 }
 
-async function getMatchXg(browser, url) {
+async function fetchFotMobMatchDetails(matchId) {
+  if (matchId == null || matchId === '') return null;
+
+  const urls = [
+    'https://www.fotmob.com/api/data/matchDetails?matchId=' + encodeURIComponent(matchId),
+    'https://www.fotmob.com/api/matchDetails?matchId=' + encodeURIComponent(matchId),
+  ];
+
+  for (const url of urls) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+
+    try {
+      const r = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'user-agent': UA,
+          'accept': 'application/json,text/plain,*/*',
+          'referer': 'https://www.fotmob.com/',
+          'accept-language': 'en-US,en;q=0.9',
+        },
+      });
+
+      if (!r.ok) continue;
+      return await r.json();
+    } catch {
+      // Try the next FotMob route, then browser fallback.
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return null;
+}
+
+async function getMatchXg(browser, url, matchId) {
+  const direct = await fetchFotMobMatchDetails(matchId);
+  if (direct) {
+    const rows = findExpectedGoals(direct);
+    if (rows.length) return rows[0];
+  }
+
   if (!url) return null;
+
   const page = await newPage(browser);
   let done;
   const found = new Promise(resolve => { done = resolve; });
@@ -256,7 +298,7 @@ async function getMatchXg(browser, url) {
   });
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
     try {
       const scripts = await page.evaluate(collectJsonScripts);
       for (const body of scripts) {
@@ -264,12 +306,33 @@ async function getMatchXg(browser, url) {
         if (settled) break;
       }
     } catch {}
-    return await Promise.race([found, sleep(5000).then(() => null)]);
+
+    return await Promise.race([
+      found,
+      sleep(2200).then(() => null),
+    ]);
   } catch {
     return null;
   } finally {
     await page.close().catch(() => {});
   }
+}
+
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+
+  async function worker() {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i], i);
+    }
+  }
+
+  const count = Math.min(Math.max(1, limit), items.length || 1);
+  await Promise.all(Array.from({ length: count }, () => worker()));
+  return out;
 }
 
 function teamPerspective(match, teamName, pair) {
@@ -419,10 +482,32 @@ function cleanUnavailable(players) {
   return [...map.values()];
 }
 
-async function getUnavailable(browser, matchUrl) {
+async function getUnavailable(browser, matchUrl, matchId) {
+  const direct = await fetchFotMobMatchDetails(matchId);
+  if (direct) {
+    const groups = [];
+    findUnavailable(direct, groups);
+
+    if (groups.length) {
+      const home = [];
+      const away = [];
+      groups.forEach(g => {
+        home.push(...g.home);
+        away.push(...g.away);
+      });
+
+      return {
+        home: cleanUnavailable(home),
+        away: cleanUnavailable(away),
+      };
+    }
+  }
+
   if (!matchUrl) return { home: [], away: [] };
+
   const page = await newPage(browser);
   const groups = [];
+
   page.on('response', async response => {
     try {
       const type = response.headers()['content-type'] || '';
@@ -433,21 +518,33 @@ async function getUnavailable(browser, matchUrl) {
       findUnavailable(json, groups);
     } catch {}
   });
+
   try {
-    await page.goto(matchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await sleep(3500);
+    await page.goto(matchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await sleep(2200);
+
     try {
       const scripts = await page.evaluate(collectJsonScripts);
       for (const body of scripts) {
         try { findUnavailable(JSON.parse(body), groups); } catch {}
       }
     } catch {}
-  } catch {}
-  finally { await page.close().catch(() => {}); }
+  } catch {
+  } finally {
+    await page.close().catch(() => {});
+  }
 
-  const home = [], away = [];
-  groups.forEach(g => { home.push(...g.home); away.push(...g.away); });
-  return { home: cleanUnavailable(home), away: cleanUnavailable(away) };
+  const home = [];
+  const away = [];
+  groups.forEach(g => {
+    home.push(...g.home);
+    away.push(...g.away);
+  });
+
+  return {
+    home: cleanUnavailable(home),
+    away: cleanUnavailable(away),
+  };
 }
 
 function upcomingFrom(matches) {
@@ -476,13 +573,11 @@ async function buildTeam(browser, info, opponentName) {
   const finished = matches.filter(isFinished).sort((a,b) => Date.parse(b.date) - Date.parse(a.date)).slice(0,10);
   const upcoming = upcomingFrom(matches);
 
-  const rows = [];
-  for (const m of finished) {
-    const pair = await getMatchXg(browser, m.url);
+  const rows = await mapLimit(finished, 4, async m => {
+    const pair = await getMatchXg(browser, m.url, m.id);
     const px = teamPerspective(m, info.name, pair);
-    rows.push({ ...m, ...px });
-    await sleep(350);
-  }
+    return { ...m, ...px };
+  });
 
   const last5 = rows.slice(0,5);
   const valid5 = last5.filter(x => x.xG != null && x.xGA != null);
@@ -764,7 +859,7 @@ async function buildPerformancePackage({ home, away }) {
       matchBetweenUpcoming(homePack._allMatches, homeInfo.name, awayInfo.name) ||
       matchBetweenUpcoming(awayPack._allMatches, homeInfo.name, awayInfo.name);
 
-    const unavailable = await getUnavailable(browser, targetMatch?.url);
+    const unavailable = await getUnavailable(browser, targetMatch?.url, targetMatch?.id);
 
     const homeIsMatchHome = targetMatch
       ? normalizeName(targetMatch.home).includes(normalizeName(homeInfo.name))

@@ -232,6 +232,20 @@ class Api {
     return decode(r);
   }
 
+  Future<Map<String, dynamic>> postLong(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final r = await http
+        .post(
+          Uri.parse(baseUrl + path),
+          headers: writeHeaders,
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(minutes: 4));
+    return decode(r);
+  }
+
   Future<Map<String, dynamic>> delete(String path) async {
     final r = await _retry(
       () => http
@@ -1214,6 +1228,7 @@ class _MatchDetailState extends State<MatchDetail> {
   String error = '';
   String refreshMessage = '';
   String selectedMarket = 'MS';
+  bool showPerformance = false;
   Map<String, dynamic> data = {};
 
   @override
@@ -1503,8 +1518,48 @@ class _MatchDetailState extends State<MatchDetail> {
           widget.title,
           overflow: TextOverflow.ellipsis,
         ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121914),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF29352E)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _DetailTabButton(
+                      icon: Icons.show_chart_rounded,
+                      label: 'Oranlar',
+                      selected: !showPerformance,
+                      onTap: () => setState(() => showPerformance = false),
+                    ),
+                  ),
+                  Expanded(
+                    child: _DetailTabButton(
+                      icon: Icons.insights_rounded,
+                      label: 'Performans',
+                      selected: showPerformance,
+                      onTap: () => setState(() => showPerformance = true),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-      body: loading
+      body: showPerformance
+          ? PerformancePanel(
+              eventId: widget.eventId,
+              title: widget.title,
+            )
+          : (loading
           ? const Center(child: CircularProgressIndicator())
           : error.isNotEmpty
               ? ErrorPane(message: error, retry: load)
@@ -1719,7 +1774,729 @@ class _MatchDetailState extends State<MatchDetail> {
                         ),
                     ],
                   ),
+                )),
+    );
+  }
+}
+
+class _DetailTabButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _DetailTabButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? const Color(0xFF244C3C) : Colors.transparent,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 17,
+              color: selected
+                  ? const Color(0xFF8BE2BE)
+                  : const Color(0xFF8D9992),
+            ),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: selected
+                    ? const Color(0xFFE8F5EF)
+                    : const Color(0xFF9AA59F),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PerformancePanel extends StatefulWidget {
+  final String eventId;
+  final String title;
+
+  const PerformancePanel({
+    super.key,
+    required this.eventId,
+    required this.title,
+  });
+
+  @override
+  State<PerformancePanel> createState() => _PerformancePanelState();
+}
+
+class _PerformancePanelState extends State<PerformancePanel>
+    with AutomaticKeepAliveClientMixin {
+  bool loading = true;
+  String error = '';
+  Map<String, dynamic> data = {};
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Map<String, dynamic> _map(dynamic v) {
+    return v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
+  }
+
+  List<Map<String, dynamic>> _maps(dynamic v) {
+    return v is List
+        ? v.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+        : <Map<String, dynamic>>[];
+  }
+
+  String _value(dynamic v, {int decimals = 2}) {
+    if (v == null) return '—';
+    if (v is num) {
+      if (v.toDouble() == v.toInt().toDouble()) return v.toInt().toString();
+      return v.toDouble().toStringAsFixed(decimals);
+    }
+    final n = double.tryParse(v.toString());
+    if (n != null) return n.toStringAsFixed(decimals);
+    return v.toString();
+  }
+
+  String _record(Map<String, dynamic> team, String period) {
+    final p = _map(team[period]);
+    final r = _map(p['sonuc']);
+    if (r.isEmpty) return '—';
+    return _value(r['galibiyet'], decimals: 0) +
+        'G  ' +
+        _value(r['beraberlik'], decimals: 0) +
+        'B  ' +
+        _value(r['maglubiyet'], decimals: 0) +
+        'M';
+  }
+
+  Future<void> load() async {
+    if (mounted) {
+      setState(() {
+        loading = true;
+        error = '';
+      });
+    }
+
+    try {
+      data = await api.postLong(
+        '/api/matches/' + widget.eventId + '/performance',
+        {},
+      );
+    } catch (e) {
+      error = e.toString().replaceFirst('Exception: ', '');
+    }
+
+    if (mounted) setState(() => loading = false);
+  }
+
+  Widget _sectionTitle(String text, {String? trailing}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(3, 14, 3, 7),
+      child: Row(
+        children: [
+          Text(
+            text.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .9,
+              color: Color(0xFF9AA8A0),
+            ),
+          ),
+          const Spacer(),
+          if (trailing != null)
+            Text(
+              trailing,
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xFF748078),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricRow(
+    String label,
+    String left,
+    String right, {
+    String? hint,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Color(0xFF263029), width: .8),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 84,
+            child: Text(
+              left,
+              textAlign: TextAlign.left,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFFE7ECE9),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF98A39D),
+                  ),
                 ),
+                if (hint != null)
+                  Text(
+                    hint,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Color(0xFF66736B),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 84,
+            child: Text(
+              right,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFFE7ECE9),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _teamHeader(String left, String right) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFF151E18),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              left,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              'VS',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF58D6A6),
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              right,
+              maxLines: 2,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryCard(
+    Map<String, dynamic> home,
+    Map<String, dynamic> away,
+  ) {
+    final h5 = _map(home['son5']);
+    final a5 = _map(away['son5']);
+    final h10 = _map(home['son10']);
+    final a10 = _map(away['son10']);
+    final hl = _map(home['ligDurumu']);
+    final al = _map(away['ligDurumu']);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF111712),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF26322B)),
+      ),
+      child: Column(
+        children: [
+          _teamHeader(
+            home['takim']?.toString() ?? 'Ev',
+            away['takim']?.toString() ?? 'Dep.',
+          ),
+          _metricRow('Son 5', _record(home, 'son5'), _record(away, 'son5')),
+          _metricRow('Son 10', _record(home, 'son10'), _record(away, 'son10')),
+          _metricRow(
+            'xG',
+            _value(h10['xG']),
+            _value(a10['xG']),
+            hint: 'Son 10 ort.',
+          ),
+          _metricRow(
+            'xGA',
+            _value(h10['xGA']),
+            _value(a10['xGA']),
+            hint: 'Son 10 ort.',
+          ),
+          _metricRow(
+            'xG veri',
+            _value(h10['xGVerisi'], decimals: 0) + '/10',
+            _value(a10['xGVerisi'], decimals: 0) + '/10',
+          ),
+          _metricRow(
+            'Lig sıra',
+            hl['sira'] == null ? '—' : '#' + _value(hl['sira'], decimals: 0),
+            al['sira'] == null ? '—' : '#' + _value(al['sira'], decimals: 0),
+          ),
+          _metricRow(
+            'Puan',
+            _value(hl['puan'], decimals: 0),
+            _value(al['puan'], decimals: 0),
+          ),
+          _metricRow(
+            'Gol',
+            _value(hl['attigiGol'], decimals: 0) +
+                ' / ' +
+                _value(hl['yedigiGol'], decimals: 0),
+            _value(al['attigiGol'], decimals: 0) +
+                ' / ' +
+                _value(al['yedigiGol'], decimals: 0),
+            hint: 'Attı / yedi',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _availabilityCard(
+    Map<String, dynamic> home,
+    Map<String, dynamic> away,
+  ) {
+    final h = _maps(home['eksikler']);
+    final a = _maps(away['eksikler']);
+
+    Widget mini(String team, List<Map<String, dynamic>> rows) {
+      final rated = rows
+          .where((x) => x['rating'] is num)
+          .map((x) => (x['rating'] as num).toDouble())
+          .toList();
+      rated.sort((a, b) => b.compareTo(a));
+      final top = rated.isEmpty ? null : rated.first;
+
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF151C17),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF26322B)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                team,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFFA5B0AA),
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                rows.length.toString() + ' eksik',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                top == null ? 'rating yok' : 'en yüksek rating ' + top.toStringAsFixed(2),
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: Color(0xFF7E8A83),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        mini(home['takim']?.toString() ?? 'Ev', h),
+        const SizedBox(width: 8),
+        mini(away['takim']?.toString() ?? 'Dep.', a),
+      ],
+    );
+  }
+
+  Widget _missingExpansion(
+    Map<String, dynamic> home,
+    Map<String, dynamic> away,
+  ) {
+    final h = _maps(home['eksikler']);
+    final a = _maps(away['eksikler']);
+
+    Widget list(String team, List<Map<String, dynamic>> rows) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 5),
+            child: Text(
+              team,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF8BE2BE),
+              ),
+            ),
+          ),
+          if (rows.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(6),
+              child: Text(
+                'Eksik oyuncu görünmüyor.',
+                style: TextStyle(fontSize: 11, color: Color(0xFF8D9992)),
+              ),
+            ),
+          for (final p in rows)
+            Container(
+              margin: const EdgeInsets.only(bottom: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121813),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      p['ad']?.toString() ?? '-',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    p['durum']?.toString() ?? '-',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFFFFB66E),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    p['rating'] is num
+                        ? (p['rating'] as num).toStringAsFixed(2)
+                        : '—',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFFAAB3AE),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ExpansionTile(
+        title: const Text(
+          'Eksik oyuncu detayları',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text(
+          (h.length + a.length).toString() + ' oyuncu',
+          style: const TextStyle(fontSize: 10),
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+        children: [
+          list(home['takim']?.toString() ?? 'Ev', h),
+          list(away['takim']?.toString() ?? 'Dep.', a),
+        ],
+      ),
+    );
+  }
+
+  Widget _fixtureExpansion(
+    Map<String, dynamic> home,
+    Map<String, dynamic> away,
+  ) {
+    Widget team(String name, Map<String, dynamic> t) {
+      final rows = _maps(t['sonrakiMaclar']);
+      final dense = _map(t['fiksturYogunlugu']);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+            child: Text(
+              name +
+                  ' · 7g ' +
+                  _value(dense['sonraki7Gun'], decimals: 0) +
+                  ' / 14g ' +
+                  _value(dense['sonraki14Gun'], decimals: 0),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF8BE2BE),
+              ),
+            ),
+          ),
+          for (final m in rows.take(3))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      (m['ev']?.toString() ?? '-') +
+                          ' - ' +
+                          (m['deplasman']?.toString() ?? '-'),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ),
+                  Text(
+                    _shortDate(m['tarih']),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Color(0xFF8A968F),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ExpansionTile(
+        title: const Text(
+          'Fikstür yoğunluğu',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+        ),
+        subtitle: const Text(
+          'Sonraki maçlar ve 7/14 günlük yük',
+          style: TextStyle(fontSize: 10),
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+        children: [
+          team(home['takim']?.toString() ?? 'Ev', home),
+          team(away['takim']?.toString() ?? 'Dep.', away),
+        ],
+      ),
+    );
+  }
+
+  String _shortDate(dynamic raw) {
+    if (raw == null) return '—';
+    try {
+      final d = DateTime.parse(raw.toString()).toLocal();
+      return d.day.toString().padLeft(2, '0') +
+          '.' +
+          d.month.toString().padLeft(2, '0') +
+          ' ' +
+          d.hour.toString().padLeft(2, '0') +
+          ':' +
+          d.minute.toString().padLeft(2, '0');
+    } catch (_) {
+      return raw.toString();
+    }
+  }
+
+  Widget _h2h(Map<String, dynamic> raw) {
+    final rows = _maps(raw['maclar']);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ExpansionTile(
+        initiallyExpanded: rows.isNotEmpty,
+        title: const Text(
+          'İkili rekabet (H2H)',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text(
+          rows.length.toString() + '/4 maç bulundu',
+          style: const TextStyle(fontSize: 10),
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+        children: [
+          if (rows.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(8),
+              child: Text(
+                'Geçmiş karşılaşma bulunamadı.',
+                style: TextStyle(fontSize: 11, color: Color(0xFF8D9992)),
+              ),
+            ),
+          for (final m in rows)
+            Container(
+              margin: const EdgeInsets.only(bottom: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121813),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      (m['ev']?.toString() ?? '-') +
+                          ' ' +
+                          _value(m['evGol'], decimals: 0) +
+                          '-' +
+                          _value(m['deplasmanGol'], decimals: 0) +
+                          ' ' +
+                          (m['deplasman']?.toString() ?? '-'),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _shortDate(m['tarih']).split(' ').first,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Color(0xFF8A968F),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (loading) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 12),
+            Text(
+              'Performans verileri hazırlanıyor…',
+              style: TextStyle(fontSize: 11, color: Color(0xFF97A39C)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (error.isNotEmpty) {
+      return ErrorPane(message: error, retry: load);
+    }
+
+    final home = _map(data['evTakimi']);
+    final away = _map(data['deplasmanTakimi']);
+    final h2h = _map(data['h2h']);
+
+    if (home.isEmpty || away.isEmpty) {
+      return ErrorPane(
+        message: 'Performans verisi eksik geldi.',
+        retry: load,
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        children: [
+          _sectionTitle('Genel karşılaştırma', trailing: 'FotMob'),
+          _summaryCard(home, away),
+          _sectionTitle('Kadro durumu'),
+          _availabilityCard(home, away),
+          const SizedBox(height: 8),
+          _missingExpansion(home, away),
+          _sectionTitle('Fikstür'),
+          _fixtureExpansion(home, away),
+          _sectionTitle('Geçmiş karşılaşmalar'),
+          _h2h(h2h),
+          const SizedBox(height: 10),
+          const Center(
+            child: Text(
+              'Veriler analiz amaçlıdır · xG olmayan maçlar ortalamaya katılmaz',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 9,
+                color: Color(0xFF68736D),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

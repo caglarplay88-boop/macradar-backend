@@ -31,12 +31,13 @@ jobs:
           flutter create --platforms=android --org com.macradar --project-name macradar mobile_build
           cp mobile/lib/main.dart mobile_build/lib/main.dart
           cd mobile_build
-          flutter pub add http shared_preferences
+          flutter pub add http shared_preferences flutter_local_notifications workmanager
 
       - name: Set app name and internet permission
         run: |
           sed -i 's/android:label="macradar"/android:label="MacRadar"/' mobile_build/android/app/src/main/AndroidManifest.xml
           sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />' mobile_build/android/app/src/main/AndroidManifest.xml
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' mobile_build/android/app/src/main/AndroidManifest.xml
 
       - name: Build release APK
         run: |

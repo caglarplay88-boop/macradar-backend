@@ -74,6 +74,14 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('MacRadar scraper service', PORT);
+
+  const smokeUrl = String(process.env.SMOKE_URL || '');
+  if (smokeUrl) {
+    setTimeout(async () => {
+      const r = await scrapeWithRetry(smokeUrl, 1);
+      console.log('SMOKE RESULT:', JSON.stringify(r));
+    }, 3000);
+  }
 });
 
 process.on('SIGTERM', async () => {

@@ -38,6 +38,20 @@ async function initDb() {
       btts_no DOUBLE PRECISION
     );
 
+    CREATE TABLE IF NOT EXISTS odds_alerts (
+      id BIGSERIAL PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      captured_at TIMESTAMPTZ NOT NULL,
+      bookmaker TEXT NOT NULL,
+      market TEXT NOT NULL,
+      selection TEXT NOT NULL,
+      previous_odd DOUBLE PRECISION NOT NULL,
+      current_odd DOUBLE PRECISION NOT NULL,
+      drop_pct DOUBLE PRECISION NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(event_id, captured_at, bookmaker, market, selection)
+    );
+
     CREATE TABLE IF NOT EXISTS worker_runs (
       id BIGSERIAL PRIMARY KEY,
       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -59,6 +73,12 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_worker_runs_started
       ON worker_runs(started_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_odds_alerts_id
+      ON odds_alerts(id DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_odds_alerts_event_time
+      ON odds_alerts(event_id, captured_at DESC);
   `);
 }
 
@@ -75,10 +95,56 @@ async function upsertMatch({ eventId, url, slug, active = true }) {
   `, [eventId, url, slug, active, now]);
 }
 
+
+function alertCandidates(previous, current) {
+  if (!previous || !current) return [];
+
+  const fields = [
+    ['MS', 'Ev', 'ms1'],
+    ['MS', 'X', 'msx'],
+    ['MS', 'Dep', 'ms2'],
+    ['1.5', 'Alt', 'ou15_under'],
+    ['1.5', 'Üst', 'ou15_over'],
+    ['2.5', 'Alt', 'ou25_under'],
+    ['2.5', 'Üst', 'ou25_over'],
+    ['KG', 'Yok', 'btts_no'],
+    ['KG', 'Var', 'btts_yes']
+  ];
+
+  const alerts = [];
+  for (const [market, selection, key] of fields) {
+    const before = Number(previous[key]);
+    const after = Number(current[key]);
+    if (!Number.isFinite(before) || !Number.isFinite(after)) continue;
+    if (before <= 0 || after <= 0 || after >= before) continue;
+
+    const absDrop = before - after;
+    const pctDrop = (absDrop / before) * 100;
+    if (absDrop + 1e-9 < 0.10 || pctDrop + 1e-9 < 5.0) continue;
+
+    alerts.push({ market, selection, previousOdd: before, currentOdd: after, dropPct: pctDrop });
+  }
+  return alerts;
+}
+
 async function saveSnapshot({ eventId, url, slug, rows, capturedAt = new Date() }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    const currentPreferred =
+      rows.find(r => String(r.bookmaker || '').toLowerCase().replace(/\s+/g, '').startsWith('1xbet')) ||
+      rows[0] ||
+      null;
+
+    let previousPreferred = null;
+    if (currentPreferred) {
+      previousPreferred = (await client.query(
+        "SELECT * FROM snapshots WHERE event_id=$1 AND LOWER(REPLACE(bookmaker, ' ', '')) = LOWER(REPLACE($2, ' ', '')) AND captured_at < $3 ORDER BY captured_at DESC, id DESC LIMIT 1",
+        [eventId, currentPreferred.bookmaker, capturedAt]
+      )).rows[0] || null;
+    }
+
     await client.query(`
       INSERT INTO matches(event_id,url,match_slug,active,created_at,updated_at)
       VALUES($1,$2,$3,TRUE,$4,$4)
@@ -103,6 +169,21 @@ async function saveSnapshot({ eventId, url, slug, rows, capturedAt = new Date() 
         r.btts_yes ?? null, r.btts_no ?? null
       ]);
     }
+    const activeRow = (await client.query(
+      'SELECT active FROM matches WHERE event_id=$1',
+      [eventId]
+    )).rows[0];
+
+    if (activeRow?.active && currentPreferred && previousPreferred) {
+      const alerts = alertCandidates(previousPreferred, currentPreferred);
+      for (const alert of alerts) {
+        await client.query(
+          'INSERT INTO odds_alerts(event_id,captured_at,bookmaker,market,selection,previous_odd,current_odd,drop_pct) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING',
+          [eventId, capturedAt, currentPreferred.bookmaker, alert.market, alert.selection, alert.previousOdd, alert.currentOdd, alert.dropPct]
+        );
+      }
+    }
+
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK');
@@ -256,6 +337,22 @@ async function updateWorkerRun(id, fields = {}) {
   return r.rows[0];
 }
 
+
+async function listAlerts({ afterId = 0, limit = 30 } = {}) {
+  const safeAfter = Number.isFinite(Number(afterId)) ? Number(afterId) : 0;
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 30));
+  const r = await pool.query(
+    'SELECT a.*, m.match_slug FROM odds_alerts a JOIN matches m ON m.event_id=a.event_id WHERE a.id > $1 AND m.active=TRUE ORDER BY a.id ASC LIMIT $2',
+    [safeAfter, safeLimit]
+  );
+  return r.rows;
+}
+
+async function getLatestAlertId() {
+  const r = await pool.query('SELECT COALESCE(MAX(id),0)::bigint AS id FROM odds_alerts');
+  return Number(r.rows[0]?.id || 0);
+}
+
 async function getWorkerStatus() {
   const last = (await pool.query(
     'SELECT * FROM worker_runs ORDER BY started_at DESC LIMIT 1'
@@ -279,5 +376,7 @@ module.exports = {
   setActive,
   createWorkerRun,
   updateWorkerRun,
-  getWorkerStatus
+  getWorkerStatus,
+  listAlerts,
+  getLatestAlertId
 };

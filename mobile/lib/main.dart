@@ -1171,12 +1171,71 @@ class MarketSection extends StatelessWidget {
                 color: Color(0xFF9DA8A2),
               ),
             ),
-            const SizedBox(height: 10),
-            for (final s in series)
-              SingleSelectionPanel(
-                history: history,
-                series: s,
+            const SizedBox(height: 9),
+            CombinedMarketChart(
+              history: history,
+              series: series,
+            ),
+            const SizedBox(height: 5),
+            Theme(
+              data: Theme.of(context).copyWith(
+                dividerColor: Colors.transparent,
               ),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text(
+                  'Geçmiş oranlar · ' +
+                      history.length.toString() +
+                      ' kayıt',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Tarih / saat / dakika',
+                  style: TextStyle(fontSize: 9),
+                ),
+                children: [
+                  CombinedHistoryTable(
+                    history: history,
+                    series: series,
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF151C19),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'KISA RAPOR',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                      color: Color(0xFF8CDAB8),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    report,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -1184,219 +1243,34 @@ class MarketSection extends StatelessWidget {
   }
 }
 
-class SingleSelectionPanel extends StatelessWidget {
+class CombinedMarketChart extends StatefulWidget {
   final List<Map<String, dynamic>> history;
-  final ChartSeries series;
+  final List<ChartSeries> series;
 
-  const SingleSelectionPanel({
-    super.key,
-    required this.history,
-    required this.series,
-  });
-
-  double? valueAt(Map<String, dynamic> row) {
-    final raw = row[series.keyName];
-    return raw is num ? raw.toDouble() : null;
-  }
-
-  String reportText() {
-    final valid = history.where((r) => valueAt(r) != null).toList();
-    if (valid.isEmpty) {
-      return 'Henüz oran kaydı yok.';
-    }
-    if (valid.length == 1) {
-      return 'İlk kayıt ' +
-          valueAt(valid.first)!.toStringAsFixed(2) +
-          '. Hareket yorumu için yeni kayıt bekleniyor.';
-    }
-
-    final first = valueAt(valid.first)!;
-    final last = valueAt(valid.last)!;
-    final diff = last - first;
-    final pct = first == 0 ? 0.0 : (diff / first) * 100;
-
-    if (diff.abs() < 0.005) {
-      return series.label +
-          ' oranı ' +
-          first.toStringAsFixed(2) +
-          ' seviyesinden ' +
-          last.toStringAsFixed(2) +
-          ' seviyesine geldi; belirgin değişim yok.';
-    }
-
-    if (diff < 0) {
-      return series.label +
-          ' oranı ' +
-          first.toStringAsFixed(2) +
-          ' → ' +
-          last.toStringAsFixed(2) +
-          ' düştü (' +
-          pct.abs().toStringAsFixed(1) +
-          '%). Bu seçenek önceki kayda göre daha güçlü fiyatlanıyor.';
-    }
-
-    return series.label +
-        ' oranı ' +
-        first.toStringAsFixed(2) +
-        ' → ' +
-        last.toStringAsFixed(2) +
-        ' yükseldi (' +
-        pct.abs().toStringAsFixed(1) +
-        '%). Bu seçenek önceki kayda göre daha zayıf fiyatlanıyor.';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final valid = history.where((r) => valueAt(r) != null).toList();
-    final current = valid.isEmpty ? null : valueAt(valid.last);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(9, 9, 9, 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF11171A),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: const Color(0xFF26302C)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: series.color,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  series.label,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Text(
-                current == null ? '-' : current.toStringAsFixed(2),
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 7),
-          if (valid.length < 2)
-            Container(
-              height: 130,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D1215),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: const Text(
-                'Grafik için ikinci kayıt bekleniyor.',
-                style: TextStyle(fontSize: 11),
-              ),
-            )
-          else
-            SingleSeriesChart(
-              history: valid,
-              series: series,
-            ),
-          const SizedBox(height: 4),
-          Theme(
-            data: Theme.of(context).copyWith(
-              dividerColor: Colors.transparent,
-            ),
-            child: ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: EdgeInsets.zero,
-              dense: true,
-              title: Text(
-                'Geçmiş oranlar · ' +
-                    valid.length.toString() +
-                    ' kayıt',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              subtitle: const Text(
-                'Tarih / saat / dakika',
-                style: TextStyle(fontSize: 9),
-              ),
-              children: [
-                SingleSeriesHistoryTable(
-                  history: valid,
-                  series: series,
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF151C19),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'KISA RAPOR',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                    color: Color(0xFF8CDAB8),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  reportText(),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class SingleSeriesChart extends StatefulWidget {
-  final List<Map<String, dynamic>> history;
-  final ChartSeries series;
-
-  const SingleSeriesChart({
+  const CombinedMarketChart({
     super.key,
     required this.history,
     required this.series,
   });
 
   @override
-  State<SingleSeriesChart> createState() => _SingleSeriesChartState();
+  State<CombinedMarketChart> createState() =>
+      _CombinedMarketChartState();
 }
 
-class _SingleSeriesChartState extends State<SingleSeriesChart> {
+class _CombinedMarketChartState
+    extends State<CombinedMarketChart> {
   int? selectedIndex;
 
-  List<Map<String, dynamic>> get validRows => widget.history
-      .where((r) => r[widget.series.keyName] is num)
-      .toList();
+  List<Map<String, dynamic>> get rows {
+    return widget.history.where((row) {
+      return widget.series.any(
+        (s) => row[s.keyName] is num,
+      );
+    }).toList();
+  }
 
-  String selectedStamp(dynamic raw) {
+  String stamp(dynamic raw) {
     try {
       final dt = DateTime.parse(raw.toString()).toLocal();
       return dt.day.toString().padLeft(2, '0') +
@@ -1413,19 +1287,24 @@ class _SingleSeriesChartState extends State<SingleSeriesChart> {
     }
   }
 
-  void selectNearest(Offset localPosition, double width) {
-    final rows = validRows;
-    if (rows.isEmpty) return;
+  String odd(dynamic raw) {
+    if (raw is num) return raw.toDouble().toStringAsFixed(2);
+    return '-';
+  }
 
-    const left = 38.0;
+  void selectNearest(Offset position, double width) {
+    final data = rows;
+    if (data.isEmpty) return;
+
+    const left = 18.0;
     const right = 8.0;
     final plotWidth = math.max(1.0, width - left - right);
 
     int index = 0;
-    if (rows.length > 1) {
-      final normalized =
-          ((localPosition.dx - left) / plotWidth).clamp(0.0, 1.0);
-      index = (normalized * (rows.length - 1)).round();
+    if (data.length > 1) {
+      final ratio =
+          ((position.dx - left) / plotWidth).clamp(0.0, 1.0);
+      index = (ratio * (data.length - 1)).round();
     }
 
     setState(() => selectedIndex = index);
@@ -1433,107 +1312,192 @@ class _SingleSeriesChartState extends State<SingleSeriesChart> {
 
   @override
   Widget build(BuildContext context) {
-    final rows = validRows;
+    final data = rows;
+    final latest =
+        data.isEmpty ? null : data.last;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final selected = selectedIndex != null &&
-                selectedIndex! >= 0 &&
-                selectedIndex! < rows.length
-            ? rows[selectedIndex!]
-            : null;
-        final selectedValue = selected == null
-            ? null
-            : (selected[widget.series.keyName] as num).toDouble();
+    final selected = selectedIndex != null &&
+            selectedIndex! >= 0 &&
+            selectedIndex! < data.length
+        ? data[selectedIndex!]
+        : null;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (details) =>
-                  selectNearest(details.localPosition, constraints.maxWidth),
-              onHorizontalDragUpdate: (details) =>
-                  selectNearest(details.localPosition, constraints.maxWidth),
-              child: CustomPaint(
-                size: Size(constraints.maxWidth, 175),
-                painter: SingleSeriesPainter(
-                  history: rows,
-                  series: widget.series,
-                  selectedIndex: selectedIndex,
-                ),
-              ),
-            ),
-            if (selected != null && selectedValue != null) ...[
-              const SizedBox(height: 5),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF18211D),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: widget.series.color.withValues(alpha: 0.45),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (latest != null)
+          Row(
+            children: [
+              for (final s in widget.series)
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF101619),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: s.color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              s.label,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          odd(latest[s.keyName]),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                child: Row(
+            ],
+          ),
+        const SizedBox(height: 8),
+        if (data.length < 2)
+          Container(
+            height: 155,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1215),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Text(
+              'Grafik için ikinci kayıt bekleniyor.',
+              style: TextStyle(fontSize: 11),
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (details) => selectNearest(
+                  details.localPosition,
+                  constraints.maxWidth,
+                ),
+                onHorizontalDragUpdate: (details) =>
+                    selectNearest(
+                  details.localPosition,
+                  constraints.maxWidth,
+                ),
+                child: CustomPaint(
+                  size: Size(
+                    constraints.maxWidth,
+                    185,
+                  ),
+                  painter: CombinedMarketPainter(
+                    history: data,
+                    series: widget.series,
+                    selectedIndex: selectedIndex,
+                  ),
+                ),
+              );
+            },
+          ),
+        if (selected != null) ...[
+          const SizedBox(height: 5),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 9,
+              vertical: 7,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFF18211D),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  stamp(selected['captured_at']),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: Color(0xFFAEB8B3),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Row(
                   children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: widget.series.color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        selectedStamp(selected['captured_at']),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Color(0xFFB8C1BC),
+                    for (final s in widget.series)
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: s.color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              s.label +
+                                  ' ' +
+                                  odd(selected[s.keyName]),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    Text(
-                      widget.series.label +
-                          '  ' +
-                          selectedValue.toStringAsFixed(2),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
                   ],
                 ),
+              ],
+            ),
+          ),
+        ] else
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'Grafikte bir noktaya dokun: o dakikanın gerçek oranlarını göster.',
+              style: TextStyle(
+                fontSize: 9,
+                color: Color(0xFF8F9994),
               ),
-            ] else
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text(
-                  'Bir noktaya dokun: tarih, saat ve oranı göster.',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Color(0xFF8F9994),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
+            ),
+          ),
+      ],
     );
   }
 }
 
-class SingleSeriesHistoryTable extends StatelessWidget {
+class CombinedHistoryTable extends StatelessWidget {
   final List<Map<String, dynamic>> history;
-  final ChartSeries series;
+  final List<ChartSeries> series;
 
-  const SingleSeriesHistoryTable({
+  const CombinedHistoryTable({
     super.key,
     required this.history,
     required this.series,
@@ -1554,83 +1518,106 @@ class SingleSeriesHistoryTable extends StatelessWidget {
     }
   }
 
+  String odd(dynamic raw) {
+    if (raw is num) return raw.toDouble().toStringAsFixed(2);
+    return '-';
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (history.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(10),
+        child: Text(
+          'Henüz geçmiş kayıt yok.',
+          style: TextStyle(fontSize: 10),
+        ),
+      );
+    }
+
     return Column(
       children: [
-        for (int i = history.length - 1; i >= 0; i--)
-          Builder(
-            builder: (context) {
-              final raw = history[i][series.keyName];
-              final value = raw is num ? raw.toDouble() : null;
-
-              String arrow = '→';
-              Color arrowColor = const Color(0xFF98A39D);
-
-              if (i > 0 && value != null) {
-                final pRaw = history[i - 1][series.keyName];
-                if (pRaw is num) {
-                  final previous = pRaw.toDouble();
-                  if (value < previous - 0.0001) {
-                    arrow = '↓';
-                    arrowColor = const Color(0xFFFF8495);
-                  } else if (value > previous + 0.0001) {
-                    arrow = '↑';
-                    arrowColor = const Color(0xFF6DE0AA);
-                  }
-                }
-              }
-
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 7,
-                  horizontal: 2,
-                ),
-                decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Color(0xFF29312E)),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Color(0xFF39413E),
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 88,
+                child: Text(
+                  'Tarih / Saat',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        when(history[i]['captured_at']),
-                        style: const TextStyle(fontSize: 10),
-                      ),
+              ),
+              for (final s in series)
+                Expanded(
+                  child: Text(
+                    s.label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
                     ),
-                    Text(
-                      value == null ? '-' : value.toStringAsFixed(2),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        for (int i = history.length - 1; i >= 0; i--)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Color(0xFF29312E),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 88,
+                  child: Text(
+                    when(history[i]['captured_at']),
+                    style: const TextStyle(
+                      fontSize: 8.5,
+                    ),
+                  ),
+                ),
+                for (final s in series)
+                  Expanded(
+                    child: Text(
+                      odd(history[i][s.keyName]),
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      arrow,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: arrowColor,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                  ),
+              ],
+            ),
           ),
       ],
     );
   }
 }
 
-class SingleSeriesPainter extends CustomPainter {
+class CombinedMarketPainter extends CustomPainter {
   final List<Map<String, dynamic>> history;
-  final ChartSeries series;
+  final List<ChartSeries> series;
   final int? selectedIndex;
 
-  SingleSeriesPainter({
+  CombinedMarketPainter({
     required this.history,
     required this.series,
     this.selectedIndex,
@@ -1638,7 +1625,7 @@ class SingleSeriesPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const left = 38.0;
+    const left = 18.0;
     const top = 10.0;
     const right = 8.0;
     const bottom = 28.0;
@@ -1649,28 +1636,6 @@ class SingleSeriesPainter extends CustomPainter {
       size.width - right,
       size.height - bottom,
     );
-
-    final values = <double>[];
-    for (final row in history) {
-      final raw = row[series.keyName];
-      if (raw is num) values.add(raw.toDouble());
-    }
-
-    if (values.isEmpty) return;
-
-    double minV = values.reduce(math.min);
-    double maxV = values.reduce(math.max);
-    final range = maxV - minV;
-
-    if (range.abs() < 0.0001) {
-      final pad = math.max(maxV.abs() * 0.01, 0.03);
-      minV -= pad;
-      maxV += pad;
-    } else {
-      final pad = math.max(range * 0.45, 0.01);
-      minV -= pad;
-      maxV += pad;
-    }
 
     final gridPaint = Paint()
       ..color = const Color(0xFF2B3338)
@@ -1683,142 +1648,102 @@ class SingleSeriesPainter extends CustomPainter {
         Offset(plot.right, y),
         gridPaint,
       );
-
-      final value = maxV - (maxV - minV) * i / 4;
-      _text(
-        canvas,
-        value.toStringAsFixed(2),
-        Offset(1, y - 6),
-        const TextStyle(
-          color: Color(0xFF7F8A86),
-          fontSize: 8,
-        ),
-      );
     }
 
-    final validRows = history
-        .where((r) => r[series.keyName] is num)
-        .toList();
-    final n = validRows.length;
+    final n = history.length;
 
     double xFor(int i) {
       if (n <= 1) return plot.left;
-      return plot.left + plot.width * i / (n - 1);
+      return plot.left +
+          (plot.width * i / (n - 1));
     }
 
-    double yFor(double value) {
-      return plot.bottom -
-          ((value - minV) / (maxV - minV)) * plot.height;
-    }
-
-    final path = Path();
-    final linePaint = Paint()
-      ..color = series.color
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-
-    final pointPaint = Paint()
-      ..color = series.color
-      ..style = PaintingStyle.fill;
-
-    for (int i = 0; i < n; i++) {
-      final value =
-          (validRows[i][series.keyName] as num).toDouble();
-      final p = Offset(xFor(i), yFor(value));
-
-      if (i == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
+    for (final s in series) {
+      final values = <double>[];
+      for (final row in history) {
+        final raw = row[s.keyName];
+        if (raw is num) values.add(raw.toDouble());
       }
 
-      canvas.drawCircle(p, 3.6, pointPaint);
-    }
+      if (values.isEmpty) continue;
 
-    canvas.drawPath(path, linePaint);
+      double minV = values.reduce(math.min);
+      double maxV = values.reduce(math.max);
+      final range = maxV - minV;
+
+      if (range.abs() < 0.0001) {
+        final pad =
+            math.max(maxV.abs() * 0.01, 0.03);
+        minV -= pad;
+        maxV += pad;
+      } else {
+        final pad = math.max(range * 0.35, 0.01);
+        minV -= pad;
+        maxV += pad;
+      }
+
+      double yFor(double value) {
+        return plot.bottom -
+            ((value - minV) /
+                    (maxV - minV)) *
+                plot.height;
+      }
+
+      final path = Path();
+      final linePaint = Paint()
+        ..color = s.color
+        ..strokeWidth = 2.7
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
+
+      final pointPaint = Paint()
+        ..color = s.color
+        ..style = PaintingStyle.fill;
+
+      bool started = false;
+
+      for (int i = 0; i < n; i++) {
+        final raw = history[i][s.keyName];
+        if (raw is! num) continue;
+
+        final point = Offset(
+          xFor(i),
+          yFor(raw.toDouble()),
+        );
+
+        if (!started) {
+          path.moveTo(point.dx, point.dy);
+          started = true;
+        } else {
+          path.lineTo(point.dx, point.dy);
+        }
+
+        canvas.drawCircle(
+          point,
+          selectedIndex == i ? 5.2 : 3.4,
+          pointPaint,
+        );
+      }
+
+      if (started) {
+        canvas.drawPath(path, linePaint);
+      }
+    }
 
     if (selectedIndex != null &&
         selectedIndex! >= 0 &&
         selectedIndex! < n) {
-      final value =
-          (validRows[selectedIndex!][series.keyName] as num).toDouble();
-      final p = Offset(
-        xFor(selectedIndex!),
-        yFor(value),
-      );
-
-      final guidePaint = Paint()
-        ..color = series.color.withValues(alpha: 0.35)
-        ..strokeWidth = 1;
+      final x = xFor(selectedIndex!);
 
       canvas.drawLine(
-        Offset(p.dx, plot.top),
-        Offset(p.dx, plot.bottom),
-        guidePaint,
-      );
-
-      canvas.drawCircle(
-        p,
-        7,
+        Offset(x, plot.top),
+        Offset(x, plot.bottom),
         Paint()
-          ..color = const Color(0xFF0D1215)
-          ..style = PaintingStyle.fill,
-      );
-      canvas.drawCircle(
-        p,
-        5,
-        pointPaint,
-      );
-
-      final bubbleText = value.toStringAsFixed(2);
-      final bubble = TextPainter(
-        text: TextSpan(
-          text: bubbleText,
-          style: const TextStyle(
-            color: Color(0xFFF4F7F5),
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-
-      final bubbleWidth = bubble.width + 14;
-      final bubbleHeight = bubble.height + 8;
-      double bx = p.dx - bubbleWidth / 2;
-      if (bx < plot.left) bx = plot.left;
-      if (bx + bubbleWidth > plot.right) {
-        bx = plot.right - bubbleWidth;
-      }
-
-      double by = p.dy - bubbleHeight - 10;
-      if (by < plot.top) by = p.dy + 10;
-
-      final bubbleRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          bx,
-          by,
-          bubbleWidth,
-          bubbleHeight,
-        ),
-        const Radius.circular(6),
-      );
-
-      canvas.drawRRect(
-        bubbleRect,
-        Paint()
-          ..color = const Color(0xFF26302C)
-          ..style = PaintingStyle.fill,
-      );
-
-      bubble.paint(
-        canvas,
-        Offset(
-          bx + 7,
-          by + 4,
-        ),
+          ..color =
+              const Color(0xFF8FA09A)
+                  .withValues(alpha: 0.35)
+          ..strokeWidth = 1,
       );
     }
 
@@ -1832,19 +1757,25 @@ class SingleSeriesPainter extends CustomPainter {
       if (i < 0 || i >= n) continue;
 
       String label = '--:--';
-      final raw = validRows[i]['captured_at'];
-
       try {
-        final dt = DateTime.parse(raw.toString()).toLocal();
-        label = dt.hour.toString().padLeft(2, '0') +
-            ':' +
-            dt.minute.toString().padLeft(2, '0');
+        final dt = DateTime.parse(
+          history[i]['captured_at'].toString(),
+        ).toLocal();
+        label =
+            dt.hour.toString().padLeft(2, '0') +
+                ':' +
+                dt.minute
+                    .toString()
+                    .padLeft(2, '0');
       } catch (_) {}
 
       _centerText(
         canvas,
         label,
-        Offset(xFor(i), plot.bottom + 8),
+        Offset(
+          xFor(i),
+          plot.bottom + 8,
+        ),
         const TextStyle(
           color: Color(0xFFA0AAA5),
           fontSize: 8,
@@ -1854,19 +1785,6 @@ class SingleSeriesPainter extends CustomPainter {
     }
   }
 
-  void _text(
-    Canvas canvas,
-    String text,
-    Offset pos,
-    TextStyle style,
-  ) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, pos);
-  }
-
   void _centerText(
     Canvas canvas,
     String text,
@@ -1874,18 +1792,28 @@ class SingleSeriesPainter extends CustomPainter {
     TextStyle style,
   ) {
     final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
+      text: TextSpan(
+        text: text,
+        style: style,
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
+
     tp.paint(
       canvas,
-      Offset(center.dx - tp.width / 2, center.dy),
+      Offset(
+        center.dx - tp.width / 2,
+        center.dy,
+      ),
     );
   }
 
   @override
-  bool shouldRepaint(covariant SingleSeriesPainter oldDelegate) {
-    return oldDelegate.selectedIndex != selectedIndex ||
+  bool shouldRepaint(
+    covariant CombinedMarketPainter oldDelegate,
+  ) {
+    return oldDelegate.selectedIndex !=
+            selectedIndex ||
         oldDelegate.history != history ||
         oldDelegate.series != series;
   }

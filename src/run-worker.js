@@ -4,7 +4,7 @@ const {
   createWorkerRun,
   updateWorkerRun,
   getRefreshMinutes,
-  setActive
+  archiveStartedMatch
 } = require('./db');
 const { pullAndSave } = require('./puller');
 const { closeBrowser } = require('./odds');
@@ -67,7 +67,7 @@ async function runWorkerOnce({ force = false, eventIds = null } = {}) {
     // Başlama saati gelen maçları otomatik pasife al; live oranları asla kaydetme.
     const startedMatches = matches.filter(m => hasStarted(m));
     for (const m of startedMatches) {
-      await setActive(m.event_id, false);
+      await archiveStartedMatch(m.event_id);
       console.log(`[worker] maç başladı, takip durduruldu: ${m.match_slug || m.event_id} (${m.match_date || ''} ${m.kickoff_time || ''})`);
     }
     if (startedMatches.length) {

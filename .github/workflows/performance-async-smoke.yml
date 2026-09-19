@@ -13,61 +13,128 @@ jobs:
       - name: Test cached async performance endpoint
         shell: bash
         run: |
-          set -euo pipefail
-
-          EVENT_ID="fqjrNwLr"
-          BASE="https://macradar-backend.onrender.com/api/matches/$EVENT_ID/performance"
-
-          echo "Triggering $BASE"
-
-          HTTP=$(curl --silent --show-error --max-time 30             -o trigger.json             -w "%{http_code}"             -H 'content-type: application/json'             -H 'x-api-key: 68427531'             -d '{"force":true}'             "$BASE")
-
-          echo "trigger_http=$HTTP"
-          cat trigger.json
-
-          if [ "$HTTP" != "202" ] && [ "$HTTP" != "200" ]; then
-            echo "unexpected trigger status"
-            exit 1
-          fi
-
           node - <<'NODE'
-          const fs=require('fs');
-          const x=JSON.parse(fs.readFileSync('trigger.json','utf8'));
-          if (x.evTakimi && x.deplasmanTakimi) {
-            console.log('READY IMMEDIATELY',x.evTakimi.takim,x.deplasmanTakimi.takim);
-          } else {
-            console.log('PREPARING',x.status);
+          const eventId = 'fqjrNwLr';
+          const base =
+            'https://macradar-backend.onrender.com/api/matches/' +
+            eventId +
+            '/performance';
+
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+          async function call(method, body) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 25000);
+            try {
+              const r = await fetch(base, {
+                method,
+                signal: controller.signal,
+                headers: method === 'POST'
+                  ? {
+                      'content-type': 'application/json',
+                      'x-api-key': '68427531',
+                    }
+                  : {},
+                body: body ? JSON.stringify(body) : undefined,
+              });
+
+              let data = {};
+              try {
+                data = await r.json();
+              } catch {}
+
+              return { status: r.status, data };
+            } finally {
+              clearTimeout(timer);
+            }
           }
-          NODE
 
-          for i in $(seq 1 48); do
-            sleep 4
-            HTTP=$(curl --silent --show-error --max-time 25               -o result.json               -w "%{http_code}"               "$BASE" || true)
+          function validate(x) {
+            if (!x?.evTakimi || !x?.deplasmanTakimi) {
+              throw new Error('Performance payload has no teams');
+            }
 
-            echo "poll=$i http=$HTTP"
+            console.log(
+              'READY',
+              x.evTakimi.takim,
+              'vs',
+              x.deplasmanTakimi.takim
+            );
+            console.log(
+              'xG/xGA',
+              x.evTakimi.son10?.xG,
+              x.evTakimi.son10?.xGA,
+              '|',
+              x.deplasmanTakimi.son10?.xG,
+              x.deplasmanTakimi.son10?.xGA
+            );
+            console.log(
+              'league',
+              x.evTakimi.ligDurumu?.sira,
+              x.deplasmanTakimi.ligDurumu?.sira
+            );
+            console.log(
+              'missing',
+              x.evTakimi.eksikler?.length,
+              x.deplasmanTakimi.eksikler?.length
+            );
+            console.log('h2h', x.h2h?.bulunan);
+          }
 
-            if [ "$HTTP" = "200" ]; then
-              node - <<'NODE'
-              const fs=require('fs');
-              const x=JSON.parse(fs.readFileSync('result.json','utf8'));
-              if (!x.evTakimi || !x.deplasmanTakimi) {
-                throw new Error('missing team payload');
+          (async () => {
+            const trigger = await call('POST', { force: true });
+            console.log('TRIGGER', trigger.status, trigger.data.status);
+
+            if (![200, 202].includes(trigger.status)) {
+              console.error(trigger.data);
+              process.exit(1);
+            }
+
+            if (trigger.status === 200) {
+              validate(trigger.data);
+            } else {
+              let ready = null;
+
+              for (let i = 1; i <= 50; i++) {
+                await sleep(4000);
+                const poll = await call('GET');
+                console.log('POLL', i, poll.status, poll.data.status || '');
+
+                if (poll.status === 200) {
+                  ready = poll.data;
+                  break;
+                }
+
+                if (poll.status === 503) {
+                  console.error(poll.data);
+                  process.exit(1);
+                }
               }
-              console.log('READY',x.evTakimi.takim,'vs',x.deplasmanTakimi.takim);
-              console.log('xG',x.evTakimi.son10?.xG,x.deplasmanTakimi.son10?.xG);
-              console.log('xGA',x.evTakimi.son10?.xGA,x.deplasmanTakimi.son10?.xGA);
-              console.log('missing',x.evTakimi.eksikler?.length,x.deplasmanTakimi.eksikler?.length);
-              console.log('h2h',x.h2h?.bulunan);
-              console.log('cache',x.performance_cache);
-              NODE
-              exit 0
-            fi
 
-            if [ "$HTTP" = "503" ]; then
-              cat result.json
-              exit 1
-            fi
-          done
+              if (!ready) {
+                throw new Error('Performance did not become ready in time');
+              }
 
-          echo "performance did not become ready in time"
-          exit 1
+              validate(ready);
+            }
+
+            const t0 = Date.now();
+            const cached = await call('GET');
+            const elapsed = Date.now() - t0;
+
+            if (cached.status !== 200) {
+              console.error(cached);
+              throw new Error('Cached second read did not return 200');
+            }
+
+            validate(cached.data);
+            console.log('SECOND_READ_MS', elapsed);
+            console.log(
+              'CACHE',
+              JSON.stringify(cached.data.performance_cache || {})
+            );
+          })().catch(err => {
+            console.error(err);
+            process.exit(1);
+          });
+          NODE

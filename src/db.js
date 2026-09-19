@@ -159,10 +159,18 @@ async function getMatch(eventId) {
     null;
   const preferredKey = keyOf(preferred?.bookmaker);
 
-  const history = [...groups.entries()].map(([captured_at, a]) => {
+  const historyGroups = [...groups.entries()].map(([captured_at, a]) => {
     const ordered = [...a].sort((x, y) =>
       (x.bookmaker_rank ?? 999) - (y.bookmaker_rank ?? 999) || Number(x.id) - Number(y.id)
     );
+    return {
+      captured_at,
+      rows: ordered.slice(0, 3)
+    };
+  });
+
+  const history = historyGroups.map(group => {
+    const ordered = group.rows;
     const picked =
       (preferredKey ? ordered.find(x => keyOf(x.bookmaker) === preferredKey) : null) ||
       ordered.find(x => keyOf(x.bookmaker).startsWith('1xbet')) ||
@@ -171,7 +179,7 @@ async function getMatch(eventId) {
     if (!picked) return null;
 
     return {
-      captured_at,
+      captured_at: group.captured_at,
       bookmaker: picked.bookmaker,
       ms1: picked.ms1,
       msx: picked.msx,
@@ -188,9 +196,10 @@ async function getMatch(eventId) {
   return {
     ...m,
     latest_capture: latest,
-    latest_rows: rows,
+    latest_rows: rows.slice(0, 3),
     history_bookmaker: preferred?.bookmaker || null,
-    history
+    history,
+    history_groups: historyGroups
   };
 }
 

@@ -457,6 +457,22 @@ class _TrackedPageState extends State<TrackedPage> {
     }).join(' ');
   }
 
+  String shortStamp(dynamic raw) {
+    if (raw == null) return 'henüz yok';
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      return dt.day.toString().padLeft(2, '0') +
+          '/' +
+          dt.month.toString().padLeft(2, '0') +
+          ' ' +
+          dt.hour.toString().padLeft(2, '0') +
+          ':' +
+          dt.minute.toString().padLeft(2, '0');
+    } catch (_) {
+      return raw.toString();
+    }
+  }
+
   Future<void> remove(Map<String, dynamic> m) async {
     try {
       await api.delete('/api/matches/' + m['event_id'].toString());
@@ -511,7 +527,10 @@ class _TrackedPageState extends State<TrackedPage> {
                       ),
                     ),
                     subtitle: Text(
-                      'Oran satırı: ' + (m['row_count']?.toString() ?? '0'),
+                      'Son: ' + shortStamp(m['last_capture']) +
+                          '  ·  ' +
+                          (m['capture_count']?.toString() ?? '0') +
+                          ' tur',
                       style: const TextStyle(fontSize: 11),
                     ),
                     onTap: () => Navigator.push(
@@ -618,7 +637,7 @@ class _MatchDetailState extends State<MatchDetail> {
       Map<String, dynamic>? newest;
       bool changed = false;
 
-      for (int i = 0; i < 24; i++) {
+      for (int i = 0; i < 45; i++) {
         await Future.delayed(Duration(seconds: i == 0 ? 2 : 4));
         final d = await api.get('/api/matches/' + widget.eventId);
         newest = d;
@@ -802,7 +821,10 @@ class _MatchDetailState extends State<MatchDetail> {
                       Text(
                         'ORAN HAREKETİ · ' +
                             history.length.toString() +
-                            ' KAYIT',
+                            ' KAYIT' +
+                            ((data['history_bookmaker']?.toString().isNotEmpty ?? false)
+                                ? ' · ' + data['history_bookmaker'].toString()
+                                : ''),
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,

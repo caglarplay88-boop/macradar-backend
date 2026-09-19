@@ -396,7 +396,7 @@ Future<Map<String, dynamic>> fetchPerformancePersistent(
     if (identical(performanceInFlight[eventId], future)) {
       performanceInFlight.remove(eventId);
     }
-  });
+  }).catchError((_) {});
 
   return future;
 }

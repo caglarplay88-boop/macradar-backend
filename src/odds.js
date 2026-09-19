@@ -137,14 +137,26 @@ async function pullOdds(rawUrl) {
       }
     }
 
-    await sleep(800);
+    await sleep(1600);
 
-    await page.evaluate(() => {
+    const navAfterConsent = page
+      .waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 9000 })
+      .catch(() => null);
+
+    const consentClicked = await page.evaluate(() => {
       const buttons = [...document.querySelectorAll('button')];
       const b = buttons.find(x => /18|confirm|yes|sim/i.test((x.innerText || '').trim()));
-      if (b) b.click();
-    }).catch(() => {});
-    await sleep(900);
+      if (!b) return false;
+      b.click();
+      return true;
+    }).catch(() => false);
+
+    if (consentClicked) {
+      await Promise.race([navAfterConsent, sleep(5500)]);
+      await sleep(1200);
+    } else {
+      await sleep(700);
+    }
 
     const meta = await page.evaluate(() => {
       const body = (document.body?.innerText || '').replace(/\r/g, '');
@@ -160,7 +172,7 @@ async function pullOdds(rawUrl) {
         if (m) { dateTime = m[0]; break; }
       }
       return { title, dateTime };
-    });
+    }).catch(() => ({ title: '', dateTime: '' }));
 
     async function fetchMarket(type) {
       let lastError = null;

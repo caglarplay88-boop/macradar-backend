@@ -2,6 +2,68 @@ const { sleep } = require('./util');
 
 const cache = new Map();
 
+function timeZoneOffsetMinutes(utcMs, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date(utcMs));
+
+  const get = type => Number(parts.find(p => p.type === type)?.value);
+  const asUtc = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    get('hour'),
+    get('minute'),
+    get('second')
+  );
+  return Math.round((asUtc - utcMs) / 60000);
+}
+
+function betExplorerTimeToTurkey(date, time) {
+  const dm = String(date || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const tm = String(time || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!dm || !tm) return { date, time };
+
+  const y = Number(dm[1]);
+  const mo = Number(dm[2]);
+  const d = Number(dm[3]);
+  const hh = Number(tm[1]);
+  const mm = Number(tm[2]);
+
+  const wallUtcGuess = Date.UTC(y, mo - 1, d, hh, mm, 0);
+  let londonOffset = timeZoneOffsetMinutes(wallUtcGuess, 'Europe/London');
+  let instant = wallUtcGuess - londonOffset * 60000;
+
+  // Re-evaluate at the actual instant for DST transition days.
+  const correctedOffset = timeZoneOffsetMinutes(instant, 'Europe/London');
+  if (correctedOffset !== londonOffset) {
+    instant = wallUtcGuess - correctedOffset * 60000;
+  }
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date(instant));
+
+  const val = type => parts.find(p => p.type === type)?.value || '';
+  return {
+    date: `${val('year')}-${val('month')}-${val('day')}`,
+    time: `${val('hour')}:${val('minute')}`
+  };
+}
+
 function decodeHtml(x = '') {
   return String(x)
     .replace(/<[^>]+>/g, ' ')
@@ -93,7 +155,15 @@ async function getBulletin(date, { force = false } = {}) {
   const html = await fetchTextWithRetry(target);
   const eventRaw = (html.match(/data-event-id=/g) || []).length;
   if (!eventRaw) throw new Error('BetExplorer bülten verisi gelmedi.');
-  const matches = parseDailyFootball(html);
+  const matches = parseDailyFootball(html).map(match => {
+    const local = betExplorerTimeToTurkey(date, match.time);
+    return {
+      ...match,
+      source_time: match.time,
+      date: local.date,
+      time: local.time
+    };
+  });
   const data = { date, fetchedAt: Date.now(), matches, eventRaw };
   cache.set(date, data);
   return data;

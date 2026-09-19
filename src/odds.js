@@ -3,17 +3,54 @@ const { parseBetExplorerUrl, sleep } = require('./util');
 
 let browserPromise = null;
 
-function clean(rows, n = 3) {
+function bookmakerKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '');
+}
+
+function uniqueInPageOrder(rows) {
   const seen = new Set();
   const out = [];
   for (const r of rows) {
-    const k = String(r.bookmaker || '').toLowerCase();
+    const k = bookmakerKey(r.bookmaker);
     if (!k || seen.has(k)) continue;
     seen.add(k);
     out.push(r);
-    if (out.length >= n) break;
   }
   return out;
+}
+
+function firstThreeBookmakers(oneXtwo) {
+  const ordered = uniqueInPageOrder(oneXtwo);
+  const oneXbetIndex = ordered.findIndex(r =>
+    /(^|[^a-z0-9])1xbet([^a-z0-9]|$)/i.test(String(r.bookmaker || '')) ||
+    bookmakerKey(r.bookmaker).startsWith('1xbet')
+  );
+
+  if (oneXbetIndex > 0) {
+    const [oneXbet] = ordered.splice(oneXbetIndex, 1);
+    ordered.unshift(oneXbet);
+  }
+
+  return ordered.slice(0, 3);
+}
+
+function findBookmaker(rows, bookmaker) {
+  const target = bookmakerKey(bookmaker);
+  if (!target) return null;
+
+  const exact = rows.find(r => bookmakerKey(r.bookmaker) === target);
+  if (exact) return exact;
+
+  const bare = target.replace(/\.(de|com|tr|eu|net|org)$/i, '');
+  return rows.find(r => {
+    const k = bookmakerKey(r.bookmaker);
+    const kb = k.replace(/\.(de|com|tr|eu|net|org)$/i, '');
+    return kb === bare;
+  }) || null;
 }
 
 async function launchBrowser() {
@@ -179,23 +216,40 @@ async function pullOdds(rawUrl) {
       parseHtml(hbts, 'bts')
     ]);
 
-    const ms = clean(oneXtwo);
-    const ou15 = clean(ou.filter(r => r.total === '1.5'));
-    const ou25 = clean(ou.filter(r => r.total === '2.5'));
-    const kg = clean(bts);
+    const selectedBooks = firstThreeBookmakers(oneXtwo);
+    const ou15Rows = uniqueInPageOrder(ou.filter(r => r.total === '1.5'));
+    const ou25Rows = uniqueInPageOrder(ou.filter(r => r.total === '2.5'));
+    const btsRows = uniqueInPageOrder(bts);
 
-    const byBook = new Map();
-    const row = bookmaker => {
-      if (!byBook.has(bookmaker)) byBook.set(bookmaker, { bookmaker });
-      return byBook.get(bookmaker);
-    };
+    const rows = selectedBooks.map(ms => {
+      const r = {
+        bookmaker: ms.bookmaker,
+        ms1: ms.values[0],
+        msx: ms.values[1],
+        ms2: ms.values[2]
+      };
 
-    for (const r of ms) Object.assign(row(r.bookmaker), { ms1: r.values[0], msx: r.values[1], ms2: r.values[2] });
-    for (const r of ou15) Object.assign(row(r.bookmaker), { ou15_over: r.values[0], ou15_under: r.values[1] });
-    for (const r of ou25) Object.assign(row(r.bookmaker), { ou25_over: r.values[0], ou25_under: r.values[1] });
-    for (const r of kg) Object.assign(row(r.bookmaker), { btts_yes: r.values[0], btts_no: r.values[1] });
+      const a15 = findBookmaker(ou15Rows, ms.bookmaker);
+      const a25 = findBookmaker(ou25Rows, ms.bookmaker);
+      const kg = findBookmaker(btsRows, ms.bookmaker);
 
-    const rows = [...byBook.values()].filter(r =>
+      if (a15) Object.assign(r, {
+        ou15_over: a15.values[0],
+        ou15_under: a15.values[1]
+      });
+
+      if (a25) Object.assign(r, {
+        ou25_over: a25.values[0],
+        ou25_under: a25.values[1]
+      });
+
+      if (kg) Object.assign(r, {
+        btts_yes: kg.values[0],
+        btts_no: kg.values[1]
+      });
+
+      return r;
+    }).filter(r =>
       ['ms1','msx','ms2','ou15_over','ou15_under','ou25_over','ou25_under','btts_yes','btts_no']
         .some(k => Number.isFinite(r[k]))
     );

@@ -1,7 +1,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const { URL } = require('url');
-const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, pool } = require('./db');
+const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, pool } = require('./db');
 const { getBulletin } = require('./bulletin');
 const { pullAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
@@ -121,6 +121,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && u.pathname === '/api/system/status') {
       return json(res, 200, await getWorkerStatus());
     }
+    if (req.method === 'GET' && u.pathname === '/api/settings') {
+      return json(res, 200, {
+        refresh_minutes: await getRefreshMinutes(),
+        allowed_refresh_minutes: [15, 30, 45, 60]
+      });
+    }
 
     if (req.method === 'GET' && u.pathname === '/api/alerts') {
       const afterId = Number(u.searchParams.get('after_id') || 0);
@@ -142,22 +148,44 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && u.pathname === '/api/follow') {
       const body = await readJson(req);
-      const urls = Array.isArray(body.urls) ? body.urls : body.url ? [body.url] : [];
-      if (!urls.length) return json(res, 400, { error: 'url veya urls gerekli.' });
+
+      let items = [];
+      if (Array.isArray(body.matches)) {
+        items = body.matches;
+      } else {
+        const urls = Array.isArray(body.urls) ? body.urls : body.url ? [body.url] : [];
+        items = urls.map(url => ({ url }));
+      }
+
+      if (!items.length) {
+        return json(res, 400, { error: 'matches veya urls gerekli.' });
+      }
 
       const results = [];
       const eventIds = [];
-      for (const raw of urls) {
+
+      for (const item of items) {
+        const raw = typeof item === 'string' ? item : item?.url;
         try {
           const parsed = parseBetExplorerUrl(String(raw));
           await upsertMatch({
             eventId: parsed.eventId,
             url: parsed.url,
             slug: parsed.slug,
-            active: true
+            active: true,
+            displayName: item?.name || null,
+            league: item?.league || null,
+            matchDate: item?.date || null,
+            kickoffTime: item?.time || null
           });
+
           eventIds.push(parsed.eventId);
-          results.push({ url: parsed.url, eventId: parsed.eventId, ok: true, queued: true });
+          results.push({
+            url: parsed.url,
+            eventId: parsed.eventId,
+            ok: true,
+            queued: true
+          });
         } catch (e) {
           results.push({ url: raw, ok: false, error: e.message });
         }
@@ -165,7 +193,34 @@ const server = http.createServer(async (req, res) => {
 
       queueTargetRefresh(eventIds, 'Follow');
 
-      return json(res, 200, { results, initial_refresh_queued: true });
+      return json(res, 200, {
+        results,
+        initial_refresh_queued: true
+      });
+    }
+
+    if (req.method === 'POST' && u.pathname === '/api/settings/refresh-interval') {
+      const body = await readJson(req);
+      const minutes = Number(body.minutes);
+      const allowed = new Set([15, 30, 45, 60]);
+
+      if (!allowed.has(minutes)) {
+        return json(res, 400, {
+          error: 'Aralık 15, 30, 45 veya 60 dakika olmalı.'
+        });
+      }
+
+      await setSetting('refresh_minutes', String(minutes));
+
+      setTimeout(() => runWorkerOnce().then(
+        r => console.log('Settings worker:', JSON.stringify(r)),
+        e => console.error('Settings worker error:', e)
+      ), 100);
+
+      return json(res, 200, {
+        ok: true,
+        refresh_minutes: minutes
+      });
     }
 
     if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/refresh$/.test(u.pathname)) {
@@ -207,9 +262,9 @@ const server = http.createServer(async (req, res) => {
       e => console.error('Startup worker error:', e)
     ), 5000);
     setInterval(() => runWorkerOnce().then(
-      r => console.log('Hourly worker:', JSON.stringify(r)),
-      e => console.error('Hourly worker error:', e)
-    ), 60 * 60 * 1000);
+      r => console.log('Periodic worker:', JSON.stringify(r)),
+      e => console.error('Periodic worker error:', e)
+    ), 5 * 60 * 1000);
   });
 })().catch(e => {
   console.error(e);

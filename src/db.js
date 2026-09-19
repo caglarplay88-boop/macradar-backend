@@ -101,6 +101,18 @@ async function initDb() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS performance_cache (
+      event_id TEXT PRIMARY KEY,
+      payload JSONB,
+      status TEXT NOT NULL DEFAULT 'idle',
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_performance_cache_status
+      ON performance_cache(status, updated_at DESC);
+
     INSERT INTO app_settings(key,value)
     VALUES('refresh_minutes','60')
     ON CONFLICT(key) DO NOTHING;
@@ -588,6 +600,57 @@ async function getWorkerStatus() {
   };
 }
 
+async function getPerformanceCache(eventId) {
+  const r = await pool.query(
+    `SELECT event_id,payload,status,error,created_at,updated_at
+     FROM performance_cache
+     WHERE event_id=$1`,
+    [eventId]
+  );
+  return r.rows[0] || null;
+}
+
+async function markPerformancePreparing(eventId) {
+  const r = await pool.query(`
+    INSERT INTO performance_cache(event_id,status,error,created_at,updated_at)
+    VALUES($1,'preparing',NULL,NOW(),NOW())
+    ON CONFLICT(event_id) DO UPDATE SET
+      status='preparing',
+      error=NULL,
+      updated_at=NOW()
+    RETURNING event_id,payload,status,error,created_at,updated_at
+  `, [eventId]);
+  return r.rows[0];
+}
+
+async function savePerformanceCache(eventId, payload) {
+  const r = await pool.query(`
+    INSERT INTO performance_cache(event_id,payload,status,error,created_at,updated_at)
+    VALUES($1,$2::jsonb,'ready',NULL,NOW(),NOW())
+    ON CONFLICT(event_id) DO UPDATE SET
+      payload=EXCLUDED.payload,
+      status='ready',
+      error=NULL,
+      updated_at=NOW()
+    RETURNING event_id,payload,status,error,created_at,updated_at
+  `, [eventId, JSON.stringify(payload)]);
+  return r.rows[0];
+}
+
+async function failPerformanceCache(eventId, error) {
+  const r = await pool.query(`
+    INSERT INTO performance_cache(event_id,status,error,created_at,updated_at)
+    VALUES($1,'failed',$2,NOW(),NOW())
+    ON CONFLICT(event_id) DO UPDATE SET
+      status='failed',
+      error=EXCLUDED.error,
+      updated_at=NOW()
+    RETURNING event_id,payload,status,error,created_at,updated_at
+  `, [eventId, String(error || 'Bilinmeyen performans hatası').slice(0,2000)]);
+  return r.rows[0];
+}
+
+
 module.exports = {
   pool,
   initDb,
@@ -607,5 +670,9 @@ module.exports = {
   purgePostKickoffSnapshots,
   setMatchLifecycle,
   archiveStartedMatch,
-  finishMatch
+  finishMatch,
+  getPerformanceCache,
+  markPerformancePreparing,
+  savePerformanceCache,
+  failPerformanceCache
 };

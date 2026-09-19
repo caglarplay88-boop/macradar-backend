@@ -239,6 +239,11 @@ class _BulletinPageState extends State<BulletinPage> {
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final isToday = date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+
     final groups = <String, List<Map<String, dynamic>>>{};
     for (final m in matches) {
       final league = m['league']?.toString() ?? 'Diğer';
@@ -257,10 +262,12 @@ class _BulletinPageState extends State<BulletinPage> {
                 children: [
                   IconButton.filledTonal(
                     visualDensity: VisualDensity.compact,
-                    onPressed: () {
-                      date = date.subtract(const Duration(days: 1));
-                      load();
-                    },
+                    onPressed: isToday
+                        ? null
+                        : () {
+                            date = date.subtract(const Duration(days: 1));
+                            load();
+                          },
                     icon: const Icon(Icons.chevron_left, size: 22),
                   ),
                   Expanded(
@@ -551,6 +558,7 @@ class MatchDetail extends StatefulWidget {
 
 class _MatchDetailState extends State<MatchDetail> {
   bool loading = true;
+  bool refreshing = false;
   String error = '';
   Map<String, dynamic> data = {};
 
@@ -580,6 +588,69 @@ class _MatchDetailState extends State<MatchDetail> {
   String odd(dynamic x) {
     if (x == null) return '-';
     return x is num ? x.toStringAsFixed(2) : x.toString();
+  }
+
+  String stamp(dynamic raw) {
+    if (raw == null) return 'Henüz kayıt yok';
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      return dt.day.toString().padLeft(2, '0') +
+          '/' +
+          dt.month.toString().padLeft(2, '0') +
+          ' ' +
+          dt.hour.toString().padLeft(2, '0') +
+          ':' +
+          dt.minute.toString().padLeft(2, '0');
+    } catch (_) {
+      return raw.toString();
+    }
+  }
+
+  Future<void> refreshNow() async {
+    if (refreshing) return;
+
+    final before = data['latest_capture']?.toString();
+    setState(() => refreshing = true);
+
+    try {
+      await api.post('/api/matches/' + widget.eventId + '/refresh', {});
+
+      Map<String, dynamic>? newest;
+      bool changed = false;
+
+      for (int i = 0; i < 24; i++) {
+        await Future.delayed(Duration(seconds: i == 0 ? 2 : 4));
+        final d = await api.get('/api/matches/' + widget.eventId);
+        newest = d;
+
+        final after = d['latest_capture']?.toString();
+        if (after != null && after.isNotEmpty && after != before) {
+          changed = true;
+          break;
+        }
+      }
+
+      if (newest != null) data = newest;
+
+      if (mounted) {
+        setState(() => refreshing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              changed
+                  ? 'Yeni oran kaydı alındı.'
+                  : 'Çekim sırada veya devam ediyor. Birazdan tekrar kontrol et.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => refreshing = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
   }
 
   Widget oddBox(dynamic value) {
@@ -643,15 +714,54 @@ class _MatchDetailState extends State<MatchDetail> {
                   child: ListView(
                     padding: const EdgeInsets.all(10),
                     children: [
-                      const Text(
-                        'SON ORANLAR',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.0,
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'SON ORANLAR',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                          FilledButton.icon(
+                            onPressed: refreshing ? null : refreshNow,
+                            icon: refreshing
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.refresh, size: 17),
+                            label: Text(
+                              refreshing ? 'Çekiliyor...' : 'Oranları şimdi al',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Son kayıt: ' + stamp(data['latest_capture']),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFFA7B0B8),
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 7),
+                      if (!(data['latest_rows'] is List) ||
+                          (data['latest_rows'] as List).isEmpty)
+                        const Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Text(
+                              'İlk oran kaydı henüz oluşmadı. Takibe alınca otomatik çekilir; istersen yukarıdaki butonla şimdi de başlatabilirsin.',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ),
                       ...(data['latest_rows'] is List
                               ? data['latest_rows'] as List
                               : [])
@@ -701,7 +811,7 @@ class _MatchDetailState extends State<MatchDetail> {
                       ),
                       const SizedBox(height: 3),
                       const Text(
-                        'Alt eksen gerçek kayıt saatidir. Her nokta HH:mm olarak gösterilir.',
+                        'Her kayıt gün/saat/dakika ile saklanır. ↑ yükseldi, ↓ düştü, → değişmedi.',
                         style: TextStyle(
                           fontSize: 11,
                           color: Color(0xFFA7B0B8),
@@ -848,8 +958,160 @@ class OddsHistoryChart extends StatelessWidget {
                 ),
               ),
             ),
+            const Divider(height: 14),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: _HistoryTable(
+                history: history,
+                series: series,
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HistoryTable extends StatelessWidget {
+  final List<Map<String, dynamic>> history;
+  final List<ChartSeries> series;
+
+  const _HistoryTable({
+    required this.history,
+    required this.series,
+  });
+
+  String when(dynamic raw) {
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      return dt.day.toString().padLeft(2, '0') +
+          '/' +
+          dt.month.toString().padLeft(2, '0') +
+          ' ' +
+          dt.hour.toString().padLeft(2, '0') +
+          ':' +
+          dt.minute.toString().padLeft(2, '0');
+    } catch (_) {
+      return '--/-- --:--';
+    }
+  }
+
+  Widget valueCell(int row, ChartSeries s) {
+    final raw = history[row][s.keyName];
+    final current = raw is num ? raw.toDouble() : null;
+    if (current == null) {
+      return const SizedBox(
+        width: 78,
+        child: Text('-', textAlign: TextAlign.center),
+      );
+    }
+
+    String arrow = '→';
+    Color arrowColor = const Color(0xFF9AA5A0);
+
+    if (row > 0) {
+      final prevRaw = history[row - 1][s.keyName];
+      final prev = prevRaw is num ? prevRaw.toDouble() : null;
+      if (prev != null) {
+        if (current > prev + 0.0001) {
+          arrow = '↑';
+          arrowColor = const Color(0xFF62D6A7);
+        } else if (current < prev - 0.0001) {
+          arrow = '↓';
+          arrowColor = const Color(0xFFFF7A90);
+        }
+      }
+    }
+
+    return SizedBox(
+      width: 78,
+      child: RichText(
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          style: const TextStyle(
+            color: Color(0xFFE4EAE6),
+            fontSize: 11,
+          ),
+          children: [
+            TextSpan(text: current.toStringAsFixed(2) + ' '),
+            TextSpan(
+              text: arrow,
+              style: TextStyle(
+                color: arrowColor,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final width = 112.0 + (78.0 * series.length);
+
+    return SizedBox(
+      width: width,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Color(0xFF39413E)),
+              ),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 112,
+                  child: Text(
+                    'Tarih / Saat',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                for (final s in series)
+                  SizedBox(
+                    width: 78,
+                    child: Text(
+                      s.label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          for (int i = 0; i < history.length; i++)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              decoration: const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Color(0xFF2B3330)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 112,
+                    child: Text(
+                      when(history[i]['captured_at']),
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                  ),
+                  for (final s in series) valueCell(i, s),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

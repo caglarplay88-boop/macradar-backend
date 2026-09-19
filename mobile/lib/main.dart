@@ -25,7 +25,7 @@ String niceMatchName(String slug) {
 Future<void> initLocalNotifications({bool requestPermission = false}) async {
   const android = AndroidInitializationSettings('@mipmap/ic_launcher');
   const settings = InitializationSettings(android: android);
-  await localNotifications.initialize(settings);
+  await localNotifications.initialize(settings: settings);
 
   if (requestPermission) {
     await localNotifications
@@ -98,9 +98,9 @@ Future<void> checkOddsAlerts({
       );
 
       await localNotifications.show(
-        id % 2147483647,
-        'MacRadar · Anlamlı oran düşüşü',
-        niceMatchName(slug) +
+        id: id % 2147483647,
+        title: 'MacRadar · Anlamlı oran düşüşü',
+        body: niceMatchName(slug) +
             ' · ' +
             market +
             ' ' +
@@ -113,7 +113,8 @@ Future<void> checkOddsAlerts({
             pct.toStringAsFixed(1) +
             ') · ' +
             bookmaker,
-        const NotificationDetails(android: androidDetails),
+        notificationDetails:
+            const NotificationDetails(android: androidDetails),
       );
     }
   }

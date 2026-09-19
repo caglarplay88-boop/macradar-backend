@@ -578,13 +578,20 @@ class MatchDetail extends StatefulWidget {
 class _MatchDetailState extends State<MatchDetail> {
   bool loading = true;
   bool refreshing = false;
+  bool autoRequested = false;
   String error = '';
+  String refreshMessage = '';
   Map<String, dynamic> data = {};
 
   @override
   void initState() {
     super.initState();
     load();
+  }
+
+  bool get hasLatest {
+    final rows = data['latest_rows'];
+    return rows is List && rows.isNotEmpty;
   }
 
   Future<void> load() async {
@@ -596,17 +603,20 @@ class _MatchDetailState extends State<MatchDetail> {
     }
 
     try {
-      data = await api.get('/api/matches/' + widget.eventId);
+      final d = await api.get('/api/matches/' + widget.eventId);
+      data = d;
     } catch (e) {
       error = e.toString();
     }
 
-    if (mounted) setState(() => loading = false);
-  }
+    if (mounted) {
+      setState(() => loading = false);
 
-  String odd(dynamic x) {
-    if (x == null) return '-';
-    return x is num ? x.toStringAsFixed(2) : x.toString();
+      if (error.isEmpty && !hasLatest && !autoRequested) {
+        autoRequested = true;
+        Future.microtask(() => refreshNow(auto: true));
+      }
+    }
   }
 
   String stamp(dynamic raw) {
@@ -616,6 +626,8 @@ class _MatchDetailState extends State<MatchDetail> {
       return dt.day.toString().padLeft(2, '0') +
           '/' +
           dt.month.toString().padLeft(2, '0') +
+          '/' +
+          dt.year.toString() +
           ' ' +
           dt.hour.toString().padLeft(2, '0') +
           ':' +
@@ -625,11 +637,19 @@ class _MatchDetailState extends State<MatchDetail> {
     }
   }
 
-  Future<void> refreshNow() async {
+  Future<void> refreshNow({bool auto = false}) async {
     if (refreshing) return;
 
     final before = data['latest_capture']?.toString();
-    setState(() => refreshing = true);
+
+    if (mounted) {
+      setState(() {
+        refreshing = true;
+        refreshMessage = auto
+            ? 'İlk oranlar çekiliyor…'
+            : 'Yeni oranlar çekiliyor…';
+      });
+    }
 
     try {
       await api.post('/api/matches/' + widget.eventId + '/refresh', {});
@@ -642,8 +662,12 @@ class _MatchDetailState extends State<MatchDetail> {
         final d = await api.get('/api/matches/' + widget.eventId);
         newest = d;
 
+        final rows = d['latest_rows'];
         final after = d['latest_capture']?.toString();
-        if (after != null && after.isNotEmpty && after != before) {
+
+        if (rows is List &&
+            rows.isNotEmpty &&
+            (before == null || before.isEmpty || after != before)) {
           changed = true;
           break;
         }
@@ -652,70 +676,60 @@ class _MatchDetailState extends State<MatchDetail> {
       if (newest != null) data = newest;
 
       if (mounted) {
-        setState(() => refreshing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              changed
-                  ? 'Yeni oran kaydı alındı.'
-                  : 'Çekim sırada veya devam ediyor. Birazdan tekrar kontrol et.',
-            ),
-          ),
-        );
+        setState(() {
+          refreshing = false;
+          refreshMessage = changed
+              ? 'Yeni oran kaydı alındı.'
+              : 'BetExplorer bu denemede yeni oran vermedi. Tekrar deneyebilirsin.';
+        });
+
+        if (!auto || changed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(refreshMessage)),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        setState(() => refreshing = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+        setState(() {
+          refreshing = false;
+          refreshMessage = 'Oran çekimi başarısız: ' + e.toString();
+        });
+
+        if (!auto) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(refreshMessage)),
+          );
+        }
       }
     }
   }
 
-  Widget oddBox(dynamic value) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.only(left: 4),
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        ),
-        child: Text(
-          odd(value),
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget line(String label, List<dynamic> values) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 78,
-            child: Text(label, style: const TextStyle(fontSize: 12)),
-          ),
-          for (final v in values) oddBox(v),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final latest = data['latest_rows'] is List
+        ? (data['latest_rows'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    final groups = data['history_groups'] is List
+        ? (data['history_groups'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
     final history = data['history'] is List
         ? (data['history'] as List)
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList()
         : <Map<String, dynamic>>[];
+
+    final historyBookmaker =
+        data['history_bookmaker']?.toString() ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -735,166 +749,393 @@ class _MatchDetailState extends State<MatchDetail> {
                     children: [
                       Row(
                         children: [
-                          const Expanded(
-                            child: Text(
-                              'SON ORANLAR',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.0,
-                              ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'ORAN TAKİBİ',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Son kayıt: ' +
+                                      stamp(data['latest_capture']),
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFFA7B0B8),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           FilledButton.icon(
-                            onPressed: refreshing ? null : refreshNow,
+                            onPressed: refreshing
+                                ? null
+                                : () => refreshNow(),
                             icon: refreshing
                                 ? const SizedBox(
                                     width: 14,
                                     height: 14,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(Icons.refresh, size: 17),
                             label: Text(
-                              refreshing ? 'Çekiliyor...' : 'Oranları şimdi al',
+                              refreshing
+                                  ? 'Çekiliyor…'
+                                  : 'Şimdi güncelle',
                               style: const TextStyle(fontSize: 11),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Son kayıt: ' + stamp(data['latest_capture']),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFFA7B0B8),
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      if (!(data['latest_rows'] is List) ||
-                          (data['latest_rows'] as List).isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(12),
-                            child: Text(
-                              'İlk oran kaydı henüz oluşmadı. Takibe alınca otomatik çekilir; istersen yukarıdaki butonla şimdi de başlatabilirsin.',
-                              style: TextStyle(fontSize: 12),
-                            ),
+                      if (refreshMessage.isNotEmpty) ...[
+                        const SizedBox(height: 7),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(9),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                          ),
+                          child: Text(
+                            refreshMessage,
+                            style: const TextStyle(fontSize: 11),
                           ),
                         ),
-                      ...(data['latest_rows'] is List
-                              ? data['latest_rows'] as List
-                              : [])
-                          .whereType<Map>()
-                          .map((raw) {
-                        final r = Map<String, dynamic>.from(raw);
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 7),
-                          child: Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    r['bookmaker']?.toString() ?? 'Bookmaker',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
+                      ],
+                      const SizedBox(height: 8),
+                      Card(
+                        child: ExpansionTile(
+                          initiallyExpanded: true,
+                          dense: true,
+                          title: Text(
+                            'Son oranlar · ' +
+                                latest.length.toString() +
+                                ' bookmaker',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          subtitle: Text(
+                            stamp(data['latest_capture']),
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                          children: latest.isEmpty
+                              ? const [
+                                  Padding(
+                                    padding: EdgeInsets.all(14),
+                                    child: Text(
+                                      'İlk oran kaydı bekleniyor. Takibe alınca otomatik başlar.',
+                                      style: TextStyle(fontSize: 12),
                                     ),
                                   ),
-                                  const Divider(height: 14),
-                                  line('MS 1/X/2',
-                                      [r['ms1'], r['msx'], r['ms2']]),
-                                  line('1.5 Alt/Üst',
-                                      [r['ou15_under'], r['ou15_over']]),
-                                  line('2.5 Alt/Üst',
-                                      [r['ou25_under'], r['ou25_over']]),
-                                  line('KG Yok/Var',
-                                      [r['btts_no'], r['btts_yes']]),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 10),
-                      Text(
-                        'ORAN HAREKETİ · ' +
-                            history.length.toString() +
-                            ' KAYIT' +
-                            ((data['history_bookmaker']?.toString().isNotEmpty ?? false)
-                                ? ' · ' + data['history_bookmaker'].toString()
-                                : ''),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      const Text(
-                        'Her kayıt gün/saat/dakika ile saklanır. ↑ yükseldi, ↓ düştü, → değişmedi.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFFA7B0B8),
+                                ]
+                              : latest
+                                  .map(
+                                    (r) => BookmakerOddsTile(
+                                      row: r,
+                                    ),
+                                  )
+                                  .toList(),
                         ),
                       ),
                       const SizedBox(height: 8),
-                      if (history.length < 2)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(14),
-                            child: Text(
-                              'Grafik için en az 2 oran kaydı gerekiyor. Yeni turlar geldikçe grafik oluşacak.',
-                              style: TextStyle(fontSize: 12),
+                      Card(
+                        child: ExpansionTile(
+                          dense: true,
+                          initiallyExpanded: false,
+                          title: Text(
+                            'Geçmiş oranlar · ' +
+                                groups.length.toString() +
+                                ' çekim',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                        )
-                      else ...[
-                        OddsHistoryChart(
-                          title: 'MS 1 / X / 2',
-                          history: history,
-                          series: const [
-                            ChartSeries('1', 'ms1', Color(0xFF62D6A7)),
-                            ChartSeries('X', 'msx', Color(0xFFFFC857)),
-                            ChartSeries('2', 'ms2', Color(0xFFFF7A90)),
-                          ],
+                          subtitle: const Text(
+                            'Tarih/saat → aç → o çekimdeki 3 bookmaker',
+                            style: TextStyle(fontSize: 10),
+                          ),
+                          children: groups.isEmpty
+                              ? const [
+                                  Padding(
+                                    padding: EdgeInsets.all(14),
+                                    child: Text(
+                                      'Henüz geçmiş oran kaydı yok.',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ]
+                              : groups.reversed.map((g) {
+                                  final rows = g['rows'] is List
+                                      ? (g['rows'] as List)
+                                          .whereType<Map>()
+                                          .map((e) =>
+                                              Map<String, dynamic>.from(e))
+                                          .take(3)
+                                          .toList()
+                                      : <Map<String, dynamic>>[];
+
+                                  return ExpansionTile(
+                                    dense: true,
+                                    title: Text(
+                                      stamp(g['captured_at']),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      rows.length.toString() +
+                                          ' bookmaker',
+                                      style: const TextStyle(fontSize: 10),
+                                    ),
+                                    children: rows
+                                        .map(
+                                          (r) => BookmakerOddsTile(
+                                            row: r,
+                                            compact: true,
+                                          ),
+                                        )
+                                        .toList(),
+                                  );
+                                }).toList(),
                         ),
-                        OddsHistoryChart(
-                          title: '1.5 Alt / Üst',
-                          history: history,
-                          series: const [
-                            ChartSeries(
-                                'Alt', 'ou15_under', Color(0xFF7CB7FF)),
-                            ChartSeries(
-                                'Üst', 'ou15_over', Color(0xFF62D6A7)),
-                          ],
-                        ),
-                        OddsHistoryChart(
-                          title: '2.5 Alt / Üst',
-                          history: history,
-                          series: const [
-                            ChartSeries(
-                                'Alt', 'ou25_under', Color(0xFF7CB7FF)),
-                            ChartSeries(
-                                'Üst', 'ou25_over', Color(0xFF62D6A7)),
-                          ],
-                        ),
-                        OddsHistoryChart(
-                          title: 'KG Yok / Var',
-                          history: history,
-                          series: const [
-                            ChartSeries(
-                                'Yok', 'btts_no', Color(0xFFFF7A90)),
-                            ChartSeries(
-                                'Var', 'btts_yes', Color(0xFF62D6A7)),
-                          ],
+                      ),
+                      if (history.length >= 2) ...[
+                        const SizedBox(height: 8),
+                        Card(
+                          child: ExpansionTile(
+                            dense: true,
+                            initiallyExpanded: false,
+                            title: Text(
+                              'Grafikler' +
+                                  (historyBookmaker.isNotEmpty
+                                      ? ' · ' + historyBookmaker
+                                      : ''),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            subtitle: Text(
+                              historyBookmaker.isNotEmpty
+                                  ? 'Sadece ' +
+                                      historyBookmaker +
+                                      ' hareketi'
+                                  : 'Takip edilen bookmaker hareketi',
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  8,
+                                  0,
+                                  8,
+                                  8,
+                                ),
+                                child: Column(
+                                  children: [
+                                    OddsHistoryChart(
+                                      title: 'MS 1 / X / 2',
+                                      history: history,
+                                      series: const [
+                                        ChartSeries(
+                                          '1',
+                                          'ms1',
+                                          Color(0xFF62D6A7),
+                                        ),
+                                        ChartSeries(
+                                          'X',
+                                          'msx',
+                                          Color(0xFFFFC857),
+                                        ),
+                                        ChartSeries(
+                                          '2',
+                                          'ms2',
+                                          Color(0xFFFF7A90),
+                                        ),
+                                      ],
+                                    ),
+                                    OddsHistoryChart(
+                                      title: '1.5 Alt / Üst',
+                                      history: history,
+                                      series: const [
+                                        ChartSeries(
+                                          'Alt',
+                                          'ou15_under',
+                                          Color(0xFF7CB7FF),
+                                        ),
+                                        ChartSeries(
+                                          'Üst',
+                                          'ou15_over',
+                                          Color(0xFF62D6A7),
+                                        ),
+                                      ],
+                                    ),
+                                    OddsHistoryChart(
+                                      title: '2.5 Alt / Üst',
+                                      history: history,
+                                      series: const [
+                                        ChartSeries(
+                                          'Alt',
+                                          'ou25_under',
+                                          Color(0xFF7CB7FF),
+                                        ),
+                                        ChartSeries(
+                                          'Üst',
+                                          'ou25_over',
+                                          Color(0xFF62D6A7),
+                                        ),
+                                      ],
+                                    ),
+                                    OddsHistoryChart(
+                                      title: 'KG Yok / Var',
+                                      history: history,
+                                      series: const [
+                                        ChartSeries(
+                                          'Yok',
+                                          'btts_no',
+                                          Color(0xFFFF7A90),
+                                        ),
+                                        ChartSeries(
+                                          'Var',
+                                          'btts_yes',
+                                          Color(0xFF62D6A7),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                       const SizedBox(height: 18),
                     ],
                   ),
                 ),
+    );
+  }
+}
+
+class BookmakerOddsTile extends StatelessWidget {
+  final Map<String, dynamic> row;
+  final bool compact;
+
+  const BookmakerOddsTile({
+    super.key,
+    required this.row,
+    this.compact = false,
+  });
+
+  String odd(dynamic x) {
+    if (x == null) return '-';
+    return x is num ? x.toStringAsFixed(2) : x.toString();
+  }
+
+  Widget oddBox(dynamic value) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.only(left: 4),
+        padding: EdgeInsets.symmetric(vertical: compact ? 5 : 6),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(7),
+          color: const Color(0xFF2B332F),
+        ),
+        child: Text(
+          odd(value),
+          style: TextStyle(
+            fontSize: compact ? 11 : 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget line(String label, List<dynamic> values) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 82,
+            child: Text(
+              label,
+              style: TextStyle(fontSize: compact ? 10 : 11),
+            ),
+          ),
+          for (final v in values) oddBox(v),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = row['bookmaker']?.toString() ?? 'Bookmaker';
+
+    return ExpansionTile(
+      dense: true,
+      visualDensity: const VisualDensity(vertical: -2),
+      title: Text(
+        name,
+        style: TextStyle(
+          fontSize: compact ? 12 : 13,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      subtitle: Text(
+        'MS ' +
+            odd(row['ms1']) +
+            ' / ' +
+            odd(row['msx']) +
+            ' / ' +
+            odd(row['ms2']),
+        style: TextStyle(fontSize: compact ? 9 : 10),
+      ),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          child: Column(
+            children: [
+              line('MS 1/X/2', [
+                row['ms1'],
+                row['msx'],
+                row['ms2'],
+              ]),
+              line('1.5 Alt/Üst', [
+                row['ou15_under'],
+                row['ou15_over'],
+              ]),
+              line('2.5 Alt/Üst', [
+                row['ou25_under'],
+                row['ou25_over'],
+              ]),
+              line('KG Yok/Var', [
+                row['btts_no'],
+                row['btts_yes'],
+              ]),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

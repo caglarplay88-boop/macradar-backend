@@ -2,20 +2,20 @@ const {
   pool,
   listMatches,
   createWorkerRun,
-  updateWorkerRun
+  updateWorkerRun,
+  getRefreshMinutes
 } = require('./db');
 const { pullAndSave } = require('./puller');
 const { closeBrowser } = require('./odds');
 const { sleep } = require('./util');
 
 const LOCK_ID = 734221;
-const MIN_REFRESH_MINUTES = Number(process.env.MIN_REFRESH_MINUTES || 50);
 const BETWEEN_MATCH_MS = Number(process.env.BETWEEN_MATCH_MS || 3500);
 
-function dueForRefresh(match, force) {
+function dueForRefresh(match, force, refreshMinutes) {
   if (force || !match.last_capture) return true;
   const ageMs = Date.now() - new Date(match.last_capture).getTime();
-  return ageMs >= MIN_REFRESH_MINUTES * 60 * 1000;
+  return ageMs >= refreshMinutes * 60 * 1000;
 }
 
 async function runWorkerOnce({ force = false, eventIds = null } = {}) {
@@ -35,6 +35,7 @@ async function runWorkerOnce({ force = false, eventIds = null } = {}) {
       return { skipped: true, reason: 'worker_already_running' };
     }
 
+    const refreshMinutes = await getRefreshMinutes();
     let matches = await listMatches({ activeOnly: true });
     if (Array.isArray(eventIds) && eventIds.length) {
       const wanted = new Set(eventIds.map(String));
@@ -46,10 +47,10 @@ async function runWorkerOnce({ force = false, eventIds = null } = {}) {
       return ta - tb;
     });
 
-    const due = matches.filter(m => dueForRefresh(m, force));
+    const due = matches.filter(m => dueForRefresh(m, force, refreshMinutes));
     const skippedCount = matches.length - due.length;
 
-    console.log(`[worker] aktif=${matches.length} çekilecek=${due.length} taze=${skippedCount}`);
+    console.log(`[worker] aralık=${refreshMinutes}dk aktif=${matches.length} çekilecek=${due.length} taze=${skippedCount}`);
 
     const run = await createWorkerRun(matches.length);
     runId = run.id;
@@ -115,6 +116,7 @@ async function runWorkerOnce({ force = false, eventIds = null } = {}) {
       total: matches.length,
       due: due.length,
       skippedFresh: skippedCount,
+      refreshMinutes,
       processed,
       ok,
       fail,

@@ -37,41 +37,74 @@ jobs:
         run: |
           sed -i 's/android:label="macradar"/android:label="MacRadar"/' mobile_build/android/app/src/main/AndroidManifest.xml
           sed -i 's#android:icon="@mipmap/ic_launcher"#android:icon="@drawable/macradar_icon"#' mobile_build/android/app/src/main/AndroidManifest.xml
+          mkdir -p mobile_build/android/app/src/main/res/drawable
+          python3 - <<'PY'
+          import struct, zlib, math
+
+          W=192
+          H=192
+          bg=(19,35,26,255)
+          gold=(255,200,87,255)
+          white=(242,245,243,255)
+          dark=(19,35,26,255)
+
+          px=[[bg for _ in range(W)] for _ in range(H)]
+
+          def put(x,y,c):
+              if 0 <= x < W and 0 <= y < H:
+                  px[y][x]=c
+
+          def circle(cx,cy,r,c):
+              rr=r*r
+              for y in range(cy-r,cy+r+1):
+                  for x in range(cx-r,cx+r+1):
+                      if (x-cx)*(x-cx)+(y-cy)*(y-cy) <= rr:
+                          put(x,y,c)
+
+          def line(x0,y0,x1,y1,width,c):
+              dx=x1-x0; dy=y1-y0
+              steps=max(abs(dx),abs(dy),1)
+              for i in range(steps+1):
+                  t=i/steps
+                  x=round(x0+dx*t); y=round(y0+dy*t)
+                  circle(x,y,width,c)
+
+          # Rising/falling odds line
+          pts=[(24,126),(58,92),(87,108),(126,66),(157,84)]
+          for a,b in zip(pts,pts[1:]):
+              line(a[0],a[1],b[0],b[1],5,gold)
+
+          # Arrow head
+          line(157,84,145,73,4,gold)
+          line(157,84,143,90,4,gold)
+
+          # Football badge
+          circle(137,133,30,white)
+          circle(137,133,10,dark)
+          for ang in [0,72,144,216,288]:
+              rad=math.radians(ang)
+              x=int(137+20*math.cos(rad))
+              y=int(133+20*math.sin(rad))
+              circle(x,y,5,dark)
+              line(137,133,x,y,2,dark)
+
+          raw=bytearray()
+          for row in px:
+              raw.append(0)
+              for r,g,b,a in row:
+                  raw.extend((r,g,b,a))
+
+          def chunk(t,d):
+              return struct.pack(">I",len(d))+t+d+struct.pack(">I",zlib.crc32(t+d)&0xffffffff)
+
+          png=b"\x89PNG\r\n\x1a\n"
+          png+=chunk(b'IHDR',struct.pack(">IIBBBBB",W,H,8,6,0,0,0))
+          png+=chunk(b'IDAT',zlib.compress(bytes(raw),9))
+          png+=chunk(b'IEND',b'')
+          open("mobile_build/android/app/src/main/res/drawable/macradar_icon.png","wb").write(png)
+          PY
           sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />' mobile_build/android/app/src/main/AndroidManifest.xml
           sed -i '/<manifest /a\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' mobile_build/android/app/src/main/AndroidManifest.xml
-          mkdir -p mobile_build/android/app/src/main/res/drawable
-          cat > mobile_build/android/app/src/main/res/drawable/macradar_icon.xml <<'EOF'
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp"
-              android:height="108dp"
-              android:viewportWidth="108"
-              android:viewportHeight="108">
-              <path
-                  android:fillColor="#13231A"
-                  android:pathData="M0,0h108v108h-108z" />
-              <path
-                  android:fillColor="@android:color/transparent"
-                  android:strokeColor="#FFC857"
-                  android:strokeWidth="7"
-                  android:strokeLineCap="round"
-                  android:strokeLineJoin="round"
-                  android:pathData="M16,72 L36,51 L51,62 L73,37 L90,49" />
-              <path
-                  android:fillColor="#FFC857"
-                  android:pathData="M84,33 L95,45 L79,45z" />
-              <path
-                  android:fillColor="#F2F5F3"
-                  android:pathData="M78,69 m-16,0 a16,16 0,1 0,32,0 a16,16 0,1 0,-32,0" />
-              <path
-                  android:fillColor="#13231A"
-                  android:pathData="M78,59 L86,65 L83,74 L73,74 L70,65z" />
-              <path
-                  android:fillColor="@android:color/transparent"
-                  android:strokeColor="#13231A"
-                  android:strokeWidth="3"
-                  android:pathData="M70,65 L64,60 M86,65 L92,60 M73,74 L69,82 M83,74 L87,82" />
-          </vector>
-          EOF
           sed -i '/sourceCompatibility = JavaVersion./a\        isCoreLibraryDesugaringEnabled = true' mobile_build/android/app/build.gradle.kts
           cat >> mobile_build/android/app/build.gradle.kts <<'EOF'
 

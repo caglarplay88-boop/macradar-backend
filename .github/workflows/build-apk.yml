@@ -33,9 +33,10 @@ jobs:
           cd mobile_build
           flutter pub add http shared_preferences
 
-      - name: Set app name
+      - name: Set app name and internet permission
         run: |
           sed -i 's/android:label="macradar"/android:label="MacRadar"/' mobile_build/android/app/src/main/AndroidManifest.xml
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />' mobile_build/android/app/src/main/AndroidManifest.xml
 
       - name: Build release APK
         run: |

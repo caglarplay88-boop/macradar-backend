@@ -1,0 +1,33 @@
+name: Performance Smoke Test
+
+on:
+  push:
+    paths:
+      - '.github/workflows/performance-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Test automatic FotMob performance lookup
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 240 \
+            -H 'content-type: application/json' \
+            -H 'x-api-key: 68427531' \
+            -d '{"home":{"name":"Brann"},"away":{"name":"Bodø/Glimt"}}' \
+            https://macradar-backend.onrender.com/api/performance \
+            -o performance.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const x=JSON.parse(fs.readFileSync('performance.json','utf8'));
+          if (!x.evTakimi || !x.deplasmanTakimi) {
+            throw new Error('performance package missing teams');
+          }
+          console.log('OK', x.evTakimi.takim, x.deplasmanTakimi.takim, 'H2H', x.h2h?.bulunan);
+          console.log('xG', x.evTakimi.son10?.xG, x.deplasmanTakimi.son10?.xG);
+          console.log('missing', x.evTakimi.eksikler?.length, x.deplasmanTakimi.eksikler?.length);
+          NODE

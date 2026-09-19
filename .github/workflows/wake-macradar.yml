@@ -1,0 +1,20 @@
+name: Wake MacRadar
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake backend and verify health
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://macradar-backend.onrender.com/health"
+          BODY="$(curl --fail --silent --show-error --location             --retry 5 --retry-all-errors --retry-delay 10             --connect-timeout 20 --max-time 180 "$URL")"
+          echo "$BODY"
+          echo "$BODY" | grep -q '"ok":true'

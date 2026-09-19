@@ -2142,7 +2142,7 @@ class _SystemPageState extends State<SystemPage> {
   bool savingInterval = false;
   String error = '';
   Map<String, dynamic> data = {};
-  int refreshMinutes = 50;
+  int refreshMinutes = 60;
 
   @override
   void initState() {
@@ -2161,7 +2161,7 @@ class _SystemPageState extends State<SystemPage> {
     try {
       data = await api.get('/api/system/status');
       refreshMinutes =
-          (data['refresh_minutes'] as num?)?.toInt() ?? 50;
+          (data['refresh_minutes'] as num?)?.toInt() ?? 60;
     } catch (e) {
       error = e.toString();
     }

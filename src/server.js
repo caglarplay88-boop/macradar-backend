@@ -4,7 +4,7 @@ const { URL } = require('url');
 const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, pool } = require('./db');
 const { getBulletin } = require('./bulletin');
 const { pullAndSave } = require('./puller');
-const { parseBetExplorerUrl, currentIsoTurkey } = require('./util');
+const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
 const { seed } = require('./seed');
 const { runWorkerOnce } = require('./run-worker');
 
@@ -52,6 +52,27 @@ function eventFromPath(pathname, suffix = '') {
   return decodeURIComponent(p[i + 1]);
 }
 
+async function queueTargetRefresh(eventIds, label = 'queued') {
+  const ids = [...new Set((eventIds || []).map(String).filter(Boolean))];
+  if (!ids.length) return;
+
+  for (let attempt = 1; attempt <= 180; attempt++) {
+    try {
+      const r = await runWorkerOnce({ force: true, eventIds: ids });
+      if (!(r?.skipped && r?.reason === 'worker_already_running')) {
+        console.log(label + ' worker:', JSON.stringify(r));
+        return;
+      }
+    } catch (e) {
+      console.error(label + ' worker error:', e);
+      return;
+    }
+    await sleep(10000);
+  }
+
+  console.error(label + ' worker timeout: lock 30 dakika boyunca açılamadı');
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'OPTIONS') return json(res, 204, {});
@@ -91,6 +112,7 @@ const server = http.createServer(async (req, res) => {
       if (!urls.length) return json(res, 400, { error: 'url veya urls gerekli.' });
 
       const results = [];
+      const eventIds = [];
       for (const raw of urls) {
         try {
           const parsed = parseBetExplorerUrl(String(raw));
@@ -100,26 +122,37 @@ const server = http.createServer(async (req, res) => {
             slug: parsed.slug,
             active: true
           });
+          eventIds.push(parsed.eventId);
           results.push({ url: parsed.url, eventId: parsed.eventId, ok: true, queued: true });
         } catch (e) {
           results.push({ url: raw, ok: false, error: e.message });
         }
       }
 
-      setTimeout(() => runWorkerOnce().then(
-        r => console.log('Follow worker:', JSON.stringify(r)),
-        e => console.error('Follow worker error:', e)
-      ), 100);
+      setTimeout(() => queueTargetRefresh(eventIds, 'Follow'), 100);
 
-      return json(res, 200, { results });
+      return json(res, 200, { results, initial_refresh_queued: true });
     }
 
     if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/refresh$/.test(u.pathname)) {
       const eventId = eventFromPath(u.pathname, 'refresh');
       const m = await getMatch(eventId);
       if (!m) return json(res, 404, { error: 'Maç bulunamadı.' });
-      const r = await pullAndSave(m.url, { attempts: 3 });
-      return json(res, r.ok ? 200 : 502, r);
+
+      const r = await runWorkerOnce({ force: true, eventIds: [eventId] });
+
+      if (r?.skipped && r?.reason === 'worker_already_running') {
+        setTimeout(() => queueTargetRefresh([eventId], 'Manual'), 100);
+        return json(res, 202, { ok: true, queued: true, eventId });
+      }
+
+      const result = Array.isArray(r?.results)
+        ? r.results.find(x => String(x.eventId) === String(eventId))
+        : null;
+
+      if (result?.ok) return json(res, 200, { ...result, queued: false });
+      if (result) return json(res, 502, result);
+      return json(res, 200, { ok: true, queued: false, eventId });
     }
 
     if (req.method === 'DELETE' && /^\/api\/matches\/[^/]+$/.test(u.pathname)) {

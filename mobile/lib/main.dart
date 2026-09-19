@@ -16,13 +16,13 @@ class Api {
       };
 
   Future<http.Response> _retry(
-    Future<http.Response> Function() action,
+    Future<http.Response> Function() request,
   ) async {
     Object? last;
 
     for (int attempt = 1; attempt <= 3; attempt++) {
       try {
-        return await action().timeout(const Duration(seconds: 90));
+        return await request();
       } catch (e) {
         last = e;
         if (attempt < 3) {
@@ -31,36 +31,42 @@ class Api {
       }
     }
 
-    throw Exception(
-      'Sunucu bağlantısı geçici olarak kesildi. Birkaç saniye sonra tekrar dene.'
-    );
+    throw last ?? Exception('Bağlantı kurulamadı.');
   }
 
   Future<Map<String, dynamic>> get(String path) async {
     final r = await _retry(
-      () => http.get(Uri.parse(baseUrl + path)),
+      () => http
+          .get(Uri.parse(baseUrl + path))
+          .timeout(const Duration(seconds: 90)),
     );
     return decode(r);
   }
 
   Future<Map<String, dynamic>> post(
-      String path, Map<String, dynamic> body) async {
+    String path,
+    Map<String, dynamic> body,
+  ) async {
     final r = await _retry(
-      () => http.post(
-        Uri.parse(baseUrl + path),
-        headers: writeHeaders,
-        body: jsonEncode(body),
-      ),
+      () => http
+          .post(
+            Uri.parse(baseUrl + path),
+            headers: writeHeaders,
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 90)),
     );
     return decode(r);
   }
 
   Future<Map<String, dynamic>> delete(String path) async {
     final r = await _retry(
-      () => http.delete(
-        Uri.parse(baseUrl + path),
-        headers: writeHeaders,
-      ),
+      () => http
+          .delete(
+            Uri.parse(baseUrl + path),
+            headers: writeHeaders,
+          )
+          .timeout(const Duration(seconds: 90)),
     );
     return decode(r);
   }
@@ -633,7 +639,7 @@ class _MatchDetailState extends State<MatchDetail> {
     try {
       data = await api.get('/api/matches/' + widget.eventId);
     } catch (e) {
-      error = e.toString();
+      error = _friendlyError(e);
     }
 
     if (mounted) {
@@ -644,6 +650,19 @@ class _MatchDetailState extends State<MatchDetail> {
         Future.microtask(() => refreshNow(auto: true));
       }
     }
+  }
+
+  String _friendlyError(Object e) {
+    final s = e.toString();
+
+    if (s.contains('SocketException') ||
+        s.contains('connection abort') ||
+        s.contains('Failed host lookup') ||
+        s.contains('Connection reset')) {
+      return 'Sunucu bağlantısı kısa süre kesildi. VPN açıksa kapatıp tekrar dene.';
+    }
+
+    return s.replaceFirst('Exception: ', '');
   }
 
   String stamp(dynamic raw) {
@@ -688,21 +707,19 @@ class _MatchDetailState extends State<MatchDetail> {
         await Future.delayed(Duration(seconds: i == 0 ? 2 : 4));
 
         try {
-          final d = await api.get('/api/matches/' + widget.eventId);
-          newest = d;
-
-          final rows = d['latest_rows'];
-          final after = d['latest_capture']?.toString();
-
-          if (rows is List &&
-              rows.isNotEmpty &&
-              (before == null || before.isEmpty || after != before)) {
-            changed = true;
-            break;
-          }
+          newest = await api.get('/api/matches/' + widget.eventId);
         } catch (_) {
-          // Render/VPN kaynaklı kısa bağlantı kopmalarında çekimi iptal etme.
           continue;
+        }
+
+        final rows = newest['latest_rows'];
+        final after = newest['latest_capture']?.toString();
+
+        if (rows is List &&
+            rows.isNotEmpty &&
+            (before == null || before.isEmpty || after != before)) {
+          changed = true;
+          break;
         }
       }
 
@@ -713,7 +730,7 @@ class _MatchDetailState extends State<MatchDetail> {
           refreshing = false;
           refreshMessage = changed
               ? 'Yeni oran kaydı alındı.'
-              : 'Çekim tamamlanamadı. Biraz sonra yeniden deneyebilirsin.';
+              : 'Yeni kayıt henüz gelmedi. Çekim devam ediyor olabilir.';
         });
 
         if (!auto || changed) {
@@ -722,12 +739,11 @@ class _MatchDetailState extends State<MatchDetail> {
           );
         }
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           refreshing = false;
-          refreshMessage =
-              'Sunucu bağlantısı geçici olarak kesildi. Tekrar deneyebilirsin.';
+          refreshMessage = _friendlyError(e);
         });
 
         if (!auto) {
@@ -737,6 +753,77 @@ class _MatchDetailState extends State<MatchDetail> {
         }
       }
     }
+  }
+
+  String marketReport(
+    List<Map<String, dynamic>> history,
+    String market,
+    List<ChartSeries> series,
+  ) {
+    if (history.length < 2) {
+      return 'İlk kayıt oluştu. Hareket yorumu için en az iki çekim gerekiyor.';
+    }
+
+    final first = history.first;
+    final last = history.last;
+    final parts = <String>[];
+    double strongestDrop = 0;
+    String strongestLabel = '';
+
+    for (final s in series) {
+      final a = first[s.keyName];
+      final b = last[s.keyName];
+
+      if (a is! num || b is! num) continue;
+
+      final start = a.toDouble();
+      final end = b.toDouble();
+      final diff = end - start;
+
+      String move;
+      if (diff.abs() < 0.005) {
+        move = 'değişmedi';
+      } else if (diff < 0) {
+        move = start.toStringAsFixed(2) +
+            '→' +
+            end.toStringAsFixed(2) +
+            ' düştü';
+      } else {
+        move = start.toStringAsFixed(2) +
+            '→' +
+            end.toStringAsFixed(2) +
+            ' yükseldi';
+      }
+
+      parts.add(s.label + ' ' + move);
+
+      if (diff < strongestDrop) {
+        strongestDrop = diff;
+        strongestLabel = s.label;
+      }
+    }
+
+    String note = parts.join(' · ') + '.';
+
+    if (strongestLabel.isNotEmpty) {
+      if (market == 'MS') {
+        final label = strongestLabel == '1'
+            ? 'ev sahibi'
+            : strongestLabel == '2'
+                ? 'deplasman'
+                : 'beraberlik';
+        note +=
+            ' En belirgin oran düşüşü ' + label + ' tarafında; piyasa fiyatlaması bu seçeneği önceye göre daha güçlü gösteriyor.';
+      } else if (market.contains('Alt / Üst')) {
+        note +=
+            ' En belirgin sıkışma ' + strongestLabel + ' tarafında.';
+      } else if (market.contains('KG')) {
+        note +=
+            ' En belirgin sıkışma ' + strongestLabel + ' tarafında.';
+      }
+    }
+
+    return note;
   }
 
   @override
@@ -757,7 +844,30 @@ class _MatchDetailState extends State<MatchDetail> {
         : <Map<String, dynamic>>[];
 
     final historyBookmaker =
-        data['history_bookmaker']?.toString() ?? '1xBet';
+        data['history_bookmaker']?.toString().isNotEmpty == true
+            ? data['history_bookmaker'].toString()
+            : '1xBet';
+
+    const msSeries = [
+      ChartSeries('1', 'ms1', Color(0xFF69C8FF)),
+      ChartSeries('X', 'msx', Color(0xFFFFC857)),
+      ChartSeries('2', 'ms2', Color(0xFFFF8495)),
+    ];
+
+    const ou15Series = [
+      ChartSeries('Alt', 'ou15_under', Color(0xFF69C8FF)),
+      ChartSeries('Üst', 'ou15_over', Color(0xFF6DE0AA)),
+    ];
+
+    const ou25Series = [
+      ChartSeries('Alt', 'ou25_under', Color(0xFF69C8FF)),
+      ChartSeries('Üst', 'ou25_over', Color(0xFF6DE0AA)),
+    ];
+
+    const kgSeries = [
+      ChartSeries('Yok', 'btts_no', Color(0xFFFF8495)),
+      ChartSeries('Var', 'btts_yes', Color(0xFF6DE0AA)),
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -773,7 +883,7 @@ class _MatchDetailState extends State<MatchDetail> {
               : RefreshIndicator(
                   onRefresh: load,
                   child: ListView(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 24),
                     children: [
                       Row(
                         children: [
@@ -831,9 +941,7 @@ class _MatchDetailState extends State<MatchDetail> {
                           ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(9),
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
+                            color: const Color(0xFF18201C),
                           ),
                           child: Text(
                             refreshMessage,
@@ -841,8 +949,7 @@ class _MatchDetailState extends State<MatchDetail> {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 10),
-
+                      const SizedBox(height: 12),
                       const Text(
                         'SON ORANLAR',
                         style: TextStyle(
@@ -852,7 +959,6 @@ class _MatchDetailState extends State<MatchDetail> {
                         ),
                       ),
                       const SizedBox(height: 6),
-
                       if (latest.isEmpty)
                         const Card(
                           child: Padding(
@@ -864,74 +970,57 @@ class _MatchDetailState extends State<MatchDetail> {
                           ),
                         )
                       else
-                        ...latest.map(
-                          (r) => LatestBookmakerCard(row: r),
-                        ),
-
-                      const SizedBox(height: 12),
-
+                        for (final row in latest)
+                          LatestBookmakerCard(row: row),
+                      const SizedBox(height: 10),
                       MarketSection(
                         title: 'MS 1 / X / 2',
+                        marketCode: 'MS',
                         bookmaker: historyBookmaker,
                         history: history,
-                        series: const [
-                          ChartSeries('1', 'ms1', Color(0xFF62D6A7)),
-                          ChartSeries('X', 'msx', Color(0xFFFFC857)),
-                          ChartSeries('2', 'ms2', Color(0xFFFF7A90)),
-                        ],
+                        series: msSeries,
+                        report: marketReport(
+                          history,
+                          'MS',
+                          msSeries,
+                        ),
                       ),
                       MarketSection(
                         title: '1.5 Alt / Üst',
+                        marketCode: '1.5 Alt / Üst',
                         bookmaker: historyBookmaker,
                         history: history,
-                        series: const [
-                          ChartSeries(
-                            'Alt',
-                            'ou15_under',
-                            Color(0xFF7CB7FF),
-                          ),
-                          ChartSeries(
-                            'Üst',
-                            'ou15_over',
-                            Color(0xFF62D6A7),
-                          ),
-                        ],
+                        series: ou15Series,
+                        report: marketReport(
+                          history,
+                          '1.5 Alt / Üst',
+                          ou15Series,
+                        ),
                       ),
                       MarketSection(
                         title: '2.5 Alt / Üst',
+                        marketCode: '2.5 Alt / Üst',
                         bookmaker: historyBookmaker,
                         history: history,
-                        series: const [
-                          ChartSeries(
-                            'Alt',
-                            'ou25_under',
-                            Color(0xFF7CB7FF),
-                          ),
-                          ChartSeries(
-                            'Üst',
-                            'ou25_over',
-                            Color(0xFF62D6A7),
-                          ),
-                        ],
+                        series: ou25Series,
+                        report: marketReport(
+                          history,
+                          '2.5 Alt / Üst',
+                          ou25Series,
+                        ),
                       ),
                       MarketSection(
                         title: 'KG Yok / Var',
+                        marketCode: 'KG Yok / Var',
                         bookmaker: historyBookmaker,
                         history: history,
-                        series: const [
-                          ChartSeries(
-                            'Yok',
-                            'btts_no',
-                            Color(0xFFFF7A90),
-                          ),
-                          ChartSeries(
-                            'Var',
-                            'btts_yes',
-                            Color(0xFF62D6A7),
-                          ),
-                        ],
+                        series: kgSeries,
+                        report: marketReport(
+                          history,
+                          'KG Yok / Var',
+                          kgSeries,
+                        ),
                       ),
-                      const SizedBox(height: 18),
                     ],
                   ),
                 ),
@@ -947,23 +1036,23 @@ class LatestBookmakerCard extends StatelessWidget {
     required this.row,
   });
 
-  String odd(dynamic x) {
-    if (x == null) return '-';
-    return x is num ? x.toStringAsFixed(2) : x.toString();
+  String odd(dynamic value) {
+    if (value == null) return '-';
+    return value is num ? value.toStringAsFixed(2) : value.toString();
   }
 
-  Widget valueBox(dynamic value) {
+  Widget valueBox(String text) {
     return Expanded(
       child: Container(
         margin: const EdgeInsets.only(left: 4),
         padding: const EdgeInsets.symmetric(vertical: 6),
         alignment: Alignment.center,
         decoration: BoxDecoration(
+          color: const Color(0xFF2A322E),
           borderRadius: BorderRadius.circular(8),
-          color: const Color(0xFF2B332F),
         ),
         child: Text(
-          odd(value),
+          text,
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w800,
@@ -985,7 +1074,7 @@ class LatestBookmakerCard extends StatelessWidget {
               style: const TextStyle(fontSize: 11),
             ),
           ),
-          for (final v in values) valueBox(v),
+          for (final value in values) valueBox(odd(value)),
         ],
       ),
     );
@@ -1003,11 +1092,11 @@ class LatestBookmakerCard extends StatelessWidget {
             Text(
               row['bookmaker']?.toString() ?? 'Bookmaker',
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const Divider(height: 12),
+            const Divider(height: 14),
             line('MS 1/X/2', [
               row['ms1'],
               row['msx'],
@@ -1042,70 +1131,28 @@ class ChartSeries {
 
 class MarketSection extends StatelessWidget {
   final String title;
+  final String marketCode;
   final String bookmaker;
   final List<Map<String, dynamic>> history;
   final List<ChartSeries> series;
+  final String report;
 
   const MarketSection({
     super.key,
     required this.title,
+    required this.marketCode,
     required this.bookmaker,
     required this.history,
     required this.series,
+    required this.report,
   });
-
-  String report() {
-    if (history.length < 2) {
-      return 'Rapor için en az 2 kayıt gerekiyor.';
-    }
-
-    final first = history.first;
-    final last = history.last;
-    final parts = <String>[];
-
-    for (final s in series) {
-      final a = first[s.keyName];
-      final b = last[s.keyName];
-      if (a is! num || b is! num) continue;
-
-      final from = a.toDouble();
-      final to = b.toDouble();
-      final diff = to - from;
-      final pct = from.abs() < 0.0001 ? 0.0 : (diff / from) * 100.0;
-
-      final direction = diff > 0.005
-          ? 'yükseldi'
-          : diff < -0.005
-              ? 'düştü'
-              : 'değişmedi';
-
-      parts.add(
-        s.label +
-            ': ' +
-            from.toStringAsFixed(2) +
-            ' → ' +
-            to.toStringAsFixed(2) +
-            ' (' +
-            (pct >= 0 ? '+' : '') +
-            pct.toStringAsFixed(1) +
-            '%) ' +
-            direction,
-      );
-    }
-
-    if (parts.isEmpty) {
-      return 'Bu market için yeterli oran verisi yok.';
-    }
-
-    return parts.join(' · ');
-  }
 
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 9),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1118,77 +1165,90 @@ class MarketSection extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              'Grafik ve rapor: ' + bookmaker,
+              'Grafik: ' + bookmaker,
               style: const TextStyle(
                 fontSize: 10,
-                color: Color(0xFFA7B0B8),
+                color: Color(0xFF9DA8A2),
               ),
             ),
             const SizedBox(height: 8),
             if (history.length < 2)
               Container(
-                height: 150,
+                height: 120,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
+                  color: const Color(0xFF11171A),
                   borderRadius: BorderRadius.circular(10),
-                  color: const Color(0xFF10151C),
                 ),
                 child: const Text(
-                  'Grafik için en az 2 kayıt gerekiyor.',
+                  'Grafik için ikinci oran kaydı bekleniyor.',
                   style: TextStyle(fontSize: 11),
                 ),
               )
             else
-              SizedBox(
-                width: double.infinity,
-                height: 210,
-                child: CustomPaint(
-                  painter: OddsChartPainter(
+              OddsHistoryChart(
+                history: history,
+                series: series,
+              ),
+            const SizedBox(height: 6),
+            Theme(
+              data: Theme.of(context).copyWith(
+                dividerColor: Colors.transparent,
+              ),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text(
+                  'Geçmiş oranlar · ' +
+                      history.length.toString() +
+                      ' kayıt',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Tarih / saat / dakika',
+                  style: TextStyle(fontSize: 10),
+                ),
+                children: [
+                  MarketHistoryTable(
                     history: history,
                     series: series,
                   ),
-                ),
+                ],
               ),
+            ),
             const SizedBox(height: 5),
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: EdgeInsets.zero,
-              dense: true,
-              initiallyExpanded: false,
-              title: const Text(
-                'Geçmiş oranlar',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: const Color(0xFF151C19),
+                borderRadius: BorderRadius.circular(9),
               ),
-              subtitle: Text(
-                history.length.toString() +
-                    ' kayıt · tarih / saat / dakika',
-                style: const TextStyle(fontSize: 10),
-              ),
-              children: [
-                _HistoryTable(
-                  history: history,
-                  series: series,
-                ),
-              ],
-            ),
-            const Divider(height: 12),
-            const Text(
-              'Kısa rapor',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              report(),
-              style: const TextStyle(
-                fontSize: 11,
-                height: 1.35,
-                color: Color(0xFFD4DBD7),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'KISA RAPOR',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.7,
+                      color: Color(0xFF8CDAB8),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    report,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1198,11 +1258,89 @@ class MarketSection extends StatelessWidget {
   }
 }
 
-class _HistoryTable extends StatelessWidget {
+class OddsHistoryChart extends StatelessWidget {
   final List<Map<String, dynamic>> history;
   final List<ChartSeries> series;
 
-  const _HistoryTable({
+  const OddsHistoryChart({
+    super.key,
+    required this.history,
+    required this.series,
+  });
+
+  String odd(dynamic value) {
+    if (value is num) return value.toStringAsFixed(2);
+    return '-';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final last = history.isNotEmpty ? history.last : <String, dynamic>{};
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            for (final s in series)
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141A1D),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: s.color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        s.label + ' ' + odd(last[s.keyName]),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return CustomPaint(
+              size: Size(constraints.maxWidth, 185),
+              painter: OddsChartPainter(
+                history: history,
+                series: series,
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class MarketHistoryTable extends StatelessWidget {
+  final List<Map<String, dynamic>> history;
+  final List<ChartSeries> series;
+
+  const MarketHistoryTable({
+    super.key,
     required this.history,
     required this.series,
   });
@@ -1222,35 +1360,78 @@ class _HistoryTable extends StatelessWidget {
     }
   }
 
-  String cell(int row, ChartSeries s) {
-    final raw = history[row][s.keyName];
-    if (raw is! num) return '-';
+  Widget valueCell(int index, ChartSeries s) {
+    final raw = history[index][s.keyName];
+
+    if (raw is! num) {
+      return const Expanded(
+        child: Text(
+          '-',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 10),
+        ),
+      );
+    }
 
     final current = raw.toDouble();
     String arrow = '→';
+    Color color = const Color(0xFF98A39D);
 
-    if (row > 0) {
-      final prevRaw = history[row - 1][s.keyName];
-      final prev = prevRaw is num ? prevRaw.toDouble() : null;
+    if (index > 0) {
+      final previousRaw = history[index - 1][s.keyName];
 
-      if (prev != null) {
-        if (current > prev + 0.0001) {
-          arrow = '↑';
-        } else if (current < prev - 0.0001) {
+      if (previousRaw is num) {
+        final previous = previousRaw.toDouble();
+
+        if (current < previous - 0.0001) {
           arrow = '↓';
+          color = const Color(0xFFFF8495);
+        } else if (current > previous + 0.0001) {
+          arrow = '↑';
+          color = const Color(0xFF6DE0AA);
         }
       }
     }
 
-    return current.toStringAsFixed(2) + ' ' + arrow;
+    return Expanded(
+      child: RichText(
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          style: const TextStyle(
+            color: Color(0xFFE5EAE7),
+            fontSize: 10,
+          ),
+          children: [
+            TextSpan(text: current.toStringAsFixed(2) + ' '),
+            TextSpan(
+              text: arrow,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (history.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(10),
+        child: Text(
+          'Henüz geçmiş kayıt yok.',
+          style: TextStyle(fontSize: 11),
+        ),
+      );
+    }
+
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 7),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           decoration: const BoxDecoration(
             border: Border(
               bottom: BorderSide(color: Color(0xFF39413E)),
@@ -1258,8 +1439,8 @@ class _HistoryTable extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Expanded(
-                flex: 3,
+              const SizedBox(
+                width: 96,
                 child: Text(
                   'Tarih / Saat',
                   style: TextStyle(
@@ -1270,7 +1451,6 @@ class _HistoryTable extends StatelessWidget {
               ),
               for (final s in series)
                 Expanded(
-                  flex: 2,
                   child: Text(
                     s.label,
                     textAlign: TextAlign.center,
@@ -1283,7 +1463,9 @@ class _HistoryTable extends StatelessWidget {
             ],
           ),
         ),
-        for (int i = history.length - 1; i >= 0; i--)
+        for (int index = history.length - 1;
+            index >= 0;
+            index--)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 7),
             decoration: const BoxDecoration(
@@ -1293,22 +1475,14 @@ class _HistoryTable extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Expanded(
-                  flex: 3,
+                SizedBox(
+                  width: 96,
                   child: Text(
-                    when(history[i]['captured_at']),
+                    when(history[index]['captured_at']),
                     style: const TextStyle(fontSize: 9),
                   ),
                 ),
-                for (final s in series)
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      cell(i, s),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                  ),
+                for (final s in series) valueCell(index, s),
               ],
             ),
           ),
@@ -1328,10 +1502,10 @@ class OddsChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const left = 42.0;
-    const top = 12.0;
-    const right = 10.0;
-    const bottom = 34.0;
+    const left = 38.0;
+    const top = 10.0;
+    const right = 8.0;
+    const bottom = 30.0;
 
     final plot = Rect.fromLTRB(
       left,
@@ -1355,20 +1529,20 @@ class OddsChartPainter extends CustomPainter {
     double maxV = values.reduce(math.max);
 
     if ((maxV - minV).abs() < 0.001) {
-      minV -= 0.1;
-      maxV += 0.1;
+      minV -= 0.10;
+      maxV += 0.10;
     } else {
-      final range = maxV - minV;
-      minV -= range * 0.10;
-      maxV += range * 0.10;
+      final pad = math.max((maxV - minV) * 0.15, 0.03);
+      minV -= pad;
+      maxV += pad;
     }
 
     final gridPaint = Paint()
-      ..color = const Color(0xFF33403A)
+      ..color = const Color(0xFF293238)
       ..strokeWidth = 1;
 
     for (int i = 0; i <= 4; i++) {
-      final y = plot.top + plot.height * i / 4;
+      final y = plot.top + (plot.height * i / 4);
 
       canvas.drawLine(
         Offset(plot.left, y),
@@ -1376,14 +1550,14 @@ class OddsChartPainter extends CustomPainter {
         gridPaint,
       );
 
-      final value = maxV - (maxV - minV) * i / 4;
+      final value = maxV - ((maxV - minV) * i / 4);
 
       _text(
         canvas,
         value.toStringAsFixed(2),
         Offset(1, y - 6),
         const TextStyle(
-          color: Color(0xFF89958F),
+          color: Color(0xFF7F8A86),
           fontSize: 8,
         ),
       );
@@ -1393,28 +1567,23 @@ class OddsChartPainter extends CustomPainter {
 
     double xFor(int i) {
       if (n <= 1) return plot.left;
-      return plot.left + plot.width * i / (n - 1);
+      return plot.left + (plot.width * i / (n - 1));
     }
 
     double yFor(double value) {
       return plot.bottom -
-          ((value - minV) / (maxV - minV)) * plot.height;
+          (((value - minV) / (maxV - minV)) * plot.height);
     }
 
-    final labelIndexes = <int>{};
-    if (n <= 5) {
-      for (int i = 0; i < n; i++) {
-        labelIndexes.add(i);
-      }
-    } else {
-      labelIndexes.add(0);
-      labelIndexes.add((n - 1) ~/ 4);
-      labelIndexes.add((n - 1) ~/ 2);
-      labelIndexes.add(((n - 1) * 3) ~/ 4);
-      labelIndexes.add(n - 1);
-    }
+    final labelIndexes = <int>{
+      0,
+      if (n > 2) n ~/ 2,
+      if (n > 1) n - 1,
+    };
 
     for (final i in labelIndexes) {
+      if (i < 0 || i >= n) continue;
+
       final stamp = history[i]['captured_at']?.toString() ?? '';
       String label = '--:--';
 
@@ -1428,9 +1597,9 @@ class OddsChartPainter extends CustomPainter {
       _centerText(
         canvas,
         label,
-        Offset(xFor(i), plot.bottom + 10),
+        Offset(xFor(i), plot.bottom + 8),
         const TextStyle(
-          color: Color(0xFFB0BAB5),
+          color: Color(0xFF9CA6A1),
           fontSize: 8,
           fontWeight: FontWeight.w600,
         ),
@@ -1438,9 +1607,11 @@ class OddsChartPainter extends CustomPainter {
     }
 
     for (final s in series) {
-      final paint = Paint()
+      final linePaint = Paint()
         ..color = s.color
         ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
         ..style = PaintingStyle.stroke;
 
       final pointPaint = Paint()
@@ -1454,60 +1625,37 @@ class OddsChartPainter extends CustomPainter {
         final raw = history[i][s.keyName];
         if (raw is! num) continue;
 
-        final p = Offset(
+        final point = Offset(
           xFor(i),
           yFor(raw.toDouble()),
         );
 
         if (!started) {
-          path.moveTo(p.dx, p.dy);
+          path.moveTo(point.dx, point.dy);
           started = true;
         } else {
-          path.lineTo(p.dx, p.dy);
+          path.lineTo(point.dx, point.dy);
         }
 
-        canvas.drawCircle(p, 3.5, pointPaint);
+        canvas.drawCircle(point, 3, pointPaint);
       }
 
-      if (started) canvas.drawPath(path, paint);
-    }
-
-    double legendX = plot.left;
-
-    for (final s in series) {
-      canvas.drawCircle(
-        Offset(legendX + 4, 6),
-        3.5,
-        Paint()..color = s.color,
-      );
-
-      _text(
-        canvas,
-        s.label,
-        Offset(legendX + 11, 0),
-        const TextStyle(
-          color: Color(0xFFD2D8D4),
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-        ),
-      );
-
-      legendX += 45;
+      if (started) canvas.drawPath(path, linePaint);
     }
   }
 
   void _text(
     Canvas canvas,
     String text,
-    Offset pos,
+    Offset position,
     TextStyle style,
   ) {
-    final tp = TextPainter(
+    final painter = TextPainter(
       text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,
     )..layout();
 
-    tp.paint(canvas, pos);
+    painter.paint(canvas, position);
   }
 
   void _centerText(
@@ -1516,14 +1664,14 @@ class OddsChartPainter extends CustomPainter {
     Offset center,
     TextStyle style,
   ) {
-    final tp = TextPainter(
+    final painter = TextPainter(
       text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,
     )..layout();
 
-    tp.paint(
+    painter.paint(
       canvas,
-      Offset(center.dx - tp.width / 2, center.dy),
+      Offset(center.dx - (painter.width / 2), center.dy),
     );
   }
 

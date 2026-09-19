@@ -87,8 +87,12 @@ async function initDb() {
     );
 
     INSERT INTO app_settings(key,value)
-    VALUES('refresh_minutes','50')
+    VALUES('refresh_minutes','60')
     ON CONFLICT(key) DO NOTHING;
+
+    UPDATE app_settings
+    SET value='60', updated_at=NOW()
+    WHERE key='refresh_minutes' AND value='50';
 
     CREATE INDEX IF NOT EXISTS idx_snapshots_event_time
       ON snapshots(event_id, captured_at DESC);

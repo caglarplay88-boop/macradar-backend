@@ -950,6 +950,27 @@ class _MatchDetailState extends State<MatchDetail> {
     return rows is List && rows.isNotEmpty;
   }
 
+  bool get isLocked => data['active'] != true;
+
+  String get lockedStatusText {
+    final lifecycle = data['lifecycle']?.toString() ?? '';
+    final h = data['home_score'];
+    final a = data['away_score'];
+
+    if (lifecycle == 'finished') {
+      if (h is num && a is num) {
+        return 'Maç bitti · Sonuç ' +
+            h.toInt().toString() +
+            '-' +
+            a.toInt().toString() +
+            ' · oran geçmişi kilitli';
+      }
+      return 'Maç bitti · oran geçmişi kilitli';
+    }
+
+    return 'Maç başladı · oran takibi durdu · geçmiş oranlar kilitli';
+  }
+
   Future<void> load() async {
     if (mounted) {
       setState(() {
@@ -967,7 +988,7 @@ class _MatchDetailState extends State<MatchDetail> {
     if (mounted) {
       setState(() => loading = false);
 
-      if (error.isEmpty && !hasLatest && !autoRequested) {
+      if (error.isEmpty && !isLocked && !hasLatest && !autoRequested) {
         autoRequested = true;
         Future.microtask(() => refreshNow(auto: true));
       }
@@ -1008,6 +1029,14 @@ class _MatchDetailState extends State<MatchDetail> {
 
   Future<void> refreshNow({bool auto = false}) async {
     if (refreshing) return;
+    if (isLocked) {
+      if (!auto && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(lockedStatusText)),
+        );
+      }
+      return;
+    }
 
     final before = data['latest_capture']?.toString();
 
@@ -1235,25 +1264,61 @@ class _MatchDetailState extends State<MatchDetail> {
                           ),
                           FilledButton.icon(
                             onPressed:
-                                refreshing ? null : () => refreshNow(),
-                            icon: refreshing
-                                ? const SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.refresh, size: 17),
+                                (refreshing || isLocked) ? null : () => refreshNow(),
+                            icon: isLocked
+                                ? const Icon(Icons.lock_outline, size: 17)
+                                : refreshing
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.refresh, size: 17),
                             label: Text(
-                              refreshing
-                                  ? 'Çekiliyor…'
-                                  : 'Şimdi güncelle',
+                              isLocked
+                                  ? 'Kilitli'
+                                  : refreshing
+                                      ? 'Çekiliyor…'
+                                      : 'Şimdi güncelle',
                               style: const TextStyle(fontSize: 11),
                             ),
                           ),
                         ],
                       ),
+                      if (isLocked) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            color: const Color(0xFF18201C),
+                            border: Border.all(
+                              color: const Color(0xFF34433B),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.lock_outline, size: 17),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  lockedStatusText,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       if (refreshMessage.isNotEmpty) ...[
                         const SizedBox(height: 7),
                         Container(

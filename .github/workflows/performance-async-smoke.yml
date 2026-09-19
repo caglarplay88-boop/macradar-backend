@@ -14,7 +14,7 @@ jobs:
         shell: bash
         run: |
           node - <<'NODE'
-          const eventId = 'fqjrNwLr';
+          const eventId = '4dYNZG4l';
           const base =
             'https://macradar-backend.onrender.com/api/matches/' +
             eventId +

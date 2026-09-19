@@ -1,7 +1,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const { URL } = require('url');
-const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, pool } = require('./db');
+const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, pool } = require('./db');
 const { getBulletin } = require('./bulletin');
 const { pullAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
@@ -120,6 +120,14 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && u.pathname === '/api/system/status') {
       return json(res, 200, await getWorkerStatus());
+    }
+
+    if (req.method === 'GET' && u.pathname === '/api/alerts') {
+      const afterId = Number(u.searchParams.get('after_id') || 0);
+      const limit = Number(u.searchParams.get('limit') || 30);
+      const alerts = await listAlerts({ afterId, limit });
+      const latestId = await getLatestAlertId();
+      return json(res, 200, { alerts, latest_id: latestId });
     }
     if (req.method === 'GET' && u.pathname === '/api/matches') {
       return json(res, 200, { matches: await listMatches() });

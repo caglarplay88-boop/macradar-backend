@@ -931,6 +931,121 @@ async function resolveTeamUrl(browser, teamName) {
   return 'https://www.fotmob.com/teams/' + best.id + '/fixtures/' + slug;
 }
 
+
+function matchupRowsFromSearch(data, homeName, awayName, homeId, awayId) {
+  const out = [];
+
+  const walk = obj => {
+    if (!obj || typeof obj !== 'object') return;
+
+    if (obj.type === 'match') {
+      const hId = num(obj.homeTeamId);
+      const aId = num(obj.awayTeamId);
+      const hName = String(obj.homeTeamName || '');
+      const aName = String(obj.awayTeamName || '');
+
+      const idsKnown =
+        Number.isFinite(Number(homeId)) &&
+        Number.isFinite(Number(awayId));
+
+      const idsMatch = idsKnown && (
+        (hId === Number(homeId) && aId === Number(awayId)) ||
+        (hId === Number(awayId) && aId === Number(homeId))
+      );
+
+      const namesMatch = (
+        teamNameMatches(hName, homeName) &&
+        teamNameMatches(aName, awayName)
+      ) || (
+        teamNameMatches(hName, awayName) &&
+        teamNameMatches(aName, homeName)
+      );
+
+      if (idsMatch || namesMatch) {
+        const scoreStr = String(obj.status?.scoreStr || '');
+        const sm = scoreStr.match(/(\d+)\s*[-:]\s*(\d+)/);
+        out.push({
+          id: num(obj.id),
+          home: hName,
+          away: aName,
+          date: String(obj.matchDate ?? obj.status?.utcTime ?? ''),
+          homeScore:
+            num(obj.homeTeamScore) ??
+            (sm ? Number(sm[1]) : null),
+          awayScore:
+            num(obj.awayTeamScore) ??
+            (sm ? Number(sm[2]) : null),
+          status: obj.status ?? null,
+          url: null,
+        });
+      }
+    }
+
+    if (Array.isArray(obj)) {
+      obj.forEach(walk);
+    } else {
+      Object.values(obj).forEach(v => {
+        if (v && typeof v === 'object') walk(v);
+      });
+    }
+  };
+
+  walk(data);
+
+  const seen = new Set();
+  return out.filter(m => {
+    const key = String(m.id ?? [m.home, m.away, m.date].join('|'));
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function fetchMatchupData(
+  homeName,
+  awayName,
+  homeId,
+  awayId,
+) {
+  try {
+    const data = await fotmobSearch(homeName + ' ' + awayName);
+    const rows = matchupRowsFromSearch(
+      data,
+      homeName,
+      awayName,
+      homeId,
+      awayId,
+    );
+
+    const finished = rows
+      .filter(m => {
+        const done =
+          m.status?.finished === true ||
+          /^(?:FT|AET|PEN)$/i.test(
+            String(m.status?.reason?.short || '')
+          );
+        return done && m.homeScore != null && m.awayScore != null;
+      })
+      .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+      .slice(0, 4);
+
+    const target = rows
+      .filter(m =>
+        Number.isFinite(Date.parse(m.date)) &&
+        Date.parse(m.date) > Date.now() - 4 * 60 * 60 * 1000
+      )
+      .sort(
+        (a, b) =>
+          Math.abs(Date.parse(a.date) - Date.now()) -
+          Math.abs(Date.parse(b.date) - Date.now())
+      )[0] || null;
+
+    return { finished, target };
+  } catch {
+    return { finished: [], target: null };
+  }
+}
+
 async function buildPerformancePackage({ home, away }) {
   if (!home?.name || !away?.name) {
     throw new Error('home/away takım adı gerekli.');
@@ -964,12 +1079,23 @@ async function buildPerformancePackage({ home, away }) {
       return { ...resolvedHit.data, cache: true };
     }
 
+    const homeId = teamIdFromUrl(homeInfo.url);
+    const awayId = teamIdFromUrl(awayInfo.url);
+
+    const matchup = await fetchMatchupData(
+      homeInfo.name,
+      awayInfo.name,
+      homeId,
+      awayId,
+    );
+
     const homePack = await buildTeam(browser, homeInfo, awayInfo.name);
     const awayPack = await buildTeam(browser, awayInfo, homeInfo.name);
 
     const targetMatch =
       matchBetweenUpcoming(homePack._allMatches, homeInfo.name, awayInfo.name) ||
-      matchBetweenUpcoming(awayPack._allMatches, homeInfo.name, awayInfo.name);
+      matchBetweenUpcoming(awayPack._allMatches, homeInfo.name, awayInfo.name) ||
+      matchup.target;
 
     const unavailable = await getUnavailable(browser, targetMatch?.url, targetMatch?.id);
 
@@ -985,14 +1111,23 @@ async function buildPerformancePackage({ home, away }) {
     delete homePack._allMatches;
     delete awayPack._allMatches;
 
-    const h2h = homePack.h2h?.length ? homePack.h2h : awayPack.h2h;
+    const h2h = matchup.finished.length
+      ? matchup.finished.map(m => ({
+          tarih: m.date,
+          ev: m.home,
+          deplasman: m.away,
+          evGol: m.homeScore,
+          deplasmanGol: m.awayScore,
+        }))
+      : (homePack.h2h?.length ? homePack.h2h : awayPack.h2h);
 
     const data = {
       mac: targetMatch ? {
         ev: targetMatch.home,
         deplasman: targetMatch.away,
         tarih: targetMatch.date,
-        url: targetMatch.url
+        url: targetMatch.url,
+        id: targetMatch.id ?? null
       } : {
         ev: homeInfo.name,
         deplasman: awayInfo.name,
@@ -1007,7 +1142,7 @@ async function buildPerformancePackage({ home, away }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 2,
+        engineVersion: 3,
       },
       cache: false
     };

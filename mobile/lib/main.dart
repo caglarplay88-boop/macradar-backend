@@ -2306,8 +2306,14 @@ class _PerformancePanelState extends State<PerformancePanel>
   ) {
     final h = _maps(home['eksikler']);
     final a = _maps(away['eksikler']);
+    final hAvailable = home['eksikVerisi'] == true;
+    final aAvailable = away['eksikVerisi'] == true;
 
-    Widget mini(String team, List<Map<String, dynamic>> rows) {
+    Widget mini(
+      String team,
+      List<Map<String, dynamic>> rows,
+      bool available,
+    ) {
       final rated = rows
           .where((x) => x['rating'] is num)
           .map((x) => (x['rating'] as num).toDouble())
@@ -2337,7 +2343,7 @@ class _PerformancePanelState extends State<PerformancePanel>
               ),
               const SizedBox(height: 5),
               Text(
-                rows.length.toString() + ' eksik',
+                available ? rows.length.toString() + ' eksik' : 'veri yok',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
@@ -2345,7 +2351,11 @@ class _PerformancePanelState extends State<PerformancePanel>
               ),
               const SizedBox(height: 2),
               Text(
-                top == null ? 'rating yok' : 'en yüksek rating ' + top.toStringAsFixed(2),
+                !available
+                    ? 'FotMob eksik listesi gelmedi'
+                    : top == null
+                        ? 'rating yok'
+                        : 'en yüksek rating ' + top.toStringAsFixed(2),
                 style: const TextStyle(
                   fontSize: 9,
                   color: Color(0xFF7E8A83),
@@ -2359,9 +2369,9 @@ class _PerformancePanelState extends State<PerformancePanel>
 
     return Row(
       children: [
-        mini(home['takim']?.toString() ?? 'Ev', h),
+        mini(home['takim']?.toString() ?? 'Ev', h, hAvailable),
         const SizedBox(width: 8),
-        mini(away['takim']?.toString() ?? 'Dep.', a),
+        mini(away['takim']?.toString() ?? 'Dep.', a, aAvailable),
       ],
     );
   }
@@ -2372,8 +2382,14 @@ class _PerformancePanelState extends State<PerformancePanel>
   ) {
     final h = _maps(home['eksikler']);
     final a = _maps(away['eksikler']);
+    final hAvailable = home['eksikVerisi'] == true;
+    final aAvailable = away['eksikVerisi'] == true;
 
-    Widget list(String team, List<Map<String, dynamic>> rows) {
+    Widget list(
+      String team,
+      List<Map<String, dynamic>> rows,
+      bool available,
+    ) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2388,73 +2404,108 @@ class _PerformancePanelState extends State<PerformancePanel>
               ),
             ),
           ),
-          if (rows.isEmpty)
+          if (!available)
             const Padding(
               padding: EdgeInsets.all(6),
               child: Text(
-                'Eksik oyuncu görünmüyor.',
-                style: TextStyle(fontSize: 11, color: Color(0xFF8D9992)),
+                'Eksik oyuncu verisi alınamadı.',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF8D9992),
+                ),
+              ),
+            )
+          else if (rows.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(6),
+              child: Text(
+                'Kayıtlı eksik oyuncu yok.',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF8D9992),
+                ),
               ),
             ),
-          for (final p in rows)
-            Container(
-              margin: const EdgeInsets.only(bottom: 5),
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-              decoration: BoxDecoration(
-                color: const Color(0xFF121813),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      p['ad']?.toString() ?? '-',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+          if (available)
+            for (final p in rows)
+              Container(
+                margin: const EdgeInsets.only(bottom: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121813),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        p['ad']?.toString() ?? '-',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
-                  Text(
-                    p['durum']?.toString() ?? '-',
-                    style: const TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFFFFB66E),
+                    Text(
+                      p['durum']?.toString() ?? '-',
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFFFFB66E),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    p['rating'] is num
-                        ? (p['rating'] as num).toStringAsFixed(2)
-                        : '—',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Color(0xFFAAB3AE),
+                    const SizedBox(width: 8),
+                    Text(
+                      p['rating'] is num
+                          ? (p['rating'] as num).toStringAsFixed(2)
+                          : '—',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFFAAB3AE),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
         ],
       );
     }
+
+    final knownCount =
+        (hAvailable ? h.length : 0) + (aAvailable ? a.length : 0);
+    final bothKnown = hAvailable && aAvailable;
 
     return Card(
       margin: EdgeInsets.zero,
       child: ExpansionTile(
         title: const Text(
           'Eksik oyuncu detayları',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         subtitle: Text(
-          (h.length + a.length).toString() + ' oyuncu',
+          bothKnown
+              ? knownCount.toString() + ' oyuncu'
+              : 'veri kapsamı kısmi',
           style: const TextStyle(fontSize: 10),
         ),
         childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
         children: [
-          list(home['takim']?.toString() ?? 'Ev', h),
-          list(away['takim']?.toString() ?? 'Dep.', a),
+          list(
+            home['takim']?.toString() ?? 'Ev',
+            h,
+            hAvailable,
+          ),
+          list(
+            away['takim']?.toString() ?? 'Dep.',
+            a,
+            aAvailable,
+          ),
         ],
       ),
     );

@@ -277,23 +277,46 @@ async function listMatches({ activeOnly = false } = {}) {
   const { rows } = await pool.query(q);
   return rows;
 }
+function matchKickoffCutoff(match) {
+  if (!match?.match_date || !match?.kickoff_time) return null;
+
+  const date = String(match.match_date).slice(0, 10);
+  const tm = String(match.kickoff_time).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !tm) return null;
+
+  const hh = String(Number(tm[1])).padStart(2, '0');
+  const mm = String(Number(tm[2])).padStart(2, '0');
+  const d = new Date(`${date}T${hh}:${mm}:00+03:00`);
+
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
 async function getMatch(eventId) {
   const m = (await pool.query('SELECT * FROM matches WHERE event_id=$1', [eventId])).rows[0];
   if (!m) return null;
 
+  // Grafik ve "son oranlar" yalnızca maç başlamadan önceki kayıtları gösterir.
+  // Eski sürümün yanlışlıkla kaydettiği live oranlar DB'de kalsa bile uygulamaya dönmez.
+  const cutoff = matchKickoffCutoff(m);
+  const cutoffClause = cutoff ? ' AND captured_at < $2' : '';
+  const params = cutoff ? [eventId, cutoff] : [eventId];
+
   const latest = (await pool.query(
-    'SELECT MAX(captured_at) AS captured_at FROM snapshots WHERE event_id=$1', [eventId]
+    'SELECT MAX(captured_at) AS captured_at FROM snapshots WHERE event_id=$1' + cutoffClause,
+    params
   )).rows[0]?.captured_at || null;
 
   let rows = [];
   if (latest) {
     rows = (await pool.query(
-      'SELECT * FROM snapshots WHERE event_id=$1 AND captured_at=$2 ORDER BY bookmaker_rank NULLS LAST, id', [eventId, latest]
+      'SELECT * FROM snapshots WHERE event_id=$1 AND captured_at=$2 ORDER BY bookmaker_rank NULLS LAST, id',
+      [eventId, latest]
     )).rows;
   }
 
   const all = (await pool.query(
-    'SELECT * FROM snapshots WHERE event_id=$1 ORDER BY captured_at,id', [eventId]
+    'SELECT * FROM snapshots WHERE event_id=$1' + cutoffClause + ' ORDER BY captured_at,id',
+    params
   )).rows;
 
   const groups = new Map();
@@ -352,7 +375,9 @@ async function getMatch(eventId) {
     latest_rows: rows.slice(0, 3),
     history_bookmaker: preferred?.bookmaker || null,
     history,
-    history_groups: historyGroups
+    history_groups: historyGroups,
+    prematch_only: true,
+    kickoff_cutoff: cutoff ? cutoff.toISOString() : null
   };
 }
 

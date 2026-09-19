@@ -22,7 +22,12 @@ function dueForRefresh(match, force, refreshMinutes) {
 function kickoffAtMs(match) {
   if (!match?.match_date || !match?.kickoff_time) return null;
 
-  const date = String(match.match_date).slice(0, 10);
+  const rawDate = match.match_date;
+  const date =
+    rawDate instanceof Date && Number.isFinite(rawDate.getTime())
+      ? rawDate.toISOString().slice(0, 10)
+      : (String(rawDate).match(/\d{4}-\d{2}-\d{2}/)?.[0] || '');
+
   const m = String(match.kickoff_time).trim().match(/^(\d{1,2}):(\d{2})$/);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !m) return null;
 

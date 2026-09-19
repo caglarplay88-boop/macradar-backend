@@ -1,7 +1,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const { URL } = require('url');
-const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, archiveStartedMatch, finishMatch, pool } = require('./db');
+const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, archiveStartedMatch, finishMatch, pool, getPerformanceCache, markPerformancePreparing, savePerformanceCache, failPerformanceCache } = require('./db');
 const { getBulletin } = require('./bulletin');
 const { pullAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
@@ -12,6 +12,52 @@ const { buildPerformancePackage } = require('./performance');
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = String(process.env.API_KEY || '');
 const MOBILE_CODE_HASH = 'ee3a321e49e949c5ac27dc2a5504ba55a59b11eae7ab1f7b5357cd305b6e8968';
+
+const performanceBuilds = new Map();
+
+function performanceCacheEnvelope(row) {
+  return {
+    status: row?.status || 'missing',
+    updated_at: row?.updated_at || null,
+    error: row?.error || null,
+    has_data: Boolean(row?.payload)
+  };
+}
+
+function startPerformanceBuild(eventId, matchRow, names) {
+  if (performanceBuilds.has(eventId)) return performanceBuilds.get(eventId);
+
+  const task = (async () => {
+    try {
+      const data = await buildPerformancePackage({
+        home: { name: names.home },
+        away: { name: names.away }
+      });
+
+      const payload = {
+        event_id: eventId,
+        display_name: matchRow.display_name,
+        ...data
+      };
+
+      await savePerformanceCache(eventId, payload);
+      return payload;
+    } catch (e) {
+      await failPerformanceCache(eventId, e?.message || String(e)).catch(() => {});
+      throw e;
+    } finally {
+      performanceBuilds.delete(eventId);
+    }
+  })();
+
+  performanceBuilds.set(eventId, task);
+  task.catch(err => {
+    console.error('Performance build failed:', eventId, err);
+  });
+
+  return task;
+}
+
 
 function json(res, status, data) {
   const body = JSON.stringify(data);
@@ -255,25 +301,84 @@ const server = http.createServer(async (req, res) => {
       return m ? json(res, 200, m) : json(res, 404, { error: 'Maç bulunamadı.' });
     }
 
+    if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/performance$/.test(u.pathname)) {
+      const eventId = eventFromPath(u.pathname, 'performance');
+      const cached = await getPerformanceCache(eventId);
+
+      if (cached?.payload) {
+        return json(res, 200, {
+          ...cached.payload,
+          performance_cache: performanceCacheEnvelope(cached)
+        });
+      }
+
+      if (cached?.status === 'preparing') {
+        return json(res, 202, {
+          status: 'preparing',
+          performance_cache: performanceCacheEnvelope(cached)
+        });
+      }
+
+      if (cached?.status === 'failed') {
+        return json(res, 503, {
+          status: 'failed',
+          error: cached.error || 'Performans verisi hazırlanamadı.',
+          performance_cache: performanceCacheEnvelope(cached)
+        });
+      }
+
+      return json(res, 404, {
+        status: 'missing',
+        error: 'Performans verisi henüz hazırlanmadı.'
+      });
+    }
+
     if (!authorized(req)) return json(res, 401, { error: 'Yetkisiz.' });
 
     if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/performance$/.test(u.pathname)) {
       const eventId = eventFromPath(u.pathname, 'performance');
-      const m = await getMatch(eventId);
-      if (!m) return json(res, 404, { error: 'Maç bulunamadı.' });
+      const body = await readJson(req);
+      const force = body?.force === true;
 
-      const names = teamNamesFromMatch(m);
-      const data = await buildPerformancePackage({
-        home: { name: names.home },
-        away: { name: names.away }
-      });
+      const row = (await pool.query(
+        'SELECT event_id,display_name,match_slug,match_date,kickoff_time FROM matches WHERE event_id=$1',
+        [eventId]
+      )).rows[0];
 
-      return json(res, 200, {
-        event_id: eventId,
-        display_name: m.display_name,
-        ...data
+      if (!row) return json(res, 404, { error: 'Maç bulunamadı.' });
+
+      const cached = await getPerformanceCache(eventId);
+
+      if (!force && cached?.payload) {
+        return json(res, 200, {
+          ...cached.payload,
+          performance_cache: performanceCacheEnvelope(cached)
+        });
+      }
+
+      const updatedMs = cached?.updated_at ? new Date(cached.updated_at).getTime() : 0;
+      const preparingFresh =
+        cached?.status === 'preparing' &&
+        Number.isFinite(updatedMs) &&
+        Date.now() - updatedMs < 10 * 60 * 1000;
+
+      if (preparingFresh && performanceBuilds.has(eventId)) {
+        return json(res, 202, {
+          status: 'preparing',
+          performance_cache: performanceCacheEnvelope(cached)
+        });
+      }
+
+      const names = teamNamesFromMatch(row);
+      const marked = await markPerformancePreparing(eventId);
+      startPerformanceBuild(eventId, row, names);
+
+      return json(res, 202, {
+        status: 'preparing',
+        performance_cache: performanceCacheEnvelope(marked)
       });
     }
+
 
     if (req.method === 'POST' && u.pathname === '/api/performance') {
       const body = await readJson(req);

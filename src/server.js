@@ -139,20 +139,8 @@ const server = http.createServer(async (req, res) => {
       const m = await getMatch(eventId);
       if (!m) return json(res, 404, { error: 'Maç bulunamadı.' });
 
-      const r = await runWorkerOnce({ force: true, eventIds: [eventId] });
-
-      if (r?.skipped && r?.reason === 'worker_already_running') {
-        setTimeout(() => queueTargetRefresh([eventId], 'Manual'), 100);
-        return json(res, 202, { ok: true, queued: true, eventId });
-      }
-
-      const result = Array.isArray(r?.results)
-        ? r.results.find(x => String(x.eventId) === String(eventId))
-        : null;
-
-      if (result?.ok) return json(res, 200, { ...result, queued: false });
-      if (result) return json(res, 502, result);
-      return json(res, 200, { ok: true, queued: false, eventId });
+      setTimeout(() => queueTargetRefresh([eventId], 'Manual'), 100);
+      return json(res, 202, { ok: true, queued: true, eventId });
     }
 
     if (req.method === 'DELETE' && /^\/api\/matches\/[^/]+$/.test(u.pathname)) {

@@ -1,0 +1,98 @@
+name: Bayer FotMob Probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/bayer-probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Probe Bayer recent matches and xG
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const H={
+            'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/149 Mobile Safari/537.36',
+            'accept':'application/json,text/plain,*/*',
+            'referer':'https://www.fotmob.com/'
+          };
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          async function j(url){
+            const r=await fetch(url,{headers:H});
+            console.log('GET',url,'=>',r.status);
+            const t=await r.text();
+            if(!r.ok) throw new Error(t.slice(0,500));
+            return JSON.parse(t);
+          }
+          function walk(o,path='root',cb){
+            if(!o||typeof o!=='object') return;
+            cb(o,path);
+            if(Array.isArray(o)) o.forEach((v,i)=>walk(v,path+'['+i+']',cb));
+            else for(const [k,v] of Object.entries(o)) if(v&&typeof v==='object') walk(v,path+'.'+k,cb);
+          }
+          function txt(v){
+            if(v==null)return '';
+            if(typeof v==='string'||typeof v==='number')return String(v);
+            return String(v.name??v.teamName??v.title??'');
+          }
+          function num(v){
+            if(v==null||v==='')return null;
+            if(typeof v==='object') return num(v.value??v.current??v.score??v.total);
+            const n=Number(v);return Number.isFinite(n)?n:null;
+          }
+          function dateValue(o){
+            const v=o?.startTime??o?.timeTS??o?.utcTime??o?.status?.utcTime??o?.date??o?.matchDate??'';
+            if(typeof v==='object')return v.utcTime??v.time??v.date??v.startTime??'';
+            return String(v||'');
+          }
+          function score(o,side){
+            return side==='home'
+              ? num(o?.home?.score)??num(o?.homeTeam?.score)??num(o?.homeScore)??num(o?.status?.scoreStr?.split?.('-')?.[0])
+              : num(o?.away?.score)??num(o?.awayTeam?.score)??num(o?.awayScore)??num(o?.status?.scoreStr?.split?.('-')?.[1]);
+          }
+          const search=await j('https://www.fotmob.com/api/data/search/suggest?hits=20&lang=en&term='+encodeURIComponent('Bayer Leverkusen'));
+          let team=null;
+          walk(search,'root',(o,p)=>{
+            if(!team && o?.type==='team' && /bayer leverkusen/i.test(String(o.name||''))) team={...o,path:p};
+          });
+          console.log('TEAM',team);
+          if(!team) throw new Error('team not found');
+
+          const td=await j('https://www.fotmob.com/api/data/teams?id='+team.id+'&ccode3=DEU');
+          const matches=[];
+          walk(td,'root',(o,p)=>{
+            const home=txt(o.home??o.homeTeam);
+            const away=txt(o.away??o.awayTeam);
+            const id=o.id??o.matchId??o.eventId;
+            const d=dateValue(o);
+            const st=o.status;
+            if(id&&home&&away&&d){
+              matches.push({id:Number(id),home,away,date:d,homeScore:score(o,'home'),awayScore:score(o,'away'),status:st,path:p});
+            }
+          });
+          const uniq=new Map();
+          for(const m of matches){
+            const key=[m.id,m.home,m.away,m.date].join('|');
+            if(!uniq.has(key))uniq.set(key,m);
+          }
+          const finished=[...uniq.values()]
+            .filter(m=>m.status?.finished===true || /FT|AET|PEN/i.test(String(m.status?.reason?.short||'')))
+            .sort((a,b)=>Date.parse(b.date)-Date.parse(a.date))
+            .slice(0,12);
+          console.log('RECENT',JSON.stringify(finished,null,2));
+
+          for(const m of finished.slice(0,10)){
+            const md=await j('https://www.fotmob.com/api/data/matchDetails?matchId='+m.id);
+            const hits=[];
+            walk(md,'root',(o,p)=>{
+              const k=String(o.key??o.statKey??'');
+              const t=String(o.title??o.name??o.label??'');
+              if(/expected.?goals|\bxg\b/i.test(k+' '+t)) hits.push({path:p,obj:o});
+            });
+            console.log('MATCH',m.id,m.home,'-',m.away,m.date,'XG_HITS',JSON.stringify(hits).slice(0,8000));
+            await sleep(100);
+          }
+          NODE

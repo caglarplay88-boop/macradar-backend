@@ -1,7 +1,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const { URL } = require('url');
-const { initDb, listMatches, getMatch, setActive, getWorkerStatus, pool } = require('./db');
+const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, pool } = require('./db');
 const { getBulletin } = require('./bulletin');
 const { pullAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey } = require('./util');
@@ -89,14 +89,28 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req);
       const urls = Array.isArray(body.urls) ? body.urls : body.url ? [body.url] : [];
       if (!urls.length) return json(res, 400, { error: 'url veya urls gerekli.' });
+
       const results = [];
       for (const raw of urls) {
-        let parsed;
-        try { parsed = parseBetExplorerUrl(String(raw)); }
-        catch (e) { results.push({ url: raw, ok: false, error: e.message }); continue; }
-        const r = await pullAndSave(parsed.url, { attempts: 3 });
-        results.push({ url: parsed.url, ...r });
+        try {
+          const parsed = parseBetExplorerUrl(String(raw));
+          await upsertMatch({
+            eventId: parsed.eventId,
+            url: parsed.url,
+            slug: parsed.slug,
+            active: true
+          });
+          results.push({ url: parsed.url, eventId: parsed.eventId, ok: true, queued: true });
+        } catch (e) {
+          results.push({ url: raw, ok: false, error: e.message });
+        }
       }
+
+      setTimeout(() => runWorkerOnce().then(
+        r => console.log('Follow worker:', JSON.stringify(r)),
+        e => console.error('Follow worker error:', e)
+      ), 100);
+
       return json(res, 200, { results });
     }
 

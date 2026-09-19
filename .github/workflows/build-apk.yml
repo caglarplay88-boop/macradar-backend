@@ -1,0 +1,54 @@
+name: Build MacRadar APK
+
+on:
+  push:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create Android project
+        run: |
+          flutter create --platforms=android --org com.macradar --project-name macradar mobile_build
+          cp mobile/lib/main.dart mobile_build/lib/main.dart
+          cd mobile_build
+          flutter pub add http shared_preferences
+
+      - name: Set app name
+        run: |
+          sed -i 's/android:label="macradar"/android:label="MacRadar"/' mobile_build/android/app/src/main/AndroidManifest.xml
+
+      - name: Build release APK
+        run: |
+          cd mobile_build
+          flutter build apk --release
+
+      - name: Prepare APK
+        run: |
+          cp mobile_build/build/app/outputs/flutter-apk/app-release.apk MacRadar.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacRadar-APK
+          path: MacRadar.apk
+          retention-days: 30

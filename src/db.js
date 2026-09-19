@@ -68,6 +68,28 @@ async function initDb() {
     ALTER TABLE snapshots
       ADD COLUMN IF NOT EXISTS bookmaker_rank INTEGER;
 
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS display_name TEXT;
+
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS league TEXT;
+
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS match_date DATE;
+
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS kickoff_time TEXT;
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    INSERT INTO app_settings(key,value)
+    VALUES('refresh_minutes','50')
+    ON CONFLICT(key) DO NOTHING;
+
     CREATE INDEX IF NOT EXISTS idx_snapshots_event_time
       ON snapshots(event_id, captured_at DESC);
 
@@ -82,17 +104,36 @@ async function initDb() {
   `);
 }
 
-async function upsertMatch({ eventId, url, slug, active = true }) {
+async function upsertMatch({
+  eventId,
+  url,
+  slug,
+  active = true,
+  displayName = null,
+  league = null,
+  matchDate = null,
+  kickoffTime = null
+}) {
   const now = new Date();
   await pool.query(`
-    INSERT INTO matches(event_id,url,match_slug,active,created_at,updated_at)
-    VALUES($1,$2,$3,$4,$5,$5)
+    INSERT INTO matches(
+      event_id,url,match_slug,active,created_at,updated_at,
+      display_name,league,match_date,kickoff_time
+    )
+    VALUES($1,$2,$3,$4,$5,$5,$6,$7,$8,$9)
     ON CONFLICT(event_id) DO UPDATE SET
       url=EXCLUDED.url,
       match_slug=EXCLUDED.match_slug,
       active=EXCLUDED.active,
+      display_name=COALESCE(EXCLUDED.display_name,matches.display_name),
+      league=COALESCE(EXCLUDED.league,matches.league),
+      match_date=COALESCE(EXCLUDED.match_date,matches.match_date),
+      kickoff_time=COALESCE(EXCLUDED.kickoff_time,matches.kickoff_time),
       updated_at=EXCLUDED.updated_at
-  `, [eventId, url, slug, active, now]);
+  `, [
+    eventId, url, slug, active, now,
+    displayName, league, matchDate, kickoffTime
+  ]);
 }
 
 
@@ -212,7 +253,216 @@ async function listMatches({ activeOnly = false } = {}) {
       ) AS capture_count
     FROM matches m
     ${activeOnly ? 'WHERE m.active=TRUE' : ''}
-    ORDER BY COALESCE((SELECT MAX(s2.captured_at) FROM snapshots s2 WHERE s2.event_id=m.event_id),m.updated_at) DESC
+    ORDER BY
+      CASE WHEN m.match_date IS NULL THEN 1 ELSE 0 END,
+      m.match_date ASC NULLS LAST,
+      CASE WHEN m.kickoff_time ~ '^\\d{1,2}:\\d{2}  `;
+  const { rows } = await pool.query(q);
+  return rows;
+}
+
+async function getMatch(eventId) {
+  const m = (await pool.query('SELECT * FROM matches WHERE event_id=$1', [eventId])).rows[0];
+  if (!m) return null;
+
+  const latest = (await pool.query(
+    'SELECT MAX(captured_at) AS captured_at FROM snapshots WHERE event_id=$1', [eventId]
+  )).rows[0]?.captured_at || null;
+
+  let rows = [];
+  if (latest) {
+    rows = (await pool.query(
+      'SELECT * FROM snapshots WHERE event_id=$1 AND captured_at=$2 ORDER BY bookmaker_rank NULLS LAST, id', [eventId, latest]
+    )).rows;
+  }
+
+  const all = (await pool.query(
+    'SELECT * FROM snapshots WHERE event_id=$1 ORDER BY captured_at,id', [eventId]
+  )).rows;
+
+  const groups = new Map();
+  for (const r of all) {
+    const key = new Date(r.captured_at).toISOString();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+
+  const keyOf = name => String(name || '').toLowerCase().replace(/\s+/g, '');
+  const preferred =
+    rows.find(x => keyOf(x.bookmaker).startsWith('1xbet')) ||
+    rows[0] ||
+    null;
+  const preferredKey = keyOf(preferred?.bookmaker);
+
+  const historyGroups = [...groups.entries()].map(([captured_at, a]) => {
+    const ordered = [...a].sort((x, y) =>
+      (x.bookmaker_rank ?? 999) - (y.bookmaker_rank ?? 999) || Number(x.id) - Number(y.id)
+    );
+    return {
+      captured_at,
+      rows: ordered.slice(0, 3)
+    };
+  }).filter(group =>
+    group.rows.some(x => keyOf(x.bookmaker).startsWith('1xbet'))
+  );
+
+  const history = historyGroups.map(group => {
+    const ordered = group.rows;
+    const picked =
+      (preferredKey ? ordered.find(x => keyOf(x.bookmaker) === preferredKey) : null) ||
+      ordered.find(x => keyOf(x.bookmaker).startsWith('1xbet')) ||
+      ordered[0];
+
+    if (!picked) return null;
+
+    return {
+      captured_at: group.captured_at,
+      bookmaker: picked.bookmaker,
+      ms1: picked.ms1,
+      msx: picked.msx,
+      ms2: picked.ms2,
+      ou15_over: picked.ou15_over,
+      ou15_under: picked.ou15_under,
+      ou25_over: picked.ou25_over,
+      ou25_under: picked.ou25_under,
+      btts_yes: picked.btts_yes,
+      btts_no: picked.btts_no
+    };
+  }).filter(Boolean);
+
+  return {
+    ...m,
+    latest_capture: latest,
+    latest_rows: rows.slice(0, 3),
+    history_bookmaker: preferred?.bookmaker || null,
+    history,
+    history_groups: historyGroups
+  };
+}
+
+async function setActive(eventId, active) {
+  const r = await pool.query(
+    'UPDATE matches SET active=$2,updated_at=NOW() WHERE event_id=$1 RETURNING *',
+    [eventId, active]
+  );
+  return r.rows[0] || null;
+}
+
+async function createWorkerRun(total) {
+  const r = await pool.query(
+    'INSERT INTO worker_runs(total) VALUES($1) RETURNING *',
+    [total]
+  );
+  return r.rows[0];
+}
+
+async function updateWorkerRun(id, fields = {}) {
+  const current = (await pool.query('SELECT * FROM worker_runs WHERE id=$1', [id])).rows[0];
+  if (!current) return null;
+  const next = {
+    processed: fields.processed ?? current.processed,
+    ok_count: fields.ok_count ?? current.ok_count,
+    fail_count: fields.fail_count ?? current.fail_count,
+    skipped_count: fields.skipped_count ?? current.skipped_count,
+    status: fields.status ?? current.status,
+    error: fields.error ?? current.error,
+    finished_at: fields.finished_at ?? current.finished_at
+  };
+  const r = await pool.query(`
+    UPDATE worker_runs
+    SET processed=$2,ok_count=$3,fail_count=$4,skipped_count=$5,status=$6,error=$7,finished_at=$8
+    WHERE id=$1
+    RETURNING *
+  `, [
+    id, next.processed, next.ok_count, next.fail_count, next.skipped_count,
+    next.status, next.error, next.finished_at
+  ]);
+  return r.rows[0];
+}
+
+
+async function listAlerts({ afterId = 0, limit = 30 } = {}) {
+  const safeAfter = Number.isFinite(Number(afterId)) ? Number(afterId) : 0;
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 30));
+  const r = await pool.query(
+    'SELECT a.*, m.match_slug FROM odds_alerts a JOIN matches m ON m.event_id=a.event_id WHERE a.id > $1 AND m.active=TRUE ORDER BY a.id ASC LIMIT $2',
+    [safeAfter, safeLimit]
+  );
+  return r.rows;
+}
+
+async function getLatestAlertId() {
+  const r = await pool.query('SELECT COALESCE(MAX(id),0)::bigint AS id FROM odds_alerts');
+  return Number(r.rows[0]?.id || 0);
+}
+
+async function getSetting(key, fallback = null) {
+  const r = await pool.query(
+    'SELECT value FROM app_settings WHERE key=$1',
+    [key]
+  );
+  return r.rows[0]?.value ?? fallback;
+}
+
+async function setSetting(key, value) {
+  const r = await pool.query(`
+    INSERT INTO app_settings(key,value,updated_at)
+    VALUES($1,$2,NOW())
+    ON CONFLICT(key) DO UPDATE SET
+      value=EXCLUDED.value,
+      updated_at=EXCLUDED.updated_at
+    RETURNING *
+  `, [key, String(value)]);
+  return r.rows[0];
+}
+
+async function getRefreshMinutes() {
+  const raw = Number(await getSetting('refresh_minutes', '50'));
+  return Number.isFinite(raw) ? raw : 50;
+}
+
+async function getWorkerStatus() {
+  const last = (await pool.query(
+    'SELECT * FROM worker_runs ORDER BY started_at DESC LIMIT 1'
+  )).rows[0] || null;
+  const active = Number((await pool.query(
+    'SELECT COUNT(*)::int AS c FROM matches WHERE active=TRUE'
+  )).rows[0].c);
+  const snapshots = Number((await pool.query(
+    'SELECT COUNT(*)::int AS c FROM snapshots'
+  )).rows[0].c);
+  const refreshMinutes = await getRefreshMinutes();
+  return {
+    last_run: last,
+    active_matches: active,
+    snapshot_rows: snapshots,
+    refresh_minutes: refreshMinutes
+  };
+}
+
+module.exports = {
+  pool,
+  initDb,
+  upsertMatch,
+  saveSnapshot,
+  listMatches,
+  getMatch,
+  setActive,
+  createWorkerRun,
+  updateWorkerRun,
+  getWorkerStatus,
+  listAlerts,
+  getLatestAlertId,
+  getSetting,
+  setSetting,
+  getRefreshMinutes
+};
+
+        THEN split_part(m.kickoff_time,':',1)::int * 60 + split_part(m.kickoff_time,':',2)::int
+        ELSE 9999
+      END ASC,
+      m.display_name ASC NULLS LAST,
+      COALESCE((SELECT MAX(s2.captured_at) FROM snapshots s2 WHERE s2.event_id=m.event_id),m.updated_at) DESC
   `;
   const { rows } = await pool.query(q);
   return rows;

@@ -7,6 +7,7 @@ const { pullAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
 const { seed } = require('./seed');
 const { runWorkerOnce } = require('./run-worker');
+const { buildPerformancePackage } = require('./performance');
 
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = String(process.env.API_KEY || '');
@@ -240,6 +241,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (!authorized(req)) return json(res, 401, { error: 'Yetkisiz.' });
+
+    if (req.method === 'POST' && u.pathname === '/api/performance') {
+      const body = await readJson(req);
+      const data = await buildPerformancePackage({
+        home: body.home,
+        away: body.away
+      });
+      return json(res, 200, data);
+    }
 
     if (req.method === 'POST' && u.pathname === '/api/follow') {
       const body = await readJson(req);

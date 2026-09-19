@@ -119,8 +119,25 @@ async function pullOdds(rawUrl) {
   const page = await newConfiguredPage(browser);
 
   try {
-    await page.goto(parsed.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await sleep(1600);
+    try {
+      await page.goto(parsed.url, { waitUntil: 'domcontentloaded', timeout: 22000 });
+    } catch (e) {
+      if (!/timeout/i.test(String(e?.message || e))) throw e;
+      console.log('[odds] navigation timeout, market endpointleri yine denenecek:', parsed.eventId);
+    }
+
+    if (!String(page.url()).startsWith('https://www.betexplorer.com/')) {
+      try {
+        await page.goto('https://www.betexplorer.com/', {
+          waitUntil: 'domcontentloaded',
+          timeout: 12000
+        });
+      } catch (e) {
+        console.log('[odds] ana sayfa navigation uyarısı:', parsed.eventId, String(e?.message || e));
+      }
+    }
+
+    await sleep(800);
 
     await page.evaluate(() => {
       const buttons = [...document.querySelectorAll('button')];
@@ -146,28 +163,41 @@ async function pullOdds(rawUrl) {
     });
 
     async function fetchMarket(type) {
-      return page.evaluate(async ({ eventId, type }) => {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          const r = await fetch(`/match-odds/${eventId}/0/${type}/odds/?lang=en`, {
-            credentials: 'include',
-            signal: controller.signal,
-            headers: {
-              'x-requested-with': 'XMLHttpRequest',
-              'accept': 'application/json,text/javascript,*/*;q=0.01'
+          return await page.evaluate(async ({ eventId, type }) => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 18000);
+            try {
+              const url = `https://www.betexplorer.com/match-odds/${eventId}/0/${type}/odds/?lang=en`;
+              const r = await fetch(url, {
+                credentials: 'include',
+                signal: controller.signal,
+                headers: {
+                  'x-requested-with': 'XMLHttpRequest',
+                  'accept': 'application/json,text/javascript,*/*;q=0.01'
+                }
+              });
+              const text = await r.text();
+              if (!r.ok) throw new Error(`${type} HTTP ${r.status}`);
+              let data;
+              try { data = JSON.parse(text); }
+              catch { throw new Error(`${type} JSON değil`); }
+              if (!data.odds) throw new Error(`${type} odds boş`);
+              return data.odds;
+            } finally {
+              clearTimeout(timer);
             }
-          });
-          const text = await r.text();
-          if (!r.ok) throw new Error(`${type} HTTP ${r.status}`);
-          let data;
-          try { data = JSON.parse(text); }
-          catch { throw new Error(`${type} JSON değil`); }
-          return data.odds || '';
-        } finally {
-          clearTimeout(timer);
+          }, { eventId: parsed.eventId, type });
+        } catch (e) {
+          lastError = e;
+          if (attempt < 2) await sleep(1200);
         }
-      }, { eventId: parsed.eventId, type });
+      }
+
+      throw lastError || new Error(type + ' market alınamadı');
     }
 
     async function parseHtml(html, mode) {
@@ -217,6 +247,10 @@ async function pullOdds(rawUrl) {
     ]);
 
     const selectedBooks = firstThreeBookmakers(oneXtwo);
+    console.log(
+      '[odds] ' + parsed.eventId + ' bookmakers=' +
+      selectedBooks.map(x => x.bookmaker).join(' | ')
+    );
     const ou15Rows = uniqueInPageOrder(ou.filter(r => r.total === '1.5'));
     const ou25Rows = uniqueInPageOrder(ou.filter(r => r.total === '2.5'));
     const btsRows = uniqueInPageOrder(bts);

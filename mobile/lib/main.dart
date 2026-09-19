@@ -309,7 +309,7 @@ class _BulletinPageState extends State<BulletinPage> {
                           });
                         },
                         controlAffinity: ListTileControlAffinity.trailing,
-                        title: Text(m['name']?.toString() ?? '-', style: const TextStyle(fontWeight: FontWeight.w650)),
+                        title: Text(m['name']?.toString() ?? '-', style: const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text((m['time']?.toString() ?? '--:--') + (followed ? '  ·  Takipte' : '')),
                       ),
                     ),
@@ -399,7 +399,7 @@ class _TrackedPageState extends State<TrackedPage> {
                 return Card(
                   child: ListTile(
                     leading: const CircleAvatar(child: Icon(Icons.sports_soccer)),
-                    title: Text(nice(slug), style: const TextStyle(fontWeight: FontWeight.w750)),
+                    title: Text(nice(slug), style: const TextStyle(fontWeight: FontWeight.w700)),
                     subtitle: Text('Oran satırı: ' + (m['row_count']?.toString() ?? '0')),
                     onTap: () => Navigator.push(
                       context,

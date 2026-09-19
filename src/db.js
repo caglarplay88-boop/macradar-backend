@@ -256,11 +256,23 @@ async function listMatches({ activeOnly = false } = {}) {
     ORDER BY
       CASE WHEN m.match_date IS NULL THEN 1 ELSE 0 END,
       m.match_date ASC NULLS LAST,
-      CASE WHEN m.kickoff_time ~ '^\\d{1,2}:\\d{2}  `;
+      CASE
+        WHEN m.kickoff_time ~ '^[0-9]{1,2}:[0-9]{2}$'
+        THEN split_part(m.kickoff_time,':',1)::int * 60
+             + split_part(m.kickoff_time,':',2)::int
+        ELSE 9999
+      END ASC,
+      m.display_name ASC NULLS LAST,
+      COALESCE(
+        (SELECT MAX(s2.captured_at)
+         FROM snapshots s2
+         WHERE s2.event_id=m.event_id),
+        m.updated_at
+      ) DESC
+  `;
   const { rows } = await pool.query(q);
   return rows;
 }
-
 async function getMatch(eventId) {
   const m = (await pool.query('SELECT * FROM matches WHERE event_id=$1', [eventId])).rows[0];
   if (!m) return null;

@@ -1611,10 +1611,59 @@ class _MatchDetailState extends State<MatchDetail> {
             .toList()
         : <Map<String, dynamic>>[];
 
-    final historyBookmaker =
-        data['history_bookmaker']?.toString().isNotEmpty == true
-            ? data['history_bookmaker'].toString()
-            : '1xBet';
+    final historyGroups = data['history_groups'] is List
+        ? (data['history_groups'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    String bookmakerKey(dynamic raw) => raw
+        .toString()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), '');
+
+    final bookmakerNames = <String>[];
+    final seenBookmakers = <String>{};
+
+    for (final row in latest) {
+      final name = row['bookmaker']?.toString().trim() ?? '';
+      final key = bookmakerKey(name);
+
+      if (name.isEmpty || seenBookmakers.contains(key)) continue;
+
+      seenBookmakers.add(key);
+      bookmakerNames.add(name);
+    }
+
+    final historiesByBookmaker =
+        <String, List<Map<String, dynamic>>>{};
+
+    for (final bookmaker in bookmakerNames.take(3)) {
+      final wanted = bookmakerKey(bookmaker);
+      final bookmakerHistory = <Map<String, dynamic>>[];
+
+      for (final group in historyGroups) {
+        final capturedAt = group['captured_at'];
+        final rows = group['rows'];
+
+        if (rows is! List) continue;
+
+        for (final raw in rows.whereType<Map>()) {
+          final row = Map<String, dynamic>.from(raw);
+
+          if (bookmakerKey(row['bookmaker']) == wanted) {
+            bookmakerHistory.add({
+              ...row,
+              'captured_at': capturedAt ?? row['captured_at'],
+            });
+            break;
+          }
+        }
+      }
+
+      historiesByBookmaker[bookmaker] = bookmakerHistory;
+    }
 
     const msSeries = [
       ChartSeries('1', 'ms1', Color(0xFF69C8FF)),
@@ -1849,53 +1898,48 @@ class _MatchDetailState extends State<MatchDetail> {
                         ],
                       ),
                       const SizedBox(height: 7),
-                      if (selectedMarket == 'MS')
-                        MarketSection(
-                          title: 'MS 1 / X / 2',
-                          marketCode: 'MS',
-                          bookmaker: historyBookmaker,
-                          history: history,
-                          series: msSeries,
-                          report: marketReport(history, 'MS', msSeries),
-                        )
-                      else if (selectedMarket == '1.5')
-                        MarketSection(
-                          title: '1.5 Alt / Üst',
-                          marketCode: '1.5 Alt / Üst',
-                          bookmaker: historyBookmaker,
-                          history: history,
-                          series: ou15Series,
-                          report: marketReport(
-                            history,
-                            '1.5 Alt / Üst',
-                            ou15Series,
-                          ),
-                        )
-                      else if (selectedMarket == '2.5')
-                        MarketSection(
-                          title: '2.5 Alt / Üst',
-                          marketCode: '2.5 Alt / Üst',
-                          bookmaker: historyBookmaker,
-                          history: history,
-                          series: ou25Series,
-                          report: marketReport(
-                            history,
-                            '2.5 Alt / Üst',
-                            ou25Series,
-                          ),
-                        )
-                      else
-                        MarketSection(
-                          title: 'KG Yok / Var',
-                          marketCode: 'KG Yok / Var',
-                          bookmaker: historyBookmaker,
-                          history: history,
-                          series: kgSeries,
-                          report: marketReport(
-                            history,
-                            'KG Yok / Var',
-                            kgSeries,
-                          ),
+                      for (final bookmaker in bookmakerNames.take(3))
+                        Builder(
+                          builder: (context) {
+                            final bookmakerHistory =
+                                historiesByBookmaker[bookmaker] ??
+                                    <Map<String, dynamic>>[];
+
+                            late final String title;
+                            late final String marketCode;
+                            late final List<ChartSeries> series;
+
+                            if (selectedMarket == 'MS') {
+                              title = 'MS 1 / X / 2';
+                              marketCode = 'MS';
+                              series = msSeries;
+                            } else if (selectedMarket == '1.5') {
+                              title = '1.5 Alt / Üst';
+                              marketCode = '1.5 Alt / Üst';
+                              series = ou15Series;
+                            } else if (selectedMarket == '2.5') {
+                              title = '2.5 Alt / Üst';
+                              marketCode = '2.5 Alt / Üst';
+                              series = ou25Series;
+                            } else {
+                              title = 'KG Yok / Var';
+                              marketCode = 'KG Yok / Var';
+                              series = kgSeries;
+                            }
+
+                            return MarketSection(
+                              title: title,
+                              marketCode: marketCode,
+                              bookmaker: bookmaker,
+                              history: bookmakerHistory,
+                              series: series,
+                              report: marketReport(
+                                bookmakerHistory,
+                                marketCode,
+                                series,
+                              ),
+                            );
+                          },
                         ),
                     ],
                   ),

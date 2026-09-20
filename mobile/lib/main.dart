@@ -1528,47 +1528,58 @@ class _MatchDetailState extends State<MatchDetail> {
     String market,
     List<ChartSeries> series,
   ) {
-    if (history.length < 2) {
-      return 'İlk kayıt oluştu. Hareket yorumu için en az iki çekim gerekiyor.';
+    final usable = history.where((row) {
+      return series.any(
+        (item) => row[item.keyName] is num,
+      );
+    }).toList();
+
+    if (usable.length < 2) {
+      return 'Hareket yorumu için en az iki gerçek oran kaydı gerekiyor.';
     }
 
-    final first = history.first;
-    final last = history.last;
+    final first = usable.first;
+    final last = usable.last;
     final parts = <String>[];
     double strongestDrop = 0;
     String strongestLabel = '';
 
-    for (final s in series) {
-      final a = first[s.keyName];
-      final b = last[s.keyName];
+    for (final item in series) {
+      final a = first[item.keyName];
+      final b = last[item.keyName];
 
       if (a is! num || b is! num) continue;
 
-      final start = a.toDouble();
-      final end = b.toDouble();
-      final diff = end - start;
+      final opening = a.toDouble();
+      final current = b.toDouble();
+      final diff = current - opening;
 
       String move;
+
       if (diff.abs() < 0.005) {
         move = 'değişmedi';
       } else if (diff < 0) {
-        move = start.toStringAsFixed(2) +
+        move = opening.toStringAsFixed(2) +
             '→' +
-            end.toStringAsFixed(2) +
+            current.toStringAsFixed(2) +
             ' düştü';
       } else {
-        move = start.toStringAsFixed(2) +
+        move = opening.toStringAsFixed(2) +
             '→' +
-            end.toStringAsFixed(2) +
+            current.toStringAsFixed(2) +
             ' yükseldi';
       }
 
-      parts.add(s.label + ' ' + move);
+      parts.add(item.label + ' ' + move);
 
       if (diff < strongestDrop) {
         strongestDrop = diff;
-        strongestLabel = s.label;
+        strongestLabel = item.label;
       }
+    }
+
+    if (parts.isEmpty) {
+      return 'Bu market için yeterli karşılaştırılabilir oran yok.';
     }
 
     String note = parts.join(' · ') + '.';
@@ -1580,14 +1591,16 @@ class _MatchDetailState extends State<MatchDetail> {
             : strongestLabel == '2'
                 ? 'deplasman'
                 : 'beraberlik';
+
         note +=
-            ' En belirgin oran düşüşü ' + label + ' tarafında; piyasa fiyatlaması bu seçeneği önceye göre daha güçlü gösteriyor.';
-      } else if (market.contains('Alt / Üst')) {
+            ' En belirgin oran düşüşü ' +
+            label +
+            ' tarafında.';
+      } else {
         note +=
-            ' En belirgin sıkışma ' + strongestLabel + ' tarafında.';
-      } else if (market.contains('KG')) {
-        note +=
-            ' En belirgin sıkışma ' + strongestLabel + ' tarafında.';
+            ' En belirgin sıkışma ' +
+            strongestLabel +
+            ' tarafında.';
       }
     }
 
@@ -1686,28 +1699,68 @@ class _MatchDetailState extends State<MatchDetail> {
 
     for (final bookmaker in bookmakerNames.take(3)) {
       final wanted = bookmakerKey(bookmaker);
-      final bookmakerHistory = <Map<String, dynamic>>[];
+      final bookmakerHistory =
+          <Map<String, dynamic>>[];
 
       for (final group in historyGroups) {
         final capturedAt = group['captured_at'];
         final rows = group['rows'];
 
-        if (rows is! List) continue;
+        Map<String, dynamic>? matched;
 
-        for (final raw in rows.whereType<Map>()) {
-          final row = Map<String, dynamic>.from(raw);
+        if (rows is List) {
+          for (final raw in rows.whereType<Map>()) {
+            final row =
+                Map<String, dynamic>.from(raw);
 
-          if (bookmakerKey(row['bookmaker']) == wanted) {
-            bookmakerHistory.add({
-              ...row,
-              'captured_at': capturedAt ?? row['captured_at'],
-            });
-            break;
+            if (bookmakerKey(row['bookmaker']) ==
+                wanted) {
+              matched = row;
+              break;
+            }
           }
+        }
+
+        if (matched != null) {
+          bookmakerHistory.add({
+            ...matched,
+            'captured_at':
+                capturedAt ?? matched['captured_at'],
+          });
+        } else {
+          bookmakerHistory.add({
+            'bookmaker': bookmaker,
+            'captured_at': capturedAt,
+            '_missing': true,
+          });
         }
       }
 
-      historiesByBookmaker[bookmaker] = bookmakerHistory;
+      bookmakerHistory.sort((a, b) {
+        DateTime? da;
+        DateTime? db;
+
+        try {
+          da = DateTime.parse(
+            a['captured_at']?.toString() ?? '',
+          );
+        } catch (_) {}
+
+        try {
+          db = DateTime.parse(
+            b['captured_at']?.toString() ?? '',
+          );
+        } catch (_) {}
+
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+
+        return da.compareTo(db);
+      });
+
+      historiesByBookmaker[bookmaker] =
+          bookmakerHistory;
     }
 
     const msSeries = [
@@ -1911,32 +1964,60 @@ class _MatchDetailState extends State<MatchDetail> {
                         for (final row in latest)
                           LatestBookmakerCard(row: row),
                       if (firstHistoryRows.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'İLK KAYIT',
+                        const SizedBox(height: 7),
+                        Card(
+                          margin: EdgeInsets.zero,
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              dividerColor:
+                                  Colors.transparent,
+                            ),
+                            child: ExpansionTile(
+                              initiallyExpanded: false,
+                              dense: true,
+                              tilePadding:
+                                  const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              childrenPadding:
+                                  const EdgeInsets.fromLTRB(
+                                8,
+                                0,
+                                8,
+                                8,
+                              ),
+                              title: const Text(
+                                'İlk kayıt',
                                 style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.0,
+                                  fontSize: 11,
+                                  fontWeight:
+                                      FontWeight.w800,
                                 ),
                               ),
-                            ),
-                            Text(
-                              stamp(firstHistoryCapturedAt),
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFFAEB8B3),
-                                fontWeight: FontWeight.w700,
+                              subtitle: Text(
+                                stamp(
+                                      firstHistoryCapturedAt,
+                                    ) +
+                                    ' · ' +
+                                    firstHistoryRows.length
+                                        .toString() +
+                                    ' bookmaker',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  color:
+                                      Color(0xFFAEB8B3),
+                                ),
                               ),
+                              children: [
+                                for (final row
+                                    in firstHistoryRows)
+                                  LatestBookmakerCard(
+                                    row: row,
+                                  ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        for (final row in firstHistoryRows)
-                          LatestBookmakerCard(row: row),
                       ],
 
                       const SizedBox(height: 10),
@@ -3050,29 +3131,52 @@ class MarketSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final actualCount = history.where((row) {
+      return series.any(
+        (item) => row[item.keyName] is num,
+      );
+    }).length;
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      margin: const EdgeInsets.only(bottom: 9),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          initiallyExpanded: false,
+          maintainState: true,
+          tilePadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 2,
+          ),
+          childrenPadding:
+              const EdgeInsets.fromLTRB(
+            10,
+            0,
+            10,
+            10,
+          ),
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          subtitle: Text(
+            bookmaker +
+                ' · ' +
+                history.length.toString() +
+                ' tur · ' +
+                actualCount.toString() +
+                ' gerçek oran',
+            style: const TextStyle(
+              fontSize: 9.5,
+              color: Color(0xFF9DA8A2),
+            ),
+          ),
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Bookmaker: ' + bookmaker,
-              style: const TextStyle(
-                fontSize: 10,
-                color: Color(0xFF9DA8A2),
-              ),
-            ),
-            const SizedBox(height: 9),
             CombinedMarketChart(
               history: history,
               series: series,
@@ -3080,23 +3184,25 @@ class MarketSection extends StatelessWidget {
             const SizedBox(height: 5),
             Theme(
               data: Theme.of(context).copyWith(
-                dividerColor: Colors.transparent,
+                dividerColor:
+                    Colors.transparent,
               ),
               child: ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: EdgeInsets.zero,
                 dense: true,
                 title: Text(
-                  'Geçmiş oranlar · ' +
+                  'Tüm kayıtlar · ' +
                       history.length.toString() +
-                      ' kayıt',
+                      ' tur',
                   style: const TextStyle(
                     fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                    fontWeight:
+                        FontWeight.w800,
                   ),
                 ),
                 subtitle: const Text(
-                  'Tarih / saat / dakika',
+                  'Bookmaker yoksa o tur "-" görünür',
                   style: TextStyle(fontSize: 9),
                 ),
                 children: [
@@ -3111,19 +3217,24 @@ class MarketSection extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF151C19),
-                borderRadius: BorderRadius.circular(8),
+                color:
+                    const Color(0xFF151C19),
+                borderRadius:
+                    BorderRadius.circular(8),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   const Text(
                     'KISA RAPOR',
                     style: TextStyle(
                       fontSize: 9,
-                      fontWeight: FontWeight.w800,
+                      fontWeight:
+                          FontWeight.w800,
                       letterSpacing: 0.6,
-                      color: Color(0xFF8CDAB8),
+                      color:
+                          Color(0xFF8CDAB8),
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -3199,16 +3310,65 @@ class _CombinedMarketChartState
 
     const left = 18.0;
     const right = 8.0;
-    final plotWidth = math.max(1.0, width - left - right);
+    final plotWidth =
+        math.max(1.0, width - left - right);
 
-    int index = 0;
-    if (data.length > 1) {
-      final ratio =
-          ((position.dx - left) / plotWidth).clamp(0.0, 1.0);
-      index = (ratio * (data.length - 1)).round();
+    final times = data.map((row) {
+      try {
+        return DateTime.parse(
+          row['captured_at'].toString(),
+        ).millisecondsSinceEpoch.toDouble();
+      } catch (_) {
+        return double.nan;
+      }
+    }).toList();
+
+    final validTimes =
+        times.where((x) => x.isFinite).toList();
+
+    final realTime =
+        validTimes.length == data.length &&
+        data.length > 1 &&
+        validTimes.reduce(math.max) !=
+            validTimes.reduce(math.min);
+
+    final minT = realTime
+        ? validTimes.reduce(math.min)
+        : 0.0;
+
+    final maxT = realTime
+        ? validTimes.reduce(math.max)
+        : 1.0;
+
+    int nearest = 0;
+    double nearestDistance =
+        double.infinity;
+
+    for (int i = 0; i < data.length; i++) {
+      final x = realTime
+          ? left +
+              ((times[i] - minT) /
+                      (maxT - minT)) *
+                  plotWidth
+          : data.length <= 1
+              ? left
+              : left +
+                  plotWidth *
+                      i /
+                      (data.length - 1);
+
+      final distance =
+          (position.dx - x).abs();
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = i;
+      }
     }
 
-    setState(() => selectedIndex = index);
+    setState(() {
+      selectedIndex = nearest;
+    });
   }
 
   @override
@@ -3596,7 +3756,9 @@ class CombinedMarketPainter extends CustomPainter {
       ..strokeWidth = 1;
 
     for (int i = 0; i <= 4; i++) {
-      final y = plot.top + plot.height * i / 4;
+      final y =
+          plot.top + plot.height * i / 4;
+
       canvas.drawLine(
         Offset(plot.left, y),
         Offset(plot.right, y),
@@ -3606,59 +3768,127 @@ class CombinedMarketPainter extends CustomPainter {
 
     final n = history.length;
 
+    if (n == 0) return;
+
+    // ------------------------------------------
+    // GERÇEK ZAMAN X EKSENİ
+    // ------------------------------------------
+    final times = history.map((row) {
+      try {
+        return DateTime.parse(
+          row['captured_at'].toString(),
+        ).millisecondsSinceEpoch.toDouble();
+      } catch (_) {
+        return double.nan;
+      }
+    }).toList();
+
+    final validTimes =
+        times.where((x) => x.isFinite).toList();
+
+    final realTime =
+        validTimes.length == n &&
+        n > 1 &&
+        validTimes.reduce(math.max) !=
+            validTimes.reduce(math.min);
+
+    final minTime = realTime
+        ? validTimes.reduce(math.min)
+        : 0.0;
+
+    final maxTime = realTime
+        ? validTimes.reduce(math.max)
+        : 1.0;
+
     double xFor(int i) {
       if (n <= 1) return plot.left;
+
+      if (realTime) {
+        return plot.left +
+            ((times[i] - minTime) /
+                    (maxTime - minTime)) *
+                plot.width;
+      }
+
       return plot.left +
-          (plot.width * i / (n - 1));
+          plot.width * i / (n - 1);
     }
 
-    for (final s in series) {
-      final values = <double>[];
-      for (final row in history) {
-        final raw = row[s.keyName];
-        if (raw is num) values.add(raw.toDouble());
+    // ------------------------------------------
+    // TÜM SERİLER İÇİN TEK ORTAK Y ÖLÇEĞİ
+    // ------------------------------------------
+    final allValues = <double>[];
+
+    for (final row in history) {
+      for (final item in series) {
+        final raw = row[item.keyName];
+
+        if (raw is num) {
+          allValues.add(
+            raw.toDouble(),
+          );
+        }
       }
+    }
 
-      if (values.isEmpty) continue;
+    if (allValues.isEmpty) return;
 
-      double minV = values.reduce(math.min);
-      double maxV = values.reduce(math.max);
-      final range = maxV - minV;
+    double minV =
+        allValues.reduce(math.min);
 
-      if (range.abs() < 0.0001) {
-        final pad =
-            math.max(maxV.abs() * 0.01, 0.03);
-        minV -= pad;
-        maxV += pad;
-      } else {
-        final pad = math.max(range * 0.35, 0.01);
-        minV -= pad;
-        maxV += pad;
-      }
+    double maxV =
+        allValues.reduce(math.max);
 
-      double yFor(double value) {
-        return plot.bottom -
-            ((value - minV) /
-                    (maxV - minV)) *
-                plot.height;
-      }
+    final range = maxV - minV;
 
+    if (range.abs() < 0.0001) {
+      final pad = math.max(
+        maxV.abs() * 0.01,
+        0.03,
+      );
+
+      minV -= pad;
+      maxV += pad;
+    } else {
+      final pad = math.max(
+        range * 0.12,
+        0.01,
+      );
+
+      minV -= pad;
+      maxV += pad;
+    }
+
+    double yFor(double value) {
+      return plot.bottom -
+          ((value - minV) /
+                  (maxV - minV)) *
+              plot.height;
+    }
+
+    // ------------------------------------------
+    // SERİLERİ ÇİZ
+    // ------------------------------------------
+    for (final item in series) {
       final path = Path();
+
       final linePaint = Paint()
-        ..color = s.color
+        ..color = item.color
         ..strokeWidth = 2.7
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..style = PaintingStyle.stroke;
 
       final pointPaint = Paint()
-        ..color = s.color
+        ..color = item.color
         ..style = PaintingStyle.fill;
 
       bool started = false;
 
       for (int i = 0; i < n; i++) {
-        final raw = history[i][s.keyName];
+        final raw =
+            history[i][item.keyName];
+
         if (raw is! num) continue;
 
         final point = Offset(
@@ -3667,28 +3897,44 @@ class CombinedMarketPainter extends CustomPainter {
         );
 
         if (!started) {
-          path.moveTo(point.dx, point.dy);
+          path.moveTo(
+            point.dx,
+            point.dy,
+          );
+
           started = true;
         } else {
-          path.lineTo(point.dx, point.dy);
+          path.lineTo(
+            point.dx,
+            point.dy,
+          );
         }
 
         canvas.drawCircle(
           point,
-          selectedIndex == i ? 5.2 : 3.4,
+          selectedIndex == i
+              ? 5.2
+              : 3.4,
           pointPaint,
         );
       }
 
       if (started) {
-        canvas.drawPath(path, linePaint);
+        canvas.drawPath(
+          path,
+          linePaint,
+        );
       }
     }
 
+    // ------------------------------------------
+    // SEÇİLİ ZAMAN ÇİZGİSİ
+    // ------------------------------------------
     if (selectedIndex != null &&
         selectedIndex! >= 0 &&
         selectedIndex! < n) {
-      final x = xFor(selectedIndex!);
+      final x =
+          xFor(selectedIndex!);
 
       canvas.drawLine(
         Offset(x, plot.top),
@@ -3696,11 +3942,16 @@ class CombinedMarketPainter extends CustomPainter {
         Paint()
           ..color =
               const Color(0xFF8FA09A)
-                  .withValues(alpha: 0.35)
+                  .withValues(
+                    alpha: 0.35,
+                  )
           ..strokeWidth = 1,
       );
     }
 
+    // ------------------------------------------
+    // ZAMAN ETİKETLERİ
+    // ------------------------------------------
     final labelIndexes = <int>{
       0,
       if (n > 2) n ~/ 2,
@@ -3708,15 +3959,22 @@ class CombinedMarketPainter extends CustomPainter {
     };
 
     for (final i in labelIndexes) {
-      if (i < 0 || i >= n) continue;
+      if (i < 0 || i >= n) {
+        continue;
+      }
 
       String label = '--:--';
+
       try {
         final dt = DateTime.parse(
-          history[i]['captured_at'].toString(),
+          history[i]['captured_at']
+              .toString(),
         ).toLocal();
+
         label =
-            dt.hour.toString().padLeft(2, '0') +
+            dt.hour
+                    .toString()
+                    .padLeft(2, '0') +
                 ':' +
                 dt.minute
                     .toString()
@@ -3731,9 +3989,11 @@ class CombinedMarketPainter extends CustomPainter {
           plot.bottom + 8,
         ),
         const TextStyle(
-          color: Color(0xFFA0AAA5),
+          color:
+              Color(0xFFA0AAA5),
           fontSize: 8,
-          fontWeight: FontWeight.w600,
+          fontWeight:
+              FontWeight.w600,
         ),
       );
     }
@@ -3750,13 +4010,15 @@ class CombinedMarketPainter extends CustomPainter {
         text: text,
         style: style,
       ),
-      textDirection: TextDirection.ltr,
+      textDirection:
+          TextDirection.ltr,
     )..layout();
 
     tp.paint(
       canvas,
       Offset(
-        center.dx - tp.width / 2,
+        center.dx -
+            tp.width / 2,
         center.dy,
       ),
     );
@@ -3768,8 +4030,10 @@ class CombinedMarketPainter extends CustomPainter {
   ) {
     return oldDelegate.selectedIndex !=
             selectedIndex ||
-        oldDelegate.history != history ||
-        oldDelegate.series != series;
+        oldDelegate.history !=
+            history ||
+        oldDelegate.series !=
+            series;
   }
 }
 

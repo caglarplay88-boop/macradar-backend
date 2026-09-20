@@ -1,0 +1,36 @@
+name: Odds Live Compare
+
+on:
+  push:
+    paths:
+      - '.github/workflows/odds-live-compare.yml'
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Compare backend and BetExplorer now
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const id='fqjrNwLr';
+          const backend='https://macradar-backend.onrender.com/api/matches/'+id;
+          const b=await fetch(backend);
+          const j=await b.json();
+          console.log('BACKEND_CAPTURE',j.latest_capture);
+          console.log('BACKEND_ROWS',JSON.stringify(j.latest_rows));
+
+          const oddsUrl='https://www.betexplorer.com/match-odds/'+id+'/0/1x2/odds/?lang=en';
+          const r=await fetch(oddsUrl,{
+            headers:{
+              'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/149 Mobile Safari/537.36',
+              'x-requested-with':'XMLHttpRequest',
+              'accept':'application/json,text/javascript,*/*;q=0.01',
+              'referer':j.url || 'https://www.betexplorer.com/'
+            }
+          });
+          console.log('BETEX_HTTP',r.status,r.headers.get('content-type'));
+          const text=await r.text();
+          console.log('BETEX_BODY',text.slice(0,20000));
+          NODE

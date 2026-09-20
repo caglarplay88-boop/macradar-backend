@@ -1,0 +1,62 @@
+name: Schalke Odds Audit
+
+on:
+  push:
+    paths:
+      - '.github/workflows/schalke-odds-audit.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Audit Schalke stored and live odds
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const id='4dYNZG4l';
+          const backend='https://macradar-backend.onrender.com/api/matches/'+id;
+          const r=await fetch(backend);
+          const j=await r.json();
+
+          console.log('LATEST_CAPTURE',j.latest_capture);
+          console.log('LATEST_ROWS',JSON.stringify(j.latest_rows));
+
+          const groups=Array.isArray(j.history_groups)?j.history_groups:[];
+          const by=new Map();
+          for(const g of groups){
+            for(const row of (g.rows||[])){
+              const k=String(row.bookmaker||'');
+              if(!by.has(k)) by.set(k,[]);
+              by.get(k).push({
+                t:g.captured_at,
+                v:[row.ms1,row.msx,row.ms2]
+              });
+            }
+          }
+
+          for(const [k,arr] of by){
+            const uniq=[];
+            for(const x of arr){
+              const sig=JSON.stringify(x.v);
+              if(!uniq.length || uniq[uniq.length-1].sig!==sig){
+                uniq.push({sig,t:x.t,v:x.v});
+              }
+            }
+            console.log('BOOK',k,'records',arr.length,'changes',Math.max(0,uniq.length-1));
+            console.log('CHANGEPOINTS',JSON.stringify(uniq));
+          }
+
+          const oddsUrl='https://www.betexplorer.com/match-odds/'+id+'/0/1x2/odds/?lang=en';
+          const br=await fetch(oddsUrl,{
+            headers:{
+              'user-agent':'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/149 Mobile Safari/537.36',
+              'x-requested-with':'XMLHttpRequest',
+              'accept':'application/json,text/javascript,*/*;q=0.01',
+              'referer':'https://www.betexplorer.com/'
+            }
+          });
+          console.log('LIVE_HTTP',br.status);
+          const txt=await br.text();
+          console.log('LIVE_SNIP',txt.slice(0,18000));
+          NODE

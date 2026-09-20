@@ -1,0 +1,43 @@
+name: Odds History Audit
+
+on:
+  push:
+    paths:
+      - '.github/workflows/odds-history-audit.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Audit stored history by bookmaker
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const id='fqjrNwLr';
+          const r=await fetch('https://macradar-backend.onrender.com/api/matches/'+id);
+          const j=await r.json();
+          const groups=Array.isArray(j.history_groups)?j.history_groups:[];
+          const by=new Map();
+          for(const g of groups){
+            for(const row of (g.rows||[])){
+              const k=String(row.bookmaker||'');
+              if(!by.has(k)) by.set(k,[]);
+              by.get(k).push({
+                t:g.captured_at,
+                v:[row.ms1,row.msx,row.ms2]
+              });
+            }
+          }
+          for(const [k,arr] of by){
+            const uniq=[];
+            for(const x of arr){
+              const sig=JSON.stringify(x.v);
+              if(!uniq.length||uniq[uniq.length-1].sig!==sig){
+                uniq.push({sig,t:x.t,v:x.v});
+              }
+            }
+            console.log('BOOK',k,'records',arr.length,'changes',Math.max(0,uniq.length-1));
+            console.log('CHANGEPOINTS',JSON.stringify(uniq.slice(-20)));
+          }
+          NODE

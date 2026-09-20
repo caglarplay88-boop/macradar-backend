@@ -276,7 +276,7 @@ class Api {
   }
 }
 
-const String performanceCachePrefix = 'macradar_performance_v3_';
+const String performanceCachePrefix = 'macradar_performance_v2_';
 final Map<String, Future<Map<String, dynamic>>> performanceInFlight = {};
 
 Future<Map<String, dynamic>?> readLocalPerformance(String eventId) async {
@@ -2511,110 +2511,6 @@ class _PerformancePanelState extends State<PerformancePanel>
     );
   }
 
-  Widget _leagueContext(
-    Map<String, dynamic> home,
-    Map<String, dynamic> away,
-  ) {
-    Widget team(String name, Map<String, dynamic> team) {
-      final l = _map(team['ligDurumu']);
-      final up = _map(l['birUstSira']);
-      final down = _map(l['birAltSira']);
-
-      String gap(Map<String, dynamic> row) {
-        if (row.isEmpty || row['fark'] == null) return '—';
-        return _value(row['fark'], decimals: 0) + ' puan';
-      }
-
-      return Expanded(
-        child: Container(
-          padding: const EdgeInsets.all(11),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141B16),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF26322B)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF8BE2BE),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '#' +
-                    _value(l['sira'], decimals: 0) +
-                    ' / ' +
-                    _value(l['takimSayisi'], decimals: 0),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                _value(l['puan'], decimals: 0) +
-                    ' puan · ' +
-                    _value(l['puanOrtalamasi']) +
-                    ' puan/maç',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Color(0xFF9AA59F),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Lidere: ' +
-                    _value(l['liderleFark'], decimals: 0) +
-                    ' puan',
-                style: const TextStyle(fontSize: 10),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                up.isEmpty
-                    ? 'Üst sıra: lider'
-                    : 'Üst sıra (' +
-                        (up['takim']?.toString() ?? '-') +
-                        '): ' +
-                        gap(up),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 10),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                down.isEmpty
-                    ? 'Alt sıra: son'
-                    : 'Alt sıra (' +
-                        (down['takim']?.toString() ?? '-') +
-                        '): ' +
-                        gap(down),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 10),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        team(home['takim']?.toString() ?? 'Ev', home),
-        const SizedBox(width: 8),
-        team(away['takim']?.toString() ?? 'Dep.', away),
-      ],
-    );
-  }
-
   Widget _fixtureExpansion(
     Map<String, dynamic> home,
     Map<String, dynamic> away,
@@ -2810,8 +2706,6 @@ class _PerformancePanelState extends State<PerformancePanel>
         children: [
           _sectionTitle('Genel karşılaştırma', trailing: 'FotMob'),
           _summaryCard(home, away),
-          _sectionTitle('Lig bağlamı'),
-          _leagueContext(home, away),
           Padding(
             padding: const EdgeInsets.fromLTRB(3, 8, 3, 0),
             child: Row(

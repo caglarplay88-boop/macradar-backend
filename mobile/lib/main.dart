@@ -1636,6 +1636,51 @@ class _MatchDetailState extends State<MatchDetail> {
       bookmakerNames.add(name);
     }
 
+    Map<String, dynamic>? firstHistoryGroup;
+
+    if (historyGroups.isNotEmpty) {
+      final orderedHistoryGroups =
+          List<Map<String, dynamic>>.from(historyGroups);
+
+      orderedHistoryGroups.sort((a, b) {
+        DateTime? da;
+        DateTime? db;
+
+        try {
+          da = DateTime.parse(
+            a['captured_at']?.toString() ?? '',
+          );
+        } catch (_) {}
+
+        try {
+          db = DateTime.parse(
+            b['captured_at']?.toString() ?? '',
+          );
+        } catch (_) {}
+
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+
+        return da.compareTo(db);
+      });
+
+      firstHistoryGroup = orderedHistoryGroups.first;
+    }
+
+    final firstHistoryRows =
+        firstHistoryGroup?['rows'] is List
+            ? (firstHistoryGroup!['rows'] as List)
+                .whereType<Map>()
+                .map(
+                  (e) => Map<String, dynamic>.from(e),
+                )
+                .toList()
+            : <Map<String, dynamic>>[];
+
+    final firstHistoryCapturedAt =
+        firstHistoryGroup?['captured_at'];
+
     final historiesByBookmaker =
         <String, List<Map<String, dynamic>>>{};
 
@@ -1865,6 +1910,35 @@ class _MatchDetailState extends State<MatchDetail> {
                       else
                         for (final row in latest)
                           LatestBookmakerCard(row: row),
+                      if (firstHistoryRows.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'İLK KAYIT',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              stamp(firstHistoryCapturedAt),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Color(0xFFAEB8B3),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        for (final row in firstHistoryRows)
+                          LatestBookmakerCard(row: row),
+                      ],
+
                       const SizedBox(height: 10),
                       const Text(
                         'ORAN HAREKETİ',

@@ -401,9 +401,7 @@ function normalizeTableRow(r, i) {
     attigiGol: gf,
     yedigiGol: ga,
     averaj: num(r.goalDifference ?? r.goalDiff ?? r.goalConDiff ?? r.gd),
-    puan: num(r.points ?? r.pts ?? r.point),
-    takimId: num(r.id ?? r.teamId ?? r.team_id),
-    qualColor: r.qualColor ?? r.qual_color ?? null
+    puan: num(r.points ?? r.pts ?? r.point)
   };
 }
 
@@ -432,20 +430,6 @@ function leagueFromJsons(jsons, teamName) {
   const rows = candidates[0].sort((a,b) => a.sira - b.sira);
   const me = rows.find(r => teamNameMatches(r.takim, teamName));
   const leader = rows[0];
-
-  const myIndex = rows.findIndex(r => teamNameMatches(r.takim, teamName));
-  const above = myIndex > 0 ? rows[myIndex - 1] : null;
-  const below =
-    myIndex >= 0 && myIndex < rows.length - 1
-      ? rows[myIndex + 1]
-      : null;
-  const last = rows[rows.length - 1] || null;
-
-  const puanOrtalamasi =
-    me?.puan != null && me?.oynadi
-      ? Number((me.puan / me.oynadi).toFixed(2))
-      : null;
-
   return {
     takim: me?.takim ?? teamName,
     sira: me?.sira ?? null,
@@ -457,54 +441,9 @@ function leagueFromJsons(jsons, teamName) {
     attigiGol: me?.attigiGol ?? null,
     yedigiGol: me?.yedigiGol ?? null,
     averaj: me?.averaj ?? null,
-
-    takimSayisi: rows.length,
-    puanOrtalamasi,
-
     lider: leader?.takim ?? null,
     liderPuan: leader?.puan ?? null,
-    liderleFark:
-      me?.puan != null && leader?.puan != null
-        ? leader.puan - me.puan
-        : null,
-
-    birUstSira: above
-      ? {
-          takim: above.takim,
-          sira: above.sira,
-          puan: above.puan,
-          fark:
-            me?.puan != null && above.puan != null
-              ? above.puan - me.puan
-              : null
-        }
-      : null,
-
-    birAltSira: below
-      ? {
-          takim: below.takim,
-          sira: below.sira,
-          puan: below.puan,
-          fark:
-            me?.puan != null && below.puan != null
-              ? me.puan - below.puan
-              : null
-        }
-      : null,
-
-    sonSira: last
-      ? {
-          takim: last.takim,
-          sira: last.sira,
-          puan: last.puan,
-          fark:
-            me?.puan != null && last.puan != null
-              ? me.puan - last.puan
-              : null
-        }
-      : null,
-
-    bolgeRengi: me?.qualColor ?? null
+    liderleFark: me?.puan != null && leader?.puan != null ? leader.puan - me.puan : null
   };
 }
 
@@ -1203,7 +1142,7 @@ async function buildPerformancePackage({ home, away }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 4,
+        engineVersion: 3,
       },
       cache: false
     };

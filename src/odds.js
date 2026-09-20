@@ -1,4 +1,5 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const CHROME = '/data/data/com.termux/files/usr/bin/chromium-browser';
 const { parseBetExplorerUrl, sleep } = require('./util');
 
 let browserPromise = null;
@@ -55,6 +56,7 @@ function findBookmaker(rows, bookmaker) {
 
 async function launchBrowser() {
   const browser = await puppeteer.launch({
+    executablePath: CHROME,
     headless: true,
     args: [
       '--no-sandbox',
@@ -65,7 +67,8 @@ async function launchBrowser() {
       '--disable-background-networking',
       '--disable-default-apps',
       '--disable-extensions',
-      '--disable-sync'
+      '--disable-sync',
+      '--proxy-server=socks5://127.0.0.1:9050'
     ]
   });
   browser.on('disconnected', () => {

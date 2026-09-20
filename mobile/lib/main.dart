@@ -276,7 +276,7 @@ class Api {
   }
 }
 
-const String performanceCachePrefix = 'macradar_performance_v2_';
+const String performanceCachePrefix = 'macradar_performance_v3_';
 final Map<String, Future<Map<String, dynamic>>> performanceInFlight = {};
 
 Future<Map<String, dynamic>?> readLocalPerformance(String eventId) async {

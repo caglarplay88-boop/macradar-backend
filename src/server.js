@@ -14,7 +14,7 @@ const API_KEY = String(process.env.API_KEY || '');
 const MOBILE_CODE_HASH = 'ee3a321e49e949c5ac27dc2a5504ba55a59b11eae7ab1f7b5357cd305b6e8968';
 
 const performanceBuilds = new Map();
-const PERFORMANCE_ENGINE_VERSION = 3;
+const PERFORMANCE_ENGINE_VERSION = 4;
 
 function performanceCacheEnvelope(row) {
   return {

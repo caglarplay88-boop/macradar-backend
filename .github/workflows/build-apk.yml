@@ -113,6 +113,8 @@ jobs:
           }
           EOF
 
+          sed -i 's#<application#<application android:usesCleartextTraffic="true"#' mobile_build/android/app/src/main/AndroidManifest.xml
+
       - name: Build release APK
         run: |
           cd mobile_build

@@ -7,7 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
-const String baseUrl = 'https://macradar-backend.onrender.com';
+const String baseUrl = 'http://80.225.82.228:3100';
 const String mobileKey = '68427531';
 final Api api = Api();
 final FlutterLocalNotificationsPlugin localNotifications =

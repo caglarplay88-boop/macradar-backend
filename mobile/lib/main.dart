@@ -1621,7 +1621,7 @@ class _MatchDetailState extends State<MatchDetail> {
     String bookmakerKey(dynamic raw) => raw
         .toString()
         .toLowerCase()
-        .replaceAll(RegExp(r'\\s+'), '');
+        .replaceAll(RegExp(r'\s+'), '');
 
     final bookmakerNames = <String>[];
     final seenBookmakers = <String>{};

@@ -404,6 +404,7 @@ Future<Map<String, dynamic>> fetchPerformancePersistent(
 class MacRadarApp extends StatelessWidget {
   const MacRadarApp({super.key});
 
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -1353,6 +1354,8 @@ class _MatchDetailState extends State<MatchDetail> {
   String error = '';
   String refreshMessage = '';
   String selectedMarket = 'MS';
+  String oddsView = 'Rapor';
+  String selectedBookmaker = '';
   bool showPerformance = false;
   Map<String, dynamic> data = {};
 
@@ -1884,10 +1887,10 @@ class _MatchDetailState extends State<MatchDetail> {
     });
 
     final topSuddenSteps =
-        suddenSteps.take(3).toList();
+        suddenSteps.take(50).toList();
 
     final topRecentSuddenSteps =
-        recentSuddenSteps.take(3).toList();
+        recentSuddenSteps.take(50).toList();
 
     return {
       'available': true,
@@ -1908,6 +1911,170 @@ class _MatchDetailState extends State<MatchDetail> {
       'recent_sudden_steps':
           topRecentSuddenSteps,
     };
+  }
+
+
+  List<Map<String, dynamic>> _bigMarketMoves(
+    String market,
+    Map<String, List<Map<String, dynamic>>> histories,
+  ) {
+    final keys = _marketKeys(market);
+    final labels = _marketLabels(market);
+
+    final best = <String, Map<String, dynamic>>{};
+
+    for (final entry in histories.entries) {
+      final rows = entry.value.where((row) {
+        return _summaryTime(row) != null;
+      }).toList();
+
+      rows.sort((a, b) {
+        return _summaryTime(a)!
+            .compareTo(_summaryTime(b)!);
+      });
+
+      for (int i = 0; i < rows.length - 1; i++) {
+        final t1 = _summaryTime(rows[i]);
+        if (t1 == null) continue;
+
+        for (int j = i + 1; j < rows.length; j++) {
+          final t2 = _summaryTime(rows[j]);
+          if (t2 == null) continue;
+
+          final minutes =
+              t2.difference(t1).inMinutes.abs();
+
+          if (minutes > 120) break;
+
+          for (int k = 0; k < keys.length; k++) {
+            final a = rows[i][keys[k]];
+            final b = rows[j][keys[k]];
+
+            if (a is! num || b is! num) continue;
+
+            final from = a.toDouble();
+            final to = b.toDouble();
+
+            if (from <= 1 || to <= 1) continue;
+
+            final pct =
+                ((to - from) / from) * 100;
+
+            if (pct.abs() < 8) continue;
+
+            final direction =
+                pct >= 0 ? 'up' : 'down';
+
+            final id =
+                entry.key +
+                '|' +
+                labels[k] +
+                '|' +
+                direction;
+
+            final move = <String, dynamic>{
+              'bookmaker': entry.key,
+              'market': market,
+              'label': labels[k],
+              'before': from,
+              'after': to,
+              'pct': pct,
+              'minutes': minutes,
+              'at': t2.toIso8601String(),
+            };
+
+            final old = best[id];
+
+            if (old == null ||
+                pct.abs() >
+                    (old['pct'] as num)
+                        .toDouble()
+                        .abs()) {
+              best[id] = move;
+            }
+          }
+        }
+      }
+    }
+
+    final result = best.values.toList();
+
+    result.sort((a, b) {
+      final aa =
+          (a['pct'] as num).toDouble().abs();
+      final bb =
+          (b['pct'] as num).toDouble().abs();
+
+      return bb.compareTo(aa);
+    });
+
+    return result;
+  }
+
+
+  List<Map<String, dynamic>> _allMarketReportMoves(
+    Map<String, List<Map<String, dynamic>>> bigMoves,
+    Map<String, Map<String, dynamic>> summaries,
+  ) {
+    final merged = <Map<String, dynamic>>[];
+    final seen = <String>{};
+
+    for (final market in ['MS', '1.5', '2.5', 'KG']) {
+      final items = <Map<String, dynamic>>[];
+
+      items.addAll(bigMoves[market] ?? const []);
+
+      final summary = summaries[market];
+
+      if (summary != null) {
+        final sudden =
+            summary['sudden_steps'];
+
+        if (sudden is List) {
+          for (final raw in sudden.whereType<Map>()) {
+            items.add(
+              Map<String, dynamic>.from(raw),
+            );
+          }
+        }
+      }
+
+      for (final raw in items) {
+        final move =
+            Map<String, dynamic>.from(raw);
+
+        move['market'] = market;
+
+        final id =
+            market +
+            '|' +
+            move['bookmaker'].toString() +
+            '|' +
+            move['label'].toString() +
+            '|' +
+            move['before'].toString() +
+            '|' +
+            move['after'].toString() +
+            '|' +
+            move['at'].toString();
+
+        if (seen.add(id)) {
+          merged.add(move);
+        }
+      }
+    }
+
+    merged.sort((a, b) {
+      final aa =
+          (a['pct'] as num).toDouble().abs();
+
+      final bb =
+          (b['pct'] as num).toDouble().abs();
+
+      return bb.compareTo(aa);
+    });
+
+    return merged;
   }
 
   String marketReport(
@@ -1992,6 +2159,302 @@ class _MatchDetailState extends State<MatchDetail> {
     }
 
     return note;
+  }
+
+  Widget _globalOddsReportCard(
+    List<Map<String, dynamic>> moves,
+    Map<String, Map<String, dynamic>> summaries,
+  ) {
+    const markets = ['MS', '1.5', '2.5', 'KG'];
+
+    String marketTitle(String market) {
+      if (market == 'MS') return 'MS 1 / X / 2';
+      if (market == '1.5') return '1.5 ALT / ÜST';
+      if (market == '2.5') return '2.5 ALT / ÜST';
+      return 'KG YOK / VAR';
+    }
+
+    String odd(dynamic value) {
+      if (value is! num) return '-';
+      return value.toDouble().toStringAsFixed(2);
+    }
+
+    String percent(dynamic value) {
+      if (value is! num) return '-';
+
+      final v = value.toDouble();
+
+      return (v >= 0 ? '+' : '') +
+          v.toStringAsFixed(1) +
+          '%';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131B17),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF314138),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'ORAN RAPORU',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .8,
+            ),
+          ),
+          const SizedBox(height: 3),
+          const Text(
+            'Bütün marketler birlikte taranır. Her tarafın sert yükseliş ve düşüşü ayrı gösterilir.',
+            style: TextStyle(
+              fontSize: 9,
+              height: 1.35,
+              color: Color(0xFF8E9B94),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          for (final market in markets)
+            Builder(
+              builder: (context) {
+                final summary = summaries[market];
+
+                if (summary == null ||
+                    summary['available'] != true) {
+                  return const SizedBox.shrink();
+                }
+
+                final labels =
+                    (summary['labels'] as List)
+                        .cast<String>();
+
+                final marketMoves = moves
+                    .where(
+                      (m) =>
+                          m['market']?.toString() ==
+                          market,
+                    )
+                    .toList();
+
+                final rows = <Widget>[];
+
+                for (final label in labels) {
+                  Map<String, dynamic>? strongestUp;
+                  Map<String, dynamic>? strongestDown;
+
+                  for (final move in marketMoves) {
+                    if (move['label']?.toString() !=
+                        label) {
+                      continue;
+                    }
+
+                    final raw = move['pct'];
+                    if (raw is! num) continue;
+
+                    final pct = raw.toDouble();
+
+                    if (pct >= 0) {
+                      if (strongestUp == null ||
+                          pct.abs() >
+                              (strongestUp['pct']
+                                      as num)
+                                  .toDouble()
+                                  .abs()) {
+                        strongestUp = move;
+                      }
+                    } else {
+                      if (strongestDown == null ||
+                          pct.abs() >
+                              (strongestDown['pct']
+                                      as num)
+                                  .toDouble()
+                                  .abs()) {
+                        strongestDown = move;
+                      }
+                    }
+                  }
+
+                  final selected =
+                      <Map<String, dynamic>>[];
+
+                  if (strongestUp != null) {
+                    selected.add(strongestUp);
+                  }
+
+                  if (strongestDown != null) {
+                    selected.add(strongestDown);
+                  }
+
+                  selected.sort((a, b) {
+                    final aa =
+                        (a['pct'] as num)
+                            .toDouble()
+                            .abs();
+
+                    final bb =
+                        (b['pct'] as num)
+                            .toDouble()
+                            .abs();
+
+                    return bb.compareTo(aa);
+                  });
+
+                  if (selected.isEmpty) {
+                    rows.add(
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(
+                          bottom: 4,
+                        ),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 35,
+                              child: Text(
+                                label,
+                                style:
+                                    const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight:
+                                      FontWeight.w900,
+                                  color: Color(
+                                    0xFF8CDAB8,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Expanded(
+                              child: Text(
+                                'Belirgin sert hareket yok',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: Color(
+                                    0xFF758078,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+
+                    continue;
+                  }
+
+                  for (final move in selected) {
+                    rows.add(
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(
+                          bottom: 5,
+                        ),
+                        child: Row(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 35,
+                              child: Text(
+                                label,
+                                style:
+                                    const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight:
+                                      FontWeight.w900,
+                                  color: Color(
+                                    0xFF8CDAB8,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                move['bookmaker']
+                                        .toString() +
+                                    ' · ' +
+                                    odd(
+                                      move['before'],
+                                    ) +
+                                    ' → ' +
+                                    odd(
+                                      move['after'],
+                                    ) +
+                                    ' · ' +
+                                    percent(
+                                      move['pct'],
+                                    ) +
+                                    ' · ' +
+                                    move['minutes']
+                                        .toString() +
+                                    ' dk · ' +
+                                    stamp(
+                                      move['at'],
+                                    ),
+                                style:
+                                    const TextStyle(
+                                  fontSize: 9.5,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                }
+
+                return Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(
+                    bottom: 9,
+                  ),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(
+                      0xFF18211D,
+                    ),
+                    borderRadius:
+                        BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        marketTitle(market),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight:
+                              FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      ...rows,
+                    ],
+                  ),
+                );
+              },
+            ),
+
+          const Text(
+            'Bu rapor tahmin değildir; oran geçmişindeki sert hareketleri gösterir.',
+            style: TextStyle(
+              fontSize: 8.5,
+              color: Color(0xFF68746E),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -2150,6 +2613,108 @@ class _MatchDetailState extends State<MatchDetail> {
           bookmakerHistory;
     }
 
+    // RAPOR icin sadece son 3 bookmaker degil,
+    // gecmiste veri vermis tum bookmakerlari tara.
+    final reportBookmakerNames = <String>[
+      ...bookmakerNames,
+    ];
+
+    final reportSeen = reportBookmakerNames
+        .map(bookmakerKey)
+        .toSet();
+
+    for (final group in historyGroups) {
+      final rows = group['rows'];
+
+      if (rows is! List) continue;
+
+      for (final raw in rows.whereType<Map>()) {
+        final name =
+            raw['bookmaker']
+                ?.toString()
+                .trim() ??
+            '';
+
+        final key = bookmakerKey(name);
+
+        if (name.isEmpty ||
+            reportSeen.contains(key)) {
+          continue;
+        }
+
+        reportSeen.add(key);
+        reportBookmakerNames.add(name);
+      }
+    }
+
+    final reportHistoriesByBookmaker =
+        <String, List<Map<String, dynamic>>>{};
+
+    for (final bookmaker
+        in reportBookmakerNames) {
+      final wanted =
+          bookmakerKey(bookmaker);
+
+      final rows =
+          <Map<String, dynamic>>[];
+
+      for (final group in historyGroups) {
+        final capturedAt =
+            group['captured_at'];
+
+        Map<String, dynamic>? matched;
+
+        final groupRows = group['rows'];
+
+        if (groupRows is List) {
+          for (final raw
+              in groupRows.whereType<Map>()) {
+            final row =
+                Map<String, dynamic>.from(
+              raw,
+            );
+
+            if (bookmakerKey(
+                  row['bookmaker'],
+                ) ==
+                wanted) {
+              matched = row;
+              break;
+            }
+          }
+        }
+
+        if (matched != null) {
+          rows.add({
+            ...matched,
+            'captured_at':
+                capturedAt ??
+                matched['captured_at'],
+          });
+        }
+      }
+
+      rows.sort((a, b) {
+        final da =
+            _summaryTime(a);
+        final db =
+            _summaryTime(b);
+
+        if (da == null && db == null) {
+          return 0;
+        }
+        if (da == null) return 1;
+        if (db == null) return -1;
+
+        return da.compareTo(db);
+      });
+
+      if (rows.isNotEmpty) {
+        reportHistoriesByBookmaker[
+            bookmaker] = rows;
+      }
+    }
+
     final marketSummary = _marketSummary(
       selectedMarket,
       historiesByBookmaker,
@@ -2162,6 +2727,40 @@ class _MatchDetailState extends State<MatchDetail> {
       '2.5': _marketSummary('2.5', historiesByBookmaker),
       'KG': _marketSummary('KG', historiesByBookmaker),
     };
+
+    final reportMarketSummaries =
+        <String, Map<String, dynamic>>{
+      'MS': _marketSummary(
+        'MS',
+        reportHistoriesByBookmaker,
+      ),
+      '1.5': _marketSummary(
+        '1.5',
+        reportHistoriesByBookmaker,
+      ),
+      '2.5': _marketSummary(
+        '2.5',
+        reportHistoriesByBookmaker,
+      ),
+      'KG': _marketSummary(
+        'KG',
+        reportHistoriesByBookmaker,
+      ),
+    };
+
+    final allBigMoves =
+        <String, List<Map<String, dynamic>>>{
+      'MS': _bigMarketMoves('MS', reportHistoriesByBookmaker),
+      '1.5': _bigMarketMoves('1.5', reportHistoriesByBookmaker),
+      '2.5': _bigMarketMoves('2.5', reportHistoriesByBookmaker),
+      'KG': _bigMarketMoves('KG', reportHistoriesByBookmaker),
+    };
+
+    final allReportMoves =
+        _allMarketReportMoves(
+      allBigMoves,
+      reportMarketSummaries,
+    );
 
     const msSeries = [
       ChartSeries('1', 'ms1', Color(0xFF69C8FF)),
@@ -2420,563 +3019,251 @@ class _MatchDetailState extends State<MatchDetail> {
                         ),
                       ],
 
-                      if (marketSummary['available'] == true) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF131B17),
-                            borderRadius:
-                                BorderRadius.circular(12),
-                            border: Border.all(
-                              color:
-                                  const Color(0xFF29372F),
-                            ),
+                      const SizedBox(height: 10),
+
+                      Container(
+                        height: 42,
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF111814),
+                          borderRadius:
+                              BorderRadius.circular(11),
+                          border: Border.all(
+                            color:
+                                const Color(0xFF2B3932),
                           ),
-                          child: Builder(
-                            builder: (context) {
-                              final labels =
-                                  (marketSummary['labels']
-                                          as List)
-                                      .cast<String>();
-
-                              final current =
-                                  (marketSummary['current']
-                                          as List)
-                                      .cast<double>();
-
-                              final changes =
-                                  (marketSummary['changes']
-                                          as List)
-                                      .cast<double>();
-
-                              final support =
-                                  (marketSummary['support']
-                                          as List)
-                                      .cast<int>();
-
-                              final comparable =
-                                  marketSummary[
-                                          'comparable_bookmakers']
-                                      as int;
-
-                              final strongest =
-                                  marketSummary[
-                                          'strongest_index']
-                                      as int;
-
-                              final dissenters =
-                                  (marketSummary[
-                                              'dissenters']
-                                          as List)
-                                      .cast<String>();
-
-                              final speeds =
-                                  Map<int, double?>.from(
-                                marketSummary['speeds']
-                                    as Map,
-                              );
-
-                              final suddenSteps =
-                                  (marketSummary[
-                                              'sudden_steps']
-                                          as List)
-                                      .whereType<Map>()
-                                      .map(
-                                        (e) => Map<String,
-                                            dynamic>.from(e),
-                                      )
-                                      .toList();
-
-                              final recentSuddenSteps =
-                                  (marketSummary[
-                                              'recent_sudden_steps']
-                                          as List)
-                                      .whereType<Map>()
-                                      .map(
-                                        (e) => Map<String,
-                                            dynamic>.from(e),
-                                      )
-                                      .toList();
-
-                              String movePct(dynamic raw) {
-                                final v =
-                                    (raw as num).toDouble();
-
-                                return (v >= 0 ? '+' : '') +
-                                    v.toStringAsFixed(1) +
-                                    '%';
-                              }
-
-                              String pct(double x) =>
-                                  (x * 100)
-                                          .toStringAsFixed(1) +
-                                      '%';
-
-                              String delta(double x) {
-                                final v = x * 100;
-
-                                return (v >= 0 ? '+' : '') +
-                                    v.toStringAsFixed(1) +
-                                    ' puan';
-                              }
-
-                              return Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'PİYASA ÖZETİ',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight:
-                                          FontWeight.w900,
-                                      letterSpacing: .8,
-                                    ),
+                        ),
+                        child: Row(
+                          children: [
+                            for (final view in const [
+                              'Rapor',
+                              'Grafik',
+                              'Kayıtlar',
+                            ])
+                              Expanded(
+                                child: Material(
+                                  color: oddsView == view
+                                      ? const Color(
+                                          0xFF244C3C,
+                                        )
+                                      : Colors.transparent,
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    8,
                                   ),
-                                  const SizedBox(height: 3),
-                                  const Text(
-                                    'Bookmaker marjı temizlenmiş piyasa olasılığı',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      color:
-                                          Color(0xFF8E9B94),
+                                  child: InkWell(
+                                    borderRadius:
+                                        BorderRadius.circular(
+                                      8,
                                     ),
-                                  ),
-                                  const SizedBox(height: 10),
-
-                                  Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    children: [
-                                      for (int i = 0;
-                                          i < labels.length;
-                                          i++)
-                                        Container(
-                                          padding:
-                                              const EdgeInsets.symmetric(
-                                            horizontal: 9,
-                                            vertical: 7,
-                                          ),
-                                          decoration:
-                                              BoxDecoration(
-                                            color:
-                                                const Color(
-                                              0xFF1A241F,
-                                            ),
-                                            borderRadius:
-                                                BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Column(
-                                            mainAxisSize:
-                                                MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                labels[i] +
-                                                    '  ' +
-                                                    pct(
-                                                      current[i],
+                                    onTap: () {
+                                      setState(() {
+                                        oddsView = view;
+                                      });
+                                    },
+                                    child: Center(
+                                      child: Text(
+                                        view,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight:
+                                              FontWeight.w800,
+                                          color:
+                                              oddsView == view
+                                                  ? const Color(
+                                                      0xFFE7F5EE,
+                                                    )
+                                                  : const Color(
+                                                      0xFF8C9992,
                                                     ),
-                                                style:
-                                                    const TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight:
-                                                      FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      if (oddsView == 'Rapor')
+                        _globalOddsReportCard(
+                          allReportMoves,
+                          reportMarketSummaries,
+                        ),
+
+                      if (oddsView != 'Rapor') ...[
+                        const SizedBox(height: 10),
+
+                        Builder(
+                          builder: (context) {
+                            final bookmaker =
+                                bookmakerNames.contains(
+                                  selectedBookmaker,
+                                )
+                                    ? selectedBookmaker
+                                    : (bookmakerNames.isNotEmpty
+                                        ? bookmakerNames.first
+                                        : '');
+
+                            final bookmakerHistory =
+                                historiesByBookmaker[bookmaker] ??
+                                    <Map<String, dynamic>>[];
+
+                            late final String title;
+                            late final List<ChartSeries> series;
+
+                            if (selectedMarket == 'MS') {
+                              title = 'MS 1 / X / 2';
+                              series = msSeries;
+                            } else if (selectedMarket == '1.5') {
+                              title = '1.5 Alt / Üst';
+                              series = ou15Series;
+                            } else if (selectedMarket == '2.5') {
+                              title = '2.5 Alt / Üst';
+                              series = ou25Series;
+                            } else {
+                              title = 'KG Yok / Var';
+                              series = kgSeries;
+                            }
+
+                            return Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    for (final item in const [
+                                      ('MS', 'MS'),
+                                      ('1.5', '1.5'),
+                                      ('2.5', '2.5'),
+                                      ('KG', 'KG'),
+                                    ])
+                                      ChoiceChip(
+                                        label: Text(
+                                          item.$1,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                        selected:
+                                            selectedMarket ==
+                                                item.$2,
+                                        onSelected: (_) {
+                                          setState(() {
+                                            selectedMarket =
+                                                item.$2;
+                                          });
+                                        },
+                                      ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 7),
+
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    for (final name
+                                        in bookmakerNames.take(3))
+                                      ChoiceChip(
+                                        label: Text(
+                                          name,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                        selected:
+                                            bookmaker == name,
+                                        onSelected: (_) {
+                                          setState(() {
+                                            selectedBookmaker =
+                                                name;
+                                          });
+                                        },
+                                      ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 9),
+
+                                if (bookmaker.isEmpty)
+                                  const Card(
+                                    child: Padding(
+                                      padding:
+                                          EdgeInsets.all(14),
+                                      child: Text(
+                                        'Bookmaker verisi yok.',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  Card(
+                                    margin: EdgeInsets.zero,
+                                    child: Padding(
+                                      padding:
+                                          const EdgeInsets.all(10),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  title,
+                                                  style:
+                                                      const TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight:
+                                                        FontWeight.w900,
+                                                  ),
                                                 ),
-                                              ),
-                                              const SizedBox(
-                                                height: 2,
                                               ),
                                               Text(
-                                                delta(
-                                                  changes[i],
-                                                ),
+                                                bookmaker,
                                                 style:
                                                     const TextStyle(
-                                                  fontSize: 8.5,
-                                                  color:
-                                                      Color(
+                                                  fontSize: 10,
+                                                  color: Color(
                                                     0xFF8FA099,
                                                   ),
                                                 ),
                                               ),
                                             ],
                                           ),
-                                        ),
-                                    ],
-                                  ),
 
-                                  const SizedBox(height: 10),
+                                          const SizedBox(height: 8),
 
-                                  Text(
-                                    'En belirgin hareket: ' +
-                                        labels[strongest] +
-                                        ' · ' +
-                                        delta(
-                                          changes[
-                                              strongest],
-                                        ),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight:
-                                          FontWeight.w800,
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 4),
-
-                                  Text(
-                                    comparable > 0
-                                        ? labels[strongest] +
-                                            ' yönünü ' +
-                                            support[strongest]
-                                                .toString() +
-                                            '/' +
-                                            comparable
-                                                .toString() +
-                                            ' bookmaker destekliyor.'
-                                        : 'Karşılaştırma için ikinci gerçek kayıt bekleniyor.',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color:
-                                          Color(0xFF9DA8A2),
-                                    ),
-                                  ),
-
-                                  if (dissenters.isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Ayrışan bookmaker: ' +
-                                          dissenters.join(', '),
-                                      style: const TextStyle(
-                                        fontSize: 9.5,
-                                        color:
-                                            Color(0xFFFFC857),
-                                      ),
-                                    ),
-                                  ],
-
-                                  const SizedBox(height: 7),
-
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 5,
-                                    children: [
-                                      for (final minutes
-                                          in [15, 30, 60])
-                                        if (speeds[minutes] !=
-                                            null)
-                                          Text(
-                                            'Son ' +
-                                                minutes
-                                                    .toString() +
-                                                ' dk: ' +
-                                                delta(
-                                                  speeds[
-                                                      minutes]!,
-                                                ),
-                                            style:
-                                                const TextStyle(
-                                              fontSize: 9.5,
-                                              fontWeight:
-                                                  FontWeight.w700,
-                                              color:
-                                                  Color(
-                                                0xFFB5C0BA,
-                                              ),
+                                          if (oddsView == 'Grafik')
+                                            CombinedMarketChart(
+                                              history:
+                                                  bookmakerHistory,
+                                              series: series,
+                                            )
+                                          else
+                                            CombinedHistoryTable(
+                                              history:
+                                                  bookmakerHistory,
+                                              series: series,
                                             ),
-                                          ),
-                                    ],
-                                  ),
-
-                                  const SizedBox(height: 6),
-
-                                  if (suddenSteps.isNotEmpty) ...[
-                                    const Text(
-                                      'SERT HAREKETLER',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight:
-                                            FontWeight.w900,
-                                        letterSpacing: .5,
-                                        color:
-                                            Color(0xFFFFA96B),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-
-                                    for (final move in suddenSteps)
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(
-                                          bottom: 3,
-                                        ),
-                                        child: Text(
-                                          move['bookmaker'].toString() +
-                                              ' · ' +
-                                              move['label'].toString() +
-                                              '  ' +
-                                              (move['before'] as num)
-                                                  .toDouble()
-                                                  .toStringAsFixed(2) +
-                                              ' → ' +
-                                              (move['after'] as num)
-                                                  .toDouble()
-                                                  .toStringAsFixed(2) +
-                                              ' (' +
-                                              movePct(move['pct']) +
-                                              ')' +
-                                              ' · ' +
-                                              move['minutes'].toString() +
-                                              ' dk · ' +
-                                              stamp(move['at']),
-                                          style:
-                                              const TextStyle(
-                                            fontSize: 9.5,
-                                            fontWeight:
-                                                FontWeight.w700,
-                                            color:
-                                                Color(0xFFFFC19A),
-                                          ),
-                                        ),
-                                      ),
-                                  ] else
-                                    const Text(
-                                      'Takip geçmişinde belirgin sert hareket yok.',
-                                      style: TextStyle(
-                                        fontSize: 9.5,
-                                        color:
-                                            Color(0xFF7F8B85),
-                                      ),
-                                    ),
-
-                                  const SizedBox(height: 5),
-
-                                  Text(
-                                    recentSuddenSteps.isNotEmpty
-                                        ? 'Son 60 dk: sert hareket var.'
-                                        : 'Son 60 dk: sakin.',
-                                    style: TextStyle(
-                                      fontSize: 9.5,
-                                      fontWeight:
-                                          FontWeight.w700,
-                                      color:
-                                          recentSuddenSteps.isNotEmpty
-                                              ? const Color(
-                                                  0xFFFFA96B,
-                                                )
-                                              : const Color(
-                                                  0xFF7F8B85,
-                                                ),
-                                    ),
                                   ),
-
-                                  const SizedBox(height: 6),
-
-                                  const SizedBox(height: 4),
-
-                                  const Text(
-                                    'DİĞER MARKET HAREKETLERİ',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: .5,
-                                      color: Color(0xFF87958E),
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 5),
-
-                                  for (final entry
-                                      in allMarketSummaries.entries)
-                                    if (entry.value['available'] == true)
-                                      Builder(
-                                        builder: (context) {
-                                          final summary =
-                                              entry.value;
-
-                                          final labels =
-                                              (summary['labels'] as List)
-                                                  .cast<String>();
-
-                                          final support =
-                                              (summary['support'] as List)
-                                                  .cast<int>();
-
-                                          final comparable =
-                                              summary[
-                                                      'comparable_bookmakers']
-                                                  as int;
-
-                                          final strongest =
-                                              summary[
-                                                      'strongest_index']
-                                                  as int;
-
-                                          final changes =
-                                              (summary['changes'] as List)
-                                                  .cast<double>();
-
-                                          final change =
-                                              changes[strongest] * 100;
-
-                                          final directionText =
-                                              change > 0.2
-                                                  ? 'güçleniyor'
-                                                  : change < -0.2
-                                                      ? 'zayıflıyor'
-                                                      : 'yatay';
-
-                                          return Padding(
-                                            padding:
-                                                const EdgeInsets.only(
-                                              bottom: 3,
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                SizedBox(
-                                                  width: 34,
-                                                  child: Text(
-                                                    entry.key,
-                                                    style:
-                                                        const TextStyle(
-                                                      fontSize: 9.5,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Expanded(
-                                                  child: Text(
-                                                    labels[strongest] +
-                                                        ' ' +
-                                                        directionText +
-                                                        ' · ' +
-                                                        support[strongest]
-                                                            .toString() +
-                                                        '/' +
-                                                        comparable
-                                                            .toString() +
-                                                        ' · ' +
-                                                        (change >= 0
-                                                            ? '+'
-                                                            : '') +
-                                                        change
-                                                            .toStringAsFixed(
-                                                              1,
-                                                            ) +
-                                                        ' puan',
-                                                    style:
-                                                        const TextStyle(
-                                                      fontSize: 9.5,
-                                                      color: Color(
-                                                        0xFFB3BDB7,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
-
-                                  const SizedBox(height: 6),
-
-                                  const Text(
-                                    'Bu bölüm tahmin değil; yalnızca toplanan oranların ortak piyasa hareketini gösterir.',
-                                    style: TextStyle(
-                                      fontSize: 8.5,
-                                      color:
-                                          Color(0xFF68746E),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: 10),
-                      const Text(
-                        'ORAN HAREKETİ',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (final item in const [
-                            ('MS', 'MS'),
-                            ('1.5', '1.5'),
-                            ('2.5', '2.5'),
-                            ('KG', 'KG'),
-                          ])
-                            ChoiceChip(
-                              label: Text(
-                                item.$1,
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                              selected: selectedMarket == item.$2,
-                              onSelected: (_) {
-                                setState(() => selectedMarket = item.$2);
-                              },
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 7),
-                      for (final bookmaker in bookmakerNames.take(3))
-                        Builder(
-                          builder: (context) {
-                            final bookmakerHistory =
-                                historiesByBookmaker[bookmaker] ??
-                                    <Map<String, dynamic>>[];
-
-                            late final String title;
-                            late final String marketCode;
-                            late final List<ChartSeries> series;
-
-                            if (selectedMarket == 'MS') {
-                              title = 'MS 1 / X / 2';
-                              marketCode = 'MS';
-                              series = msSeries;
-                            } else if (selectedMarket == '1.5') {
-                              title = '1.5 Alt / Üst';
-                              marketCode = '1.5 Alt / Üst';
-                              series = ou15Series;
-                            } else if (selectedMarket == '2.5') {
-                              title = '2.5 Alt / Üst';
-                              marketCode = '2.5 Alt / Üst';
-                              series = ou25Series;
-                            } else {
-                              title = 'KG Yok / Var';
-                              marketCode = 'KG Yok / Var';
-                              series = kgSeries;
-                            }
-
-                            return MarketSection(
-                              title: title,
-                              marketCode: marketCode,
-                              bookmaker: bookmaker,
-                              history: bookmakerHistory,
-                              series: series,
-                              report: marketReport(
-                                bookmakerHistory,
-                                marketCode,
-                                series,
-                              ),
+                              ],
                             );
                           },
                         ),
+                      ],
                     ],
                   ),
                 )),

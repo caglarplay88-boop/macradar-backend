@@ -1796,61 +1796,98 @@ class _MatchDetailState extends State<MatchDetail> {
     }
 
     // ==========================================
-    // EN BÜYÜK TEK-TUR HAREKET
+    // SERT TEK-TUR HAREKETLER
+    // Tum gecmiste tum secenekleri tara.
+    // %8+ ve <=35 dk = sert hareket.
     // ==========================================
-    double maxStep = 0;
-    String maxStepBookmaker = '';
+    final suddenSteps = <Map<String, dynamic>>[];
+    final recentSuddenSteps = <Map<String, dynamic>>[];
 
     for (final item in bookmakerData) {
       final usable =
-          item['usable']
-              as List<Map<String, dynamic>>;
+          item['usable'] as List<Map<String, dynamic>>;
 
       if (usable.length < 2) continue;
 
-      final latestTime =
-          _summaryTime(usable.last);
-
+      final latestTime = _summaryTime(usable.last);
       if (latestTime == null) continue;
 
-      final cutoff = latestTime.subtract(
+      final recentCutoff = latestTime.subtract(
         const Duration(minutes: 60),
       );
 
-      for (int i = 1;
-          i < usable.length;
-          i++) {
-        final currentTime =
-            _summaryTime(usable[i]);
+      for (int i = 1; i < usable.length; i++) {
+        final beforeRow = usable[i - 1];
+        final afterRow = usable[i];
 
-        if (currentTime == null ||
-            currentTime.isBefore(cutoff)) {
+        final beforeTime = _summaryTime(beforeRow);
+        final afterTime = _summaryTime(afterRow);
+
+        if (beforeTime == null || afterTime == null) {
           continue;
         }
 
-        final before =
-            _devig(usable[i - 1], keys);
+        final gapMinutes =
+            afterTime.difference(beforeTime).inMinutes.abs();
 
-        final after =
-            _devig(usable[i], keys);
+        if (gapMinutes > 35) continue;
 
-        if (before == null ||
-            after == null) {
-          continue;
-        }
+        for (int k = 0; k < keys.length; k++) {
+          final beforeRaw = beforeRow[keys[k]];
+          final afterRaw = afterRow[keys[k]];
 
-        final step =
-            after[strongestIndex] -
-                before[strongestIndex];
+          if (beforeRaw is! num || afterRaw is! num) {
+            continue;
+          }
 
-        if (step.abs() >
-            maxStep.abs()) {
-          maxStep = step;
-          maxStepBookmaker =
-              item['bookmaker'].toString();
+          final before = beforeRaw.toDouble();
+          final after = afterRaw.toDouble();
+
+          if (before <= 1 || after <= 1) continue;
+
+          final pct =
+              ((after - before) / before) * 100;
+
+          if (pct.abs() < 8.0) continue;
+
+          final move = <String, dynamic>{
+            'bookmaker': item['bookmaker'].toString(),
+            'label': labels[k],
+            'before': before,
+            'after': after,
+            'pct': pct,
+            'at': afterTime.toIso8601String(),
+            'minutes': gapMinutes,
+          };
+
+          suddenSteps.add(move);
+
+          if (!afterTime.isBefore(recentCutoff)) {
+            recentSuddenSteps.add(
+              Map<String, dynamic>.from(move),
+            );
+          }
         }
       }
     }
+
+    suddenSteps.sort((a, b) {
+      final aa = (a['pct'] as num).toDouble().abs();
+      final bb = (b['pct'] as num).toDouble().abs();
+      return bb.compareTo(aa);
+    });
+
+    recentSuddenSteps.sort((a, b) {
+      final aa = (a['pct'] as num).toDouble().abs();
+      final bb = (b['pct'] as num).toDouble().abs();
+      return bb.compareTo(aa);
+    });
+
+    final topSuddenSteps =
+        suddenSteps.take(3).toList();
+
+    final topRecentSuddenSteps =
+        recentSuddenSteps.take(3).toList();
 
     return {
       'available': true,
@@ -1866,11 +1903,10 @@ class _MatchDetailState extends State<MatchDetail> {
           strongestIndex,
       'dissenters': dissenters,
       'speeds': speeds,
-      'max_step': maxStep,
-      'max_step_bookmaker':
-          maxStepBookmaker,
-      'sudden_move':
-          maxStep.abs() >= 0.015,
+      'sudden_steps':
+          topSuddenSteps,
+      'recent_sudden_steps':
+          topRecentSuddenSteps,
     };
   }
 
@@ -2442,20 +2478,36 @@ class _MatchDetailState extends State<MatchDetail> {
                                     as Map,
                               );
 
-                              final maxStep =
-                                  marketSummary[
-                                          'max_step']
-                                      as double;
+                              final suddenSteps =
+                                  (marketSummary[
+                                              'sudden_steps']
+                                          as List)
+                                      .whereType<Map>()
+                                      .map(
+                                        (e) => Map<String,
+                                            dynamic>.from(e),
+                                      )
+                                      .toList();
 
-                              final maxStepBookmaker =
-                                  marketSummary[
-                                          'max_step_bookmaker']
-                                      .toString();
+                              final recentSuddenSteps =
+                                  (marketSummary[
+                                              'recent_sudden_steps']
+                                          as List)
+                                      .whereType<Map>()
+                                      .map(
+                                        (e) => Map<String,
+                                            dynamic>.from(e),
+                                      )
+                                      .toList();
 
-                              final suddenMove =
-                                  marketSummary[
-                                          'sudden_move']
-                                      == true;
+                              String movePct(dynamic raw) {
+                                final v =
+                                    (raw as num).toDouble();
+
+                                return (v >= 0 ? '+' : '') +
+                                    v.toStringAsFixed(1) +
+                                    '%';
+                              }
 
                               String pct(double x) =>
                                   (x * 100)
@@ -2642,25 +2694,83 @@ class _MatchDetailState extends State<MatchDetail> {
 
                                   const SizedBox(height: 6),
 
+                                  if (suddenSteps.isNotEmpty) ...[
+                                    const Text(
+                                      'SERT HAREKETLER',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight:
+                                            FontWeight.w900,
+                                        letterSpacing: .5,
+                                        color:
+                                            Color(0xFFFFA96B),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+
+                                    for (final move in suddenSteps)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(
+                                          bottom: 3,
+                                        ),
+                                        child: Text(
+                                          move['bookmaker'].toString() +
+                                              ' · ' +
+                                              move['label'].toString() +
+                                              '  ' +
+                                              (move['before'] as num)
+                                                  .toDouble()
+                                                  .toStringAsFixed(2) +
+                                              ' → ' +
+                                              (move['after'] as num)
+                                                  .toDouble()
+                                                  .toStringAsFixed(2) +
+                                              ' (' +
+                                              movePct(move['pct']) +
+                                              ')' +
+                                              ' · ' +
+                                              move['minutes'].toString() +
+                                              ' dk · ' +
+                                              stamp(move['at']),
+                                          style:
+                                              const TextStyle(
+                                            fontSize: 9.5,
+                                            fontWeight:
+                                                FontWeight.w700,
+                                            color:
+                                                Color(0xFFFFC19A),
+                                          ),
+                                        ),
+                                      ),
+                                  ] else
+                                    const Text(
+                                      'Takip geçmişinde belirgin sert hareket yok.',
+                                      style: TextStyle(
+                                        fontSize: 9.5,
+                                        color:
+                                            Color(0xFF7F8B85),
+                                      ),
+                                    ),
+
+                                  const SizedBox(height: 5),
+
                                   Text(
-                                    suddenMove
-                                        ? 'Ani hareket: ' +
-                                            maxStepBookmaker +
-                                            ' · ' +
-                                            delta(maxStep) +
-                                            ' tek tur'
-                                        : 'Belirgin ani hareket yok.',
+                                    recentSuddenSteps.isNotEmpty
+                                        ? 'Son 60 dk: sert hareket var.'
+                                        : 'Son 60 dk: sakin.',
                                     style: TextStyle(
                                       fontSize: 9.5,
                                       fontWeight:
                                           FontWeight.w700,
-                                      color: suddenMove
-                                          ? const Color(
-                                              0xFFFFA96B,
-                                            )
-                                          : const Color(
-                                              0xFF7F8B85,
-                                            ),
+                                      color:
+                                          recentSuddenSteps.isNotEmpty
+                                              ? const Color(
+                                                  0xFFFFA96B,
+                                                )
+                                              : const Color(
+                                                  0xFF7F8B85,
+                                                ),
                                     ),
                                   ),
 

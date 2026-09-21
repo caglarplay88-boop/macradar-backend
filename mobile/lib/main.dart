@@ -1064,14 +1064,29 @@ class _TrackedMatchCard extends StatelessWidget {
           ],
         ),
         onTap: onOpen,
-        trailing: PopupMenuButton<String>(
-          onSelected: (x) {
-            if (x == 'remove') onRemove();
-          },
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: 'remove',
-              child: Text(archived ? 'Geçmişten kaldır' : 'Takibi bırak'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!archived && match['sharp_move_alert'] == true)
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFE53935),
+                size: 20,
+              ),
+            if (!archived && match['sharp_move_alert'] == true)
+              const SizedBox(width: 2),
+            PopupMenuButton<String>(
+              onSelected: (x) {
+                if (x == 'remove') onRemove();
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'remove',
+                  child: Text(
+                    archived ? 'Geçmişten kaldır' : 'Takibi bırak',
+                  ),
+                ),
+              ],
             ),
           ],
         ),

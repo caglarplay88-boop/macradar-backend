@@ -3827,7 +3827,7 @@ class OddsChart extends StatefulWidget {
 
 class _OddsChartState extends State<OddsChart> {
   String market = 'MS';
-  String selection = '1';
+  String selection = 'Tümü';
   String range = 'Tümü';
   final Set<String> selectedBookmakers = <String>{};
 
@@ -3901,51 +3901,70 @@ class _OddsChartState extends State<OddsChart> {
     return out;
   }
 
-  String get valueKey {
+  List<MapEntry<String, String>> get marketOutcomes {
     if (market == 'MS') {
-      if (selection == 'X') return 'msx';
-      if (selection == '2') return 'ms2';
-      return 'ms1';
+      return const [
+        MapEntry('1', 'ms1'),
+        MapEntry('X', 'msx'),
+        MapEntry('2', 'ms2'),
+      ];
     }
 
     if (market == '1.5') {
-      return selection == 'Üst' ? 'ou15_over' : 'ou15_under';
+      return const [
+        MapEntry('Alt', 'ou15_under'),
+        MapEntry('Üst', 'ou15_over'),
+      ];
     }
 
     if (market == '2.5') {
-      return selection == 'Üst' ? 'ou25_over' : 'ou25_under';
+      return const [
+        MapEntry('Alt', 'ou25_under'),
+        MapEntry('Üst', 'ou25_over'),
+      ];
     }
 
-    return selection == 'Var' ? 'btts_yes' : 'btts_no';
+    return const [
+      MapEntry('Var', 'btts_yes'),
+      MapEntry('Yok', 'btts_no'),
+    ];
+  }
+
+  List<MapEntry<String, String>> get activeOutcomes {
+    if (selection == 'Tümü') return marketOutcomes;
+
+    return marketOutcomes
+        .where((item) => item.key == selection)
+        .toList();
   }
 
   List<String> get selections {
-    if (market == 'MS') return const ['1', 'X', '2'];
-    if (market == 'KG') return const ['Yok', 'Var'];
-    return const ['Alt', 'Üst'];
+    return [
+      'Tümü',
+      ...marketOutcomes.map((item) => item.key),
+    ];
   }
 
   void _changeMarket(String value) {
     setState(() {
       market = value;
-
-      if (market == 'MS') {
-        selection = '1';
-      } else if (market == 'KG') {
-        selection = 'Yok';
-      } else {
-        selection = 'Alt';
-      }
+      selection = 'Tümü';
+      selectedTime = null;
     });
   }
 
   double? _latestOdd(String bookmaker) {
+    if (selection == 'Tümü' || activeOutcomes.isEmpty) {
+      return null;
+    }
+
     final wanted = _bookmakerKey(bookmaker);
+    final key = activeOutcomes.first.value;
 
     for (final row in widget.latestRows) {
       if (_bookmakerKey(row['bookmaker']) != wanted) continue;
 
-      final raw = row[valueKey];
+      final raw = row[key];
       if (raw is num) return raw.toDouble();
 
       return null;
@@ -4000,77 +4019,89 @@ class _OddsChartState extends State<OddsChart> {
     }
 
     final names = _bookmakerNames();
+    final outcomes = activeOutcomes;
     final result = <_OddsSeries>[];
 
     for (final bookmaker in names) {
       if (!selectedBookmakers.contains(bookmaker)) continue;
 
       final wanted = _bookmakerKey(bookmaker);
-      final points = <_OddsPoint>[];
+      final bookmakerIndex = names.indexOf(bookmaker);
 
-      for (final group in groups) {
-        DateTime? capturedAt;
+      for (int outcomeIndex = 0;
+          outcomeIndex < outcomes.length;
+          outcomeIndex++) {
+        final outcome = outcomes[outcomeIndex];
+        final points = <_OddsPoint>[];
 
-        try {
-          capturedAt =
-              DateTime.parse(group['captured_at'].toString()).toLocal();
-        } catch (_) {}
+        for (final group in groups) {
+          DateTime? capturedAt;
 
-        if (capturedAt == null) continue;
+          try {
+            capturedAt =
+                DateTime.parse(group['captured_at'].toString()).toLocal();
+          } catch (_) {}
 
-        if (applyRange && window != null && newest != null) {
-          final cutoff = newest.toLocal().subtract(window);
+          if (capturedAt == null) continue;
 
-          if (capturedAt.isBefore(cutoff)) {
-            continue;
+          if (applyRange && window != null && newest != null) {
+            final cutoff = newest.toLocal().subtract(window);
+
+            if (capturedAt.isBefore(cutoff)) {
+              continue;
+            }
+          }
+
+          final rows = group['rows'];
+          if (rows is! List) continue;
+
+          Map<String, dynamic>? matched;
+
+          for (final raw in rows.whereType<Map>()) {
+            final row = Map<String, dynamic>.from(raw);
+
+            if (_bookmakerKey(row['bookmaker']) == wanted) {
+              matched = row;
+              break;
+            }
+          }
+
+          if (matched == null) continue;
+
+          final raw = matched[outcome.value];
+
+          if (raw is num &&
+              raw.toDouble().isFinite &&
+              raw.toDouble() > 1.0) {
+            points.add(
+              _OddsPoint(
+                time: capturedAt,
+                value: raw.toDouble(),
+              ),
+            );
           }
         }
 
-        final rows = group['rows'];
-        if (rows is! List) continue;
+        if (points.isEmpty) continue;
 
-        Map<String, dynamic>? matched;
+        final colorIndex =
+            bookmakerIndex * marketOutcomes.length + outcomeIndex;
+        final hue = ((colorIndex * 47) % 360).toDouble();
 
-        for (final raw in rows.whereType<Map>()) {
-          final row = Map<String, dynamic>.from(raw);
-
-          if (_bookmakerKey(row['bookmaker']) == wanted) {
-            matched = row;
-            break;
-          }
-        }
-
-        if (matched == null) continue;
-
-        final raw = matched[valueKey];
-
-        if (raw is num && raw.toDouble().isFinite && raw.toDouble() > 1.0) {
-          points.add(
-            _OddsPoint(
-              time: capturedAt,
-              value: raw.toDouble(),
-            ),
-          );
-        }
+        result.add(
+          _OddsSeries(
+            bookmaker: bookmaker,
+            outcome: outcome.key,
+            color: HSVColor.fromAHSV(
+              1,
+              hue,
+              0.68,
+              0.95,
+            ).toColor(),
+            points: points,
+          ),
+        );
       }
-
-      if (points.isEmpty) continue;
-
-      final index = names.indexOf(bookmaker);
-      final hue = ((index * 47) % 360).toDouble();
-
-      result.add(
-        _OddsSeries(
-          bookmaker: bookmaker,
-          color: HSVColor.fromAHSV(
-            1,
-            hue,
-            0.68,
-            0.95,
-          ).toColor(),
-          points: points,
-        ),
-      );
     }
 
     return result;
@@ -4195,6 +4226,7 @@ class _OddsChartState extends State<OddsChart> {
 
       out.add({
         'bookmaker': item.bookmaker,
+        'outcome': item.outcome,
         'color': item.color,
         'time': current.time,
         'before': previous?.value,
@@ -4233,6 +4265,7 @@ class _OddsChartState extends State<OddsChart> {
 
         out.add({
           'bookmaker': item.bookmaker,
+          'outcome': item.outcome,
           'color': item.color,
           'time': current.time,
           'before': previous?.value,
@@ -4254,7 +4287,34 @@ class _OddsChartState extends State<OddsChart> {
   }
 
   List<Map<String, dynamic>> _summaryRecords(List<_OddsSeries> series) {
-    final out = <Map<String, dynamic>>[];
+    if (selection != 'Tümü') {
+      final out = <Map<String, dynamic>>[];
+
+      for (final item in series) {
+        if (item.points.isEmpty) continue;
+
+        final points = <_OddsPoint>[...item.points]
+          ..sort((a, b) => a.time.compareTo(b.time));
+
+        final current = points.last;
+        final previous =
+            points.length > 1 ? points[points.length - 2] : null;
+
+        out.add({
+          "bookmaker": item.bookmaker,
+          "time": current.time,
+          "before": previous?.value,
+          "after": current.value,
+        });
+      }
+
+      out.sort((a, b) =>
+          (b["time"] as DateTime).compareTo(a["time"] as DateTime));
+
+      return out;
+    }
+
+    final grouped = <String, Map<String, dynamic>>{};
 
     for (final item in series) {
       if (item.points.isEmpty) continue;
@@ -4266,19 +4326,84 @@ class _OddsChartState extends State<OddsChart> {
       final previous =
           points.length > 1 ? points[points.length - 2] : null;
 
-      out.add({
-        "bookmaker": item.bookmaker,
-        "color": item.color,
-        "time": current.time,
+      final key = _bookmakerKey(item.bookmaker);
+
+      final record = grouped.putIfAbsent(
+        key,
+        () => {
+          "bookmaker": item.bookmaker,
+          "time": current.time,
+          "outcomes": <Map<String, dynamic>>[],
+        },
+      );
+
+      if (current.time.isAfter(record["time"] as DateTime)) {
+        record["time"] = current.time;
+      }
+
+      (record["outcomes"] as List<Map<String, dynamic>>).add({
+        "outcome": item.outcome,
         "before": previous?.value,
         "after": current.value,
       });
+    }
+
+    final order = {
+      for (int i = 0; i < marketOutcomes.length; i++)
+        marketOutcomes[i].key: i,
+    };
+
+    final out = grouped.values.toList();
+
+    for (final record in out) {
+      final outcomes =
+          record["outcomes"] as List<Map<String, dynamic>>;
+
+      outcomes.sort((a, b) =>
+          (order[a["outcome"]] ?? 99)
+              .compareTo(order[b["outcome"]] ?? 99));
     }
 
     out.sort((a, b) =>
         (b["time"] as DateTime).compareTo(a["time"] as DateTime));
 
     return out;
+  }
+
+  String _summaryOddsText(Map<String, dynamic> record) {
+    if (selection != 'Tümü') {
+      final before = record["before"] as double?;
+      final after = record["after"] as double;
+
+      final arrow = before == null
+          ? ""
+          : after > before
+              ? "↑"
+              : after < before
+                  ? "↓"
+                  : "—";
+
+      return "${after.toStringAsFixed(2)} $arrow";
+    }
+
+    final outcomes =
+        record["outcomes"] as List<Map<String, dynamic>>? ?? const [];
+
+    return outcomes.map((item) {
+      final before = item["before"] as double?;
+      final after = item["after"] as double;
+      final label = item["outcome"].toString();
+
+      final arrow = before == null
+          ? ""
+          : after > before
+              ? "↑"
+              : after < before
+                  ? "↓"
+                  : "—";
+
+      return "$label ${after.toStringAsFixed(2)} $arrow";
+    }).join("   ");
   }
 
   String _oddsStamp(DateTime? dt) {
@@ -4518,22 +4643,17 @@ class _OddsChartState extends State<OddsChart> {
                                 style: const TextStyle(fontSize: 8.5, color: Color(0xFF9EAAA4)),
                               ),
                               const SizedBox(width: 8),
-                              Builder(
-                                builder: (_) {
-                                  final before = record["before"] as double?;
-                                  final after = record["after"] as double;
-                                  final arrow = before == null
-                                      ? ""
-                                      : after > before
-                                          ? " ↑"
-                                          : after < before
-                                              ? " ↓"
-                                              : " —";
-                                  return Text(
-                                    "${after.toStringAsFixed(2)}$arrow",
-                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
-                                  );
-                                },
+                              Flexible(
+                                flex: 2,
+                                child: Text(
+                                  _summaryOddsText(record),
+                                  textAlign: TextAlign.right,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -4636,7 +4756,9 @@ class _OddsChartState extends State<OddsChart> {
                             Expanded(
                               flex: 3,
                               child: Text(
-                                move['bookmaker'].toString(),
+                                selection == 'Tümü'
+                                      ? '${move["bookmaker"]} • ${move["outcome"]}'
+                                      : move['bookmaker'].toString(),
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 10,
@@ -4805,7 +4927,9 @@ class _OddsChartState extends State<OddsChart> {
                             Expanded(
                               flex: 3,
                               child: Text(
-                                record['bookmaker'].toString(),
+                                selection == 'Tümü'
+                                      ? '${record["bookmaker"]} • ${record["outcome"]}'
+                                      : record['bookmaker'].toString(),
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 9.5,
@@ -4882,11 +5006,13 @@ class _OddsPoint {
 
 class _OddsSeries {
   final String bookmaker;
+  final String outcome;
   final Color color;
   final List<_OddsPoint> points;
 
   const _OddsSeries({
     required this.bookmaker,
+    required this.outcome,
     required this.color,
     required this.points,
   });

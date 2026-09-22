@@ -1365,11 +1365,12 @@ class MatchDetail extends StatefulWidget {
 class _MatchDetailState extends State<MatchDetail> {
   bool loading = true;
   bool refreshing = false;
+  bool savingMatchInterval = false;
   bool autoRequested = false;
   String error = '';
   String refreshMessage = '';
   String selectedMarket = 'MS';
-  String oddsView = 'Rapor';
+  String oddsView = 'Özet';
 
   // Odds Chart - eski grafik state'inden tamamen bağımsız.
 
@@ -1540,6 +1541,44 @@ class _MatchDetailState extends State<MatchDetail> {
           );
         }
       }
+    }
+  }
+
+  Future<void> saveMatchInterval(int? minutes) async {
+    if (savingMatchInterval || isLocked) return;
+
+    setState(() => savingMatchInterval = true);
+
+    try {
+      final d = await api.post(
+        '/api/matches/' + widget.eventId + '/refresh-interval',
+        {'minutes': minutes},
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        data['refresh_minutes'] = d['refresh_minutes'];
+        savingMatchInterval = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            minutes == null
+                ? 'Bu maç genel çekim aralığını kullanacak.'
+                : 'Bu maç $minutes dakikada bir çekilecek.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => savingMatchInterval = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyError(e))),
+      );
     }
   }
 
@@ -2600,155 +2639,6 @@ class _MatchDetailState extends State<MatchDetail> {
           bookmakerHistory;
     }
 
-    // RAPOR icin sadece son 3 bookmaker degil,
-    // gecmiste veri vermis tum bookmakerlari tara.
-    final reportBookmakerNames = <String>[
-      ...bookmakerNames,
-    ];
-
-    final reportSeen = reportBookmakerNames
-        .map(bookmakerKey)
-        .toSet();
-
-    for (final group in historyGroups) {
-      final rows = group['rows'];
-
-      if (rows is! List) continue;
-
-      for (final raw in rows.whereType<Map>()) {
-        final name =
-            raw['bookmaker']
-                ?.toString()
-                .trim() ??
-            '';
-
-        final key = bookmakerKey(name);
-
-        if (name.isEmpty ||
-            reportSeen.contains(key)) {
-          continue;
-        }
-
-        reportSeen.add(key);
-        reportBookmakerNames.add(name);
-      }
-    }
-
-    final reportHistoriesByBookmaker =
-        <String, List<Map<String, dynamic>>>{};
-
-    for (final bookmaker
-        in reportBookmakerNames) {
-      final wanted =
-          bookmakerKey(bookmaker);
-
-      final rows =
-          <Map<String, dynamic>>[];
-
-      for (final group in historyGroups) {
-        final capturedAt =
-            group['captured_at'];
-
-        Map<String, dynamic>? matched;
-
-        final groupRows = group['rows'];
-
-        if (groupRows is List) {
-          for (final raw
-              in groupRows.whereType<Map>()) {
-            final row =
-                Map<String, dynamic>.from(
-              raw,
-            );
-
-            if (bookmakerKey(
-                  row['bookmaker'],
-                ) ==
-                wanted) {
-              matched = row;
-              break;
-            }
-          }
-        }
-
-        if (matched != null) {
-          rows.add({
-            ...matched,
-            'captured_at':
-                capturedAt ??
-                matched['captured_at'],
-          });
-        }
-      }
-
-      rows.sort((a, b) {
-        final da =
-            _summaryTime(a);
-        final db =
-            _summaryTime(b);
-
-        if (da == null && db == null) {
-          return 0;
-        }
-        if (da == null) return 1;
-        if (db == null) return -1;
-
-        return da.compareTo(db);
-      });
-
-      if (rows.isNotEmpty) {
-        reportHistoriesByBookmaker[
-            bookmaker] = rows;
-      }
-    }
-
-    final marketSummary = _marketSummary(
-      selectedMarket,
-      historiesByBookmaker,
-    );
-
-    final allMarketSummaries =
-        <String, Map<String, dynamic>>{
-      'MS': _marketSummary('MS', historiesByBookmaker),
-      '1.5': _marketSummary('1.5', historiesByBookmaker),
-      '2.5': _marketSummary('2.5', historiesByBookmaker),
-      'KG': _marketSummary('KG', historiesByBookmaker),
-    };
-
-    final reportMarketSummaries =
-        <String, Map<String, dynamic>>{
-      'MS': _marketSummary(
-        'MS',
-        reportHistoriesByBookmaker,
-      ),
-      '1.5': _marketSummary(
-        '1.5',
-        reportHistoriesByBookmaker,
-      ),
-      '2.5': _marketSummary(
-        '2.5',
-        reportHistoriesByBookmaker,
-      ),
-      'KG': _marketSummary(
-        'KG',
-        reportHistoriesByBookmaker,
-      ),
-    };
-
-    final allBigMoves =
-        <String, List<Map<String, dynamic>>>{
-      'MS': _bigMarketMoves('MS', reportHistoriesByBookmaker),
-      '1.5': _bigMarketMoves('1.5', reportHistoriesByBookmaker),
-      '2.5': _bigMarketMoves('2.5', reportHistoriesByBookmaker),
-      'KG': _bigMarketMoves('KG', reportHistoriesByBookmaker),
-    };
-
-    final allReportMoves =
-        _allMarketReportMoves(
-      allBigMoves,
-      reportMarketSummaries,
-    );
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -2908,6 +2798,21 @@ class _MatchDetailState extends State<MatchDetail> {
 
                       const SizedBox(height: 10),
 
+                        const Text("Bu maçın çekim sıklığı", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final int? x in const <int?>[null, 120, 60, 45, 30, 15, 10, 5])
+                              ChoiceChip(
+                                label: Text(x == null ? "Genel" : "$x dk", style: const TextStyle(fontSize: 10)),
+                                selected: x == null ? data["refresh_minutes"] == null : (data["refresh_minutes"] as num?)?.toInt() == x,
+                                onSelected: savingMatchInterval || isLocked ? null : (_) => saveMatchInterval(x),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
                       Container(
                         height: 42,
                         padding: const EdgeInsets.all(3),
@@ -2923,9 +2828,10 @@ class _MatchDetailState extends State<MatchDetail> {
                         child: Row(
                           children: [
                             for (final view in const [
-                              'Rapor',
-                              'Grafik',
-                            ])
+                                'Özet',
+                                'Grafik',
+                                'Geçmiş',
+                              ])
                               Expanded(
                                 child: Material(
                                   color: oddsView == view
@@ -2974,25 +2880,11 @@ class _MatchDetailState extends State<MatchDetail> {
 
                       const SizedBox(height: 10),
 
-                      if (oddsView == 'Rapor')
-                        _globalOddsReportCard(
-                          allReportMoves,
-                          reportMarketSummaries,
-                        ),
-
-                      if (oddsView == 'Grafik') ...[
-
-                        const SizedBox(height: 10),
-
                         OddsChart(
-
                           latestRows: allLatest,
-
                           historyGroups: allHistoryGroups,
-
+                          view: oddsView,
                         ),
-
-                      ],
 
 
                     ],
@@ -3920,11 +3812,13 @@ class ChartSeries {
 class OddsChart extends StatefulWidget {
   final List<Map<String, dynamic>> latestRows;
   final List<Map<String, dynamic>> historyGroups;
+  final String view;
 
   const OddsChart({
     super.key,
     required this.latestRows,
     required this.historyGroups,
+    this.view = 'Grafik',
   });
 
   @override
@@ -3987,6 +3881,23 @@ class _OddsChartState extends State<OddsChart> {
       out.add(name);
     }
 
+
+    for (final group in widget.historyGroups) {
+      final rows = group['rows'];
+      if (rows is! List) continue;
+
+      for (final raw in rows.whereType<Map>()) {
+        final row = Map<String, dynamic>.from(raw);
+        final name = row['bookmaker']?.toString().trim() ?? '';
+        final key = _bookmakerKey(name);
+
+        if (name.isEmpty || seen.contains(key)) continue;
+
+        seen.add(key);
+        out.add(name);
+      }
+    }
+
     return out;
   }
 
@@ -4043,7 +3954,7 @@ class _OddsChartState extends State<OddsChart> {
     return null;
   }
 
-  List<_OddsSeries> _series() {
+  List<_OddsSeries> _series({bool applyRange = true}) {
     final groups = <Map<String, dynamic>>[
       ...widget.historyGroups,
     ];
@@ -4107,7 +4018,7 @@ class _OddsChartState extends State<OddsChart> {
 
         if (capturedAt == null) continue;
 
-        if (window != null && newest != null) {
+        if (applyRange && window != null && newest != null) {
           final cutoff = newest.toLocal().subtract(window);
 
           if (capturedAt.isBefore(cutoff)) {
@@ -4342,6 +4253,34 @@ class _OddsChartState extends State<OddsChart> {
     return out;
   }
 
+  List<Map<String, dynamic>> _summaryRecords(List<_OddsSeries> series) {
+    final out = <Map<String, dynamic>>[];
+
+    for (final item in series) {
+      if (item.points.isEmpty) continue;
+
+      final points = <_OddsPoint>[...item.points]
+        ..sort((a, b) => a.time.compareTo(b.time));
+
+      final current = points.last;
+      final previous =
+          points.length > 1 ? points[points.length - 2] : null;
+
+      out.add({
+        "bookmaker": item.bookmaker,
+        "color": item.color,
+        "time": current.time,
+        "before": previous?.value,
+        "after": current.value,
+      });
+    }
+
+    out.sort((a, b) =>
+        (b["time"] as DateTime).compareTo(a["time"] as DateTime));
+
+    return out;
+  }
+
   String _oddsStamp(DateTime? dt) {
     if (dt == null) return '--/-- --:--';
 
@@ -4377,9 +4316,11 @@ class _OddsChartState extends State<OddsChart> {
   Widget build(BuildContext context) {
     final names = _bookmakerNames();
     final chartSeries = _series();
+      final historySeries = _series(applyRange: false);
     final selectedMoves = _selectedMoves(chartSeries);
     final displayTime = _displayTime(chartSeries);
-    final movementRecords = _movementRecords(chartSeries);
+    final movementRecords = _movementRecords(historySeries);
+      final summaryRecords = _summaryRecords(historySeries);
 
     return Container(
       width: double.infinity,
@@ -4396,9 +4337,13 @@ class _OddsChartState extends State<OddsChart> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Oran Grafiği',
+                    widget.view == 'Özet'
+                        ? 'Oran Özeti'
+                        : widget.view == 'Geçmiş'
+                            ? 'Geçmiş Oranlar'
+                            : 'Oran Grafiği',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
@@ -4521,6 +4466,83 @@ class _OddsChartState extends State<OddsChart> {
             ),
           ),
 
+            if (widget.view == "Özet") ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      "Son Kayıt Özeti",
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  Text(
+                    "${summaryRecords.length} bookmaker",
+                    style: const TextStyle(fontSize: 9, color: Color(0xFF8FA099)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 7),
+              if (summaryRecords.isEmpty)
+                const Text(
+                  "Bu seçim için henüz kayıt yok.",
+                  style: TextStyle(fontSize: 10, color: Color(0xFF8FA099)),
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF151D19),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: const Color(0xFF29342F)),
+                  ),
+                  child: Column(
+                    children: [
+                      for (final record in summaryRecords)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+                          decoration: const BoxDecoration(
+                            border: Border(bottom: BorderSide(color: Color(0xFF26302B))),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  record["bookmaker"].toString(),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                              Text(
+                                _oddsStamp(record["time"] as DateTime?),
+                                style: const TextStyle(fontSize: 8.5, color: Color(0xFF9EAAA4)),
+                              ),
+                              const SizedBox(width: 8),
+                              Builder(
+                                builder: (_) {
+                                  final before = record["before"] as double?;
+                                  final after = record["after"] as double;
+                                  final arrow = before == null
+                                      ? ""
+                                      : after > before
+                                          ? " ↑"
+                                          : after < before
+                                              ? " ↓"
+                                              : " —";
+                                  return Text(
+                                    "${after.toStringAsFixed(2)}$arrow",
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+            if (widget.view == 'Grafik') ...[
           const SizedBox(height: 8),
 
           Container(
@@ -4692,13 +4714,15 @@ class _OddsChartState extends State<OddsChart> {
               ],
             ),
           ),
+            ],
+            if (widget.view == 'Geçmiş') ...[
             const SizedBox(height: 14),
 
             Row(
               children: [
                 const Expanded(
                   child: Text(
-                    'Kayıtlar',
+                    'Geçmiş Kayıtlar',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
@@ -4706,7 +4730,7 @@ class _OddsChartState extends State<OddsChart> {
                   ),
                 ),
                 Text(
-                  '${movementRecords.where((e) => e['before'] == null || e['changed'] == true).length} hareket',
+                    '${movementRecords.length} kayıt',
                   style: const TextStyle(
                     fontSize: 9,
                     color: Color(0xFF8FA099),
@@ -4718,11 +4742,7 @@ class _OddsChartState extends State<OddsChart> {
 
             const SizedBox(height: 7),
 
-            if (movementRecords
-                .where((e) =>
-                    e['before'] == null ||
-                    e['changed'] == true)
-                .isEmpty)
+              if (movementRecords.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 10),
                 child: Text(
@@ -4745,11 +4765,7 @@ class _OddsChartState extends State<OddsChart> {
                 ),
                 child: Column(
                   children: [
-                    for (final record in movementRecords.where(
-                      (e) =>
-                          e['before'] == null ||
-                          e['changed'] == true,
-                    ))
+                      for (final record in movementRecords)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 9,
@@ -4819,13 +4835,18 @@ class _OddsChartState extends State<OddsChart> {
                                     );
                                   }
 
-                                  final up = after > before;
-                                  final pctText = pct == null
+                                  final changed = (after - before).abs() > 0.0001;
+                                  final arrow = !changed
+                                      ? '—'
+                                      : after > before
+                                          ? '↑'
+                                          : '↓';
+                                  final pctText = pct == null || !changed
                                       ? ''
                                       : '  ${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
 
                                   return Text(
-                                    '${before.toStringAsFixed(2)} → ${after.toStringAsFixed(2)} ${up ? '↑' : '↓'}$pctText',
+                                    '${before.toStringAsFixed(2)} → ${after.toStringAsFixed(2)} $arrow$pctText',
                                     textAlign: TextAlign.right,
                                     style: const TextStyle(
                                       fontSize: 10,
@@ -4841,6 +4862,7 @@ class _OddsChartState extends State<OddsChart> {
                   ],
                 ),
               ),
+            ],
 
         ],
       ),
@@ -5287,7 +5309,7 @@ class _SystemPageState extends State<SystemPage> {
                   ),
                   const SizedBox(height: 3),
                   const Text(
-                    'Bütün aktif takip maçları için geçerlidir. Manuel “Şimdi güncelle” her zaman ayrıca çalışır.',
+                    'Genel varsayılandır. Maç içinde özel aralık seçilmişse o maç kendi ayarını kullanır. Manuel “Şimdi güncelle” ayrıca çalışır.',
                     style: TextStyle(
                       fontSize: 10,
                       color: Color(0xFFA7B0B8),
@@ -5298,7 +5320,7 @@ class _SystemPageState extends State<SystemPage> {
                     spacing: 7,
                     runSpacing: 7,
                     children: [
-                      for (final minutes in const [15, 30, 45, 60])
+                      for (final minutes in const [120, 60, 30, 15])
                         ChoiceChip(
                           label: Text(
                             minutes.toString() + ' dk',

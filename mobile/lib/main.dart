@@ -4367,48 +4367,6 @@ class _OddsChartState extends State<OddsChart> {
       ),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 7,
-            ),
-            decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: Color(0xFF334039),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                const SizedBox(width: 70),
-                const Expanded(
-                  flex: 2,
-                  child: SizedBox(),
-                ),
-                const SizedBox(width: 5),
-                Expanded(
-                  flex: 5,
-                  child: Row(
-                    children: [
-                      for (final outcome in marketOutcomes)
-                        Expanded(
-                          child: Text(
-                            outcome.key,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 9,
-                              color: Color(0xFF9EAAA4),
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
           for (final row in rows)
             Builder(
               builder: (context) {
@@ -4456,32 +4414,10 @@ class _OddsChartState extends State<OddsChart> {
                         flex: 5,
                         child: Row(
                           children: [
-                            for (final outcome in marketOutcomes)
+                            for (final item in items)
                               Expanded(
                                 child: Builder(
                                   builder: (_) {
-                                    Map<String, dynamic>? item;
-
-                                    for (final candidate in items) {
-                                      if (candidate['outcome'] ==
-                                          outcome.key) {
-                                        item = candidate;
-                                        break;
-                                      }
-                                    }
-
-                                    if (item == null) {
-                                      return const Text(
-                                        '—',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          color: Color(0xFF6F7B75),
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      );
-                                    }
-
                                     final before =
                                         item['before'] as double?;
                                     final after =
@@ -4511,35 +4447,40 @@ class _OddsChartState extends State<OddsChart> {
                                             ? ''
                                             : '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(1)}%';
 
-                                    return Column(
-                                      mainAxisSize:
-                                          MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          '${after.toStringAsFixed(2)} $arrow',
-                                          maxLines: 1,
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 9.2,
-                                            fontWeight:
-                                                FontWeight.w900,
-                                            color: color,
-                                          ),
-                                        ),
-                                        if (pctText.isNotEmpty)
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 2,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize:
+                                            MainAxisSize.min,
+                                        children: [
                                           Text(
-                                            pctText,
+                                            '${item["outcome"]} ${after.toStringAsFixed(2)} $arrow',
                                             maxLines: 1,
                                             textAlign:
                                                 TextAlign.center,
                                             style: TextStyle(
-                                              fontSize: 7.5,
+                                              fontSize: 9.2,
                                               fontWeight:
-                                                  FontWeight.w800,
+                                                  FontWeight.w900,
                                               color: color,
                                             ),
                                           ),
-                                      ],
+                                          if (pctText.isNotEmpty)
+                                            Text(
+                                              pctText,
+                                              maxLines: 1,
+                                              style: TextStyle(
+                                                fontSize: 7.5,
+                                                fontWeight:
+                                                    FontWeight.w800,
+                                                color: color,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     );
                                   },
                                 ),
@@ -5242,16 +5183,12 @@ class _OddsChartState extends State<OddsChart> {
                                       ? ''
                                       : '  ${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
 
-                                  final moveColor =
-                                      _historyMoveColor(before, after);
-
                                   return Text(
                                     '${before.toStringAsFixed(2)} → ${after.toStringAsFixed(2)} $arrow$pctText',
                                     textAlign: TextAlign.right,
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w900,
-                                      color: moveColor,
                                     ),
                                   );
                                 },

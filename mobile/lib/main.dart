@@ -4286,6 +4286,218 @@ class _OddsChartState extends State<OddsChart> {
     return out;
   }
 
+  Color _historyMoveColor(double? before, double after) {
+    if (before == null || (after - before).abs() < 0.0001) {
+      return const Color(0xFF9EAAA4);
+    }
+
+    // Oran düşüşü yeşil, yükseliş kırmızı.
+    return after < before
+        ? const Color(0xFF62D98B)
+        : const Color(0xFFFF6262);
+  }
+
+  Widget _groupedMovementHistory(
+    List<Map<String, dynamic>> records,
+  ) {
+    final grouped = <String, Map<String, dynamic>>{};
+
+    final outcomeOrder = {
+      for (int i = 0; i < marketOutcomes.length; i++)
+        marketOutcomes[i].key: i,
+    };
+
+    for (final record in records) {
+      final rawTime = record['time'];
+      if (rawTime is! DateTime) continue;
+
+      final bookmaker = record['bookmaker']?.toString() ?? '';
+      final key =
+          '${_bookmakerKey(bookmaker)}|${rawTime.millisecondsSinceEpoch}';
+
+      final group = grouped.putIfAbsent(
+        key,
+        () => {
+          'bookmaker': bookmaker,
+          'time': rawTime,
+          'items': <Map<String, dynamic>>[],
+        },
+      );
+
+      (group['items'] as List<Map<String, dynamic>>).add(record);
+    }
+
+    final rows = grouped.values.toList()
+      ..sort(
+        (a, b) =>
+            (b['time'] as DateTime).compareTo(a['time'] as DateTime),
+      );
+
+    for (final row in rows) {
+      final items = row['items'] as List<Map<String, dynamic>>;
+
+      items.sort(
+        (a, b) =>
+            (outcomeOrder[a['outcome']] ?? 99)
+                .compareTo(outcomeOrder[b['outcome']] ?? 99),
+      );
+    }
+
+    if (rows.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 10),
+        child: Text(
+          'Bu seçim için kayıt yok.',
+          style: TextStyle(
+            fontSize: 10,
+            color: Color(0xFF8FA099),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF151D19),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(
+          color: const Color(0xFF29342F),
+        ),
+      ),
+      child: Column(
+        children: [
+          for (final row in rows)
+            Builder(
+              builder: (context) {
+                final items =
+                    row['items'] as List<Map<String, dynamic>>;
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 9,
+                  ),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Color(0xFF26302B),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 70,
+                        child: Text(
+                          _oddsStamp(row['time'] as DateTime?),
+                          style: const TextStyle(
+                            fontSize: 8.2,
+                            color: Color(0xFF9EAAA4),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          row['bookmaker'].toString(),
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        flex: 5,
+                        child: Row(
+                          children: [
+                            for (final item in items)
+                              Expanded(
+                                child: Builder(
+                                  builder: (_) {
+                                    final before =
+                                        item['before'] as double?;
+                                    final after =
+                                        item['after'] as double;
+                                    final pct =
+                                        item['pct'] as double?;
+
+                                    final changed =
+                                        before != null &&
+                                        (after - before).abs() >
+                                            0.0001;
+
+                                    final arrow = !changed
+                                        ? '—'
+                                        : after < before
+                                            ? '↓'
+                                            : '↑';
+
+                                    final color =
+                                        _historyMoveColor(
+                                      before,
+                                      after,
+                                    );
+
+                                    final pctText =
+                                        pct == null || !changed
+                                            ? ''
+                                            : '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(1)}%';
+
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 2,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize:
+                                            MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            '${item["outcome"]} ${after.toStringAsFixed(2)} $arrow',
+                                            maxLines: 1,
+                                            textAlign:
+                                                TextAlign.center,
+                                            style: TextStyle(
+                                              fontSize: 9.2,
+                                              fontWeight:
+                                                  FontWeight.w900,
+                                              color: color,
+                                            ),
+                                          ),
+                                          if (pctText.isNotEmpty)
+                                            Text(
+                                              pctText,
+                                              maxLines: 1,
+                                              style: TextStyle(
+                                                fontSize: 7.5,
+                                                fontWeight:
+                                                    FontWeight.w800,
+                                                color: color,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   List<Map<String, dynamic>> _summaryRecords(List<_OddsSeries> series) {
     if (selection != 'Tümü') {
       final out = <Map<String, dynamic>>[];
@@ -4864,7 +5076,9 @@ class _OddsChartState extends State<OddsChart> {
 
             const SizedBox(height: 7),
 
-              if (movementRecords.isEmpty)
+              if (selection == 'Tümü')
+              _groupedMovementHistory(movementRecords)
+            else if (movementRecords.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 10),
                 child: Text(
@@ -5063,6 +5277,51 @@ class OddsChartPainter extends CustomPainter {
     double maxValue =
         allPoints.map((e) => e.value).reduce(math.max);
 
+    // "Tümü" modunda 1 / X / 2 (veya Alt / Üst, Var / Yok)
+    // farklı fiyat seviyelerinde olduğu için tek mutlak Y ekseni küçük
+    // hareketleri eziyordu. Birden fazla outcome varsa hareketleri
+    // her serinin ilk değerine göre yüzde değişim olarak çiziyoruz.
+    final compareMode =
+        series.map((e) => e.outcome).toSet().length > 1;
+
+    double compareMin = 0.0;
+    double compareMax = 0.0;
+
+    if (compareMode) {
+      bool seeded = false;
+
+      for (final item in series) {
+        if (item.points.isEmpty) continue;
+
+        final base = item.points.first.value;
+        if (base == 0) continue;
+
+        for (final point in item.points) {
+          final pct = ((point.value - base) / base) * 100.0;
+
+          if (!seeded) {
+            compareMin = pct;
+            compareMax = pct;
+            seeded = true;
+          } else {
+            compareMin = math.min(compareMin, pct);
+            compareMax = math.max(compareMax, pct);
+          }
+        }
+      }
+
+      final compareRange = compareMax - compareMin;
+
+      if (compareRange.abs() < 0.0001) {
+        compareMin -= 0.50;
+        compareMax += 0.50;
+      } else {
+        final pad = math.max(0.15, compareRange * 0.15);
+        compareMin -= pad;
+        compareMax += pad;
+      }
+    }
+
     final rawRange = maxValue - minValue;
 
     if (rawRange.abs() < 0.0001) {
@@ -5092,6 +5351,21 @@ class OddsChartPainter extends CustomPainter {
               plot.height;
     }
 
+    double yForSeries(_OddsSeries item, double value) {
+      if (!compareMode || item.points.isEmpty) {
+        return yFor(value);
+      }
+
+      final base = item.points.first.value;
+      if (base == 0) return yFor(value);
+
+      final pct = ((value - base) / base) * 100.0;
+
+      return plot.bottom -
+          ((pct - compareMin) / (compareMax - compareMin)) *
+              plot.height;
+    }
+
     final gridPaint = Paint()
       ..color = const Color(0xFF303B36)
       ..strokeWidth = 1;
@@ -5105,12 +5379,15 @@ class OddsChartPainter extends CustomPainter {
         gridPaint,
       );
 
-      final value =
-          maxValue - (maxValue - minValue) * i / 4;
+      final value = compareMode
+          ? compareMax - (compareMax - compareMin) * i / 4
+          : maxValue - (maxValue - minValue) * i / 4;
 
       _paintText(
         canvas,
-        value.toStringAsFixed(2),
+        compareMode
+            ? '${value.toStringAsFixed(1)}%'
+            : value.toStringAsFixed(2),
         Offset(2, y - 6),
         const TextStyle(
           fontSize: 8,
@@ -5156,7 +5433,7 @@ class OddsChartPainter extends CustomPainter {
 
       path.moveTo(
         xFor(first.time),
-        yFor(first.value),
+        yForSeries(item, first.value),
       );
 
       for (int i = 1; i < points.length; i++) {
@@ -5164,8 +5441,8 @@ class OddsChartPainter extends CustomPainter {
         final current = points[i];
 
         final x = xFor(current.time);
-        final previousY = yFor(previous.value);
-        final currentY = yFor(current.value);
+        final previousY = yForSeries(item, previous.value);
+        final currentY = yForSeries(item, current.value);
 
         path.lineTo(x, previousY);
         path.lineTo(x, currentY);
@@ -5186,7 +5463,7 @@ class OddsChartPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(
           xFor(last.time),
-          yFor(last.value),
+          yForSeries(item, last.value),
         ),
         2.8,
         Paint()
@@ -5199,7 +5476,7 @@ class OddsChartPainter extends CustomPainter {
         last.value.toStringAsFixed(2),
         Offset(
           plot.right + 5,
-          yFor(last.value) - 5,
+          yForSeries(item, last.value) - 5,
         ),
         TextStyle(
           fontSize: 8,

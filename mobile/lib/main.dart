@@ -1371,6 +1371,13 @@ class _MatchDetailState extends State<MatchDetail> {
   String selectedMarket = 'MS';
   String oddsView = 'Rapor';
   String selectedBookmaker = '';
+
+  // Odds Chart V3 - eski grafik state'inden tamamen bağımsız.
+  String oddsChartV3Market = 'MS';
+  String oddsChartV3Selection = '1';
+  String oddsChartV3Range = 'Tümü';
+  final Set<String> oddsChartV3Bookmakers = <String>{};
+
   bool showPerformance = false;
   Map<String, dynamic> data = {};
 
@@ -2496,6 +2503,21 @@ class _MatchDetailState extends State<MatchDetail> {
             .toList()
         : <Map<String, dynamic>>[];
 
+    // Odds Chart V3 - tum bookmaker verisi.
+    final allLatest = data['all_latest_rows'] is List
+        ? (data['all_latest_rows'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    final allHistoryGroups = data['all_history_groups'] is List
+        ? (data['all_history_groups'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
     String bookmakerKey(dynamic raw) => raw
         .toString()
         .toLowerCase()
@@ -3052,6 +3074,7 @@ class _MatchDetailState extends State<MatchDetail> {
                           children: [
                             for (final view in const [
                               'Rapor',
+                                'Grafik V3',
                               'Grafik',
                               'Kayıtlar',
                             ])
@@ -3109,7 +3132,23 @@ class _MatchDetailState extends State<MatchDetail> {
                           reportMarketSummaries,
                         ),
 
-                      if (oddsView != 'Rapor') ...[
+                      if (oddsView == 'Grafik V3') ...[
+
+                        const SizedBox(height: 10),
+
+                        OddsChartV3(
+
+                          latestRows: allLatest,
+
+                          historyGroups: allHistoryGroups,
+
+                        ),
+
+                      ],
+
+
+                      if (oddsView != 'Rapor' &&
+                          oddsView != 'Grafik V3') ...[
                         const SizedBox(height: 10),
 
                         Builder(
@@ -5217,6 +5256,713 @@ class CombinedMarketPainter extends CustomPainter {
             history ||
         oldDelegate.series !=
             series;
+  }
+}
+
+
+class OddsChartV3 extends StatefulWidget {
+  final List<Map<String, dynamic>> latestRows;
+  final List<Map<String, dynamic>> historyGroups;
+
+  const OddsChartV3({
+    super.key,
+    required this.latestRows,
+    required this.historyGroups,
+  });
+
+  @override
+  State<OddsChartV3> createState() => _OddsChartV3State();
+}
+
+class _OddsChartV3State extends State<OddsChartV3> {
+  String market = 'MS';
+  String selection = '1';
+  String range = 'Tümü';
+  final Set<String> selectedBookmakers = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _seedBookmakers();
+  }
+
+  @override
+  void didUpdateWidget(covariant OddsChartV3 oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (selectedBookmakers.isEmpty &&
+        oldWidget.latestRows.isEmpty &&
+        widget.latestRows.isNotEmpty) {
+      _seedBookmakers();
+    }
+  }
+
+  void _seedBookmakers() {
+    final names = _bookmakerNames();
+
+    for (final name in names.take(5)) {
+      selectedBookmakers.add(name);
+    }
+  }
+
+  String _bookmakerKey(dynamic raw) {
+    return raw
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), '');
+  }
+
+  List<String> _bookmakerNames() {
+    final out = <String>[];
+    final seen = <String>{};
+
+    for (final row in widget.latestRows) {
+      final name = row['bookmaker']?.toString().trim() ?? '';
+      final key = _bookmakerKey(name);
+
+      if (name.isEmpty || seen.contains(key)) continue;
+
+      seen.add(key);
+      out.add(name);
+    }
+
+    return out;
+  }
+
+  String get valueKey {
+    if (market == 'MS') {
+      if (selection == 'X') return 'msx';
+      if (selection == '2') return 'ms2';
+      return 'ms1';
+    }
+
+    if (market == '1.5') {
+      return selection == 'Üst' ? 'ou15_over' : 'ou15_under';
+    }
+
+    if (market == '2.5') {
+      return selection == 'Üst' ? 'ou25_over' : 'ou25_under';
+    }
+
+    return selection == 'Var' ? 'btts_yes' : 'btts_no';
+  }
+
+  List<String> get selections {
+    if (market == 'MS') return const ['1', 'X', '2'];
+    if (market == 'KG') return const ['Yok', 'Var'];
+    return const ['Alt', 'Üst'];
+  }
+
+  void _changeMarket(String value) {
+    setState(() {
+      market = value;
+
+      if (market == 'MS') {
+        selection = '1';
+      } else if (market == 'KG') {
+        selection = 'Yok';
+      } else {
+        selection = 'Alt';
+      }
+    });
+  }
+
+  double? _latestOdd(String bookmaker) {
+    final wanted = _bookmakerKey(bookmaker);
+
+    for (final row in widget.latestRows) {
+      if (_bookmakerKey(row['bookmaker']) != wanted) continue;
+
+      final raw = row[valueKey];
+      if (raw is num) return raw.toDouble();
+
+      return null;
+    }
+
+    return null;
+  }
+
+  List<_OddsV3Series> _series() {
+    final groups = <Map<String, dynamic>>[
+      ...widget.historyGroups,
+    ];
+
+    groups.sort((a, b) {
+      DateTime? da;
+      DateTime? db;
+
+      try {
+        da = DateTime.parse(a['captured_at'].toString());
+      } catch (_) {}
+
+      try {
+        db = DateTime.parse(b['captured_at'].toString());
+      } catch (_) {}
+
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+
+      return da.compareTo(db);
+    });
+
+    DateTime? newest;
+
+    for (final group in groups.reversed) {
+      try {
+        newest = DateTime.parse(group['captured_at'].toString());
+        break;
+      } catch (_) {}
+    }
+
+    Duration? window;
+
+    if (range == '120') {
+      window = const Duration(minutes: 120);
+    } else if (range == '60') {
+      window = const Duration(minutes: 60);
+    } else if (range == '30') {
+      window = const Duration(minutes: 30);
+    } else if (range == '15') {
+      window = const Duration(minutes: 15);
+    }
+
+    final names = _bookmakerNames();
+    final result = <_OddsV3Series>[];
+
+    for (final bookmaker in names) {
+      if (!selectedBookmakers.contains(bookmaker)) continue;
+
+      final wanted = _bookmakerKey(bookmaker);
+      final points = <_OddsV3Point>[];
+
+      for (final group in groups) {
+        DateTime? capturedAt;
+
+        try {
+          capturedAt =
+              DateTime.parse(group['captured_at'].toString()).toLocal();
+        } catch (_) {}
+
+        if (capturedAt == null) continue;
+
+        if (window != null && newest != null) {
+          final cutoff = newest.toLocal().subtract(window);
+
+          if (capturedAt.isBefore(cutoff)) {
+            continue;
+          }
+        }
+
+        final rows = group['rows'];
+        if (rows is! List) continue;
+
+        Map<String, dynamic>? matched;
+
+        for (final raw in rows.whereType<Map>()) {
+          final row = Map<String, dynamic>.from(raw);
+
+          if (_bookmakerKey(row['bookmaker']) == wanted) {
+            matched = row;
+            break;
+          }
+        }
+
+        if (matched == null) continue;
+
+        final raw = matched[valueKey];
+
+        if (raw is num && raw.toDouble().isFinite && raw.toDouble() > 1.0) {
+          points.add(
+            _OddsV3Point(
+              time: capturedAt,
+              value: raw.toDouble(),
+            ),
+          );
+        }
+      }
+
+      if (points.isEmpty) continue;
+
+      final index = names.indexOf(bookmaker);
+      final hue = ((index * 47) % 360).toDouble();
+
+      result.add(
+        _OddsV3Series(
+          bookmaker: bookmaker,
+          color: HSVColor.fromAHSV(
+            1,
+            hue,
+            0.68,
+            0.95,
+          ).toColor(),
+          points: points,
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  Widget _smallChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        selected: selected,
+        visualDensity: VisualDensity.compact,
+        onSelected: (_) => onTap(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final names = _bookmakerNames();
+    final chartSeries = _series();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111814),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF2B3932),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Oran Grafiği',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Text(
+                '${selectedBookmakers.length}/${names.length} bookmaker',
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: Color(0xFF8FA099),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 9),
+
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final item in const ['MS', '1.5', '2.5', 'KG'])
+                  _smallChip(
+                    label: item,
+                    selected: market == item,
+                    onTap: () => _changeMarket(item),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 5),
+
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final item in selections)
+                  _smallChip(
+                    label: item,
+                    selected: selection == item,
+                    onTap: () {
+                      setState(() {
+                        selection = item;
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final name in names)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: FilterChip(
+                      selected: selectedBookmakers.contains(name),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            selectedBookmakers.add(name);
+                          } else {
+                            selectedBookmakers.remove(name);
+                          }
+                        });
+                      },
+                      visualDensity: VisualDensity.compact,
+                      label: Text(
+                        _latestOdd(name) == null
+                            ? name
+                            : '$name  ${_latestOdd(name)!.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Container(
+            height: 270,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: const Color(0xFF18211D),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFF29342F),
+              ),
+            ),
+            child: chartSeries.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Bu seçim için çizilecek oran geçmişi yok.',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF8FA099),
+                      ),
+                    ),
+                  )
+                : CustomPaint(
+                    painter: OddsChartV3Painter(
+                      series: chartSeries,
+                    ),
+                  ),
+          ),
+
+          const SizedBox(height: 8),
+
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final item in const [
+                  'Tümü',
+                  '120',
+                  '60',
+                  '30',
+                  '15',
+                ])
+                  _smallChip(
+                    label: item == 'Tümü' ? item : '$item dk',
+                    selected: range == item,
+                    onTap: () {
+                      setState(() {
+                        range = item;
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OddsV3Point {
+  final DateTime time;
+  final double value;
+
+  const _OddsV3Point({
+    required this.time,
+    required this.value,
+  });
+}
+
+class _OddsV3Series {
+  final String bookmaker;
+  final Color color;
+  final List<_OddsV3Point> points;
+
+  const _OddsV3Series({
+    required this.bookmaker,
+    required this.color,
+    required this.points,
+  });
+}
+
+class OddsChartV3Painter extends CustomPainter {
+  final List<_OddsV3Series> series;
+
+  OddsChartV3Painter({
+    required this.series,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const left = 38.0;
+    const top = 14.0;
+    const right = 42.0;
+    const bottom = 28.0;
+
+    final plot = Rect.fromLTRB(
+      left,
+      top,
+      size.width - right,
+      size.height - bottom,
+    );
+
+    final allPoints = <_OddsV3Point>[
+      for (final item in series) ...item.points,
+    ];
+
+    if (allPoints.isEmpty || plot.width <= 0 || plot.height <= 0) {
+      return;
+    }
+
+    final minTime = allPoints
+        .map((e) => e.time.millisecondsSinceEpoch.toDouble())
+        .reduce(math.min);
+
+    final maxTime = allPoints
+        .map((e) => e.time.millisecondsSinceEpoch.toDouble())
+        .reduce(math.max);
+
+    double minValue =
+        allPoints.map((e) => e.value).reduce(math.min);
+
+    double maxValue =
+        allPoints.map((e) => e.value).reduce(math.max);
+
+    final rawRange = maxValue - minValue;
+
+    if (rawRange.abs() < 0.0001) {
+      final pad = math.max(0.03, maxValue * 0.015);
+      minValue -= pad;
+      maxValue += pad;
+    } else {
+      final pad = math.max(0.02, rawRange * 0.12);
+      minValue -= pad;
+      maxValue += pad;
+    }
+
+    double xFor(DateTime time) {
+      if ((maxTime - minTime).abs() < 1) {
+        return plot.center.dx;
+      }
+
+      return plot.left +
+          ((time.millisecondsSinceEpoch - minTime) /
+                  (maxTime - minTime)) *
+              plot.width;
+    }
+
+    double yFor(double value) {
+      return plot.bottom -
+          ((value - minValue) / (maxValue - minValue)) *
+              plot.height;
+    }
+
+    final gridPaint = Paint()
+      ..color = const Color(0xFF303B36)
+      ..strokeWidth = 1;
+
+    for (int i = 0; i <= 4; i++) {
+      final y = plot.top + plot.height * i / 4;
+
+      canvas.drawLine(
+        Offset(plot.left, y),
+        Offset(plot.right, y),
+        gridPaint,
+      );
+
+      final value =
+          maxValue - (maxValue - minValue) * i / 4;
+
+      _paintText(
+        canvas,
+        value.toStringAsFixed(2),
+        Offset(2, y - 6),
+        const TextStyle(
+          fontSize: 8,
+          color: Color(0xFF89958F),
+        ),
+      );
+    }
+
+    for (final item in series) {
+      if (item.points.isEmpty) continue;
+
+      final points = <_OddsV3Point>[
+        ...item.points,
+      ]..sort((a, b) => a.time.compareTo(b.time));
+
+      final path = Path();
+
+      final first = points.first;
+
+      path.moveTo(
+        xFor(first.time),
+        yFor(first.value),
+      );
+
+      for (int i = 1; i < points.length; i++) {
+        final previous = points[i - 1];
+        final current = points[i];
+
+        final x = xFor(current.time);
+        final previousY = yFor(previous.value);
+        final currentY = yFor(current.value);
+
+        path.lineTo(x, previousY);
+        path.lineTo(x, currentY);
+      }
+
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = item.color
+          ..strokeWidth = 1.8
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.square
+          ..strokeJoin = StrokeJoin.miter,
+      );
+
+      final last = points.last;
+
+      canvas.drawCircle(
+        Offset(
+          xFor(last.time),
+          yFor(last.value),
+        ),
+        2.8,
+        Paint()
+          ..color = item.color
+          ..style = PaintingStyle.fill,
+      );
+
+      _paintText(
+        canvas,
+        last.value.toStringAsFixed(2),
+        Offset(
+          plot.right + 5,
+          yFor(last.value) - 5,
+        ),
+        TextStyle(
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+          color: item.color,
+        ),
+      );
+    }
+
+    final labels = <double>[
+      minTime,
+      minTime + (maxTime - minTime) / 2,
+      maxTime,
+    ];
+
+    for (final millis in labels) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(
+        millis.round(),
+      );
+
+      final text =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+      final x = (maxTime - minTime).abs() < 1
+          ? plot.center.dx
+          : plot.left +
+              ((millis - minTime) /
+                      (maxTime - minTime)) *
+                  plot.width;
+
+      _paintCenteredText(
+        canvas,
+        text,
+        Offset(x, plot.bottom + 8),
+        const TextStyle(
+          fontSize: 8,
+          color: Color(0xFF8FA099),
+        ),
+      );
+    }
+  }
+
+  void _paintText(
+    Canvas canvas,
+    String text,
+    Offset offset,
+    TextStyle style,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: style,
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    painter.paint(canvas, offset);
+  }
+
+  void _paintCenteredText(
+    Canvas canvas,
+    String text,
+    Offset center,
+    TextStyle style,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: style,
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    painter.paint(
+      canvas,
+      Offset(
+        center.dx - painter.width / 2,
+        center.dy,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(
+    covariant OddsChartV3Painter oldDelegate,
+  ) {
+    return oldDelegate.series != series;
   }
 }
 

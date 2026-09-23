@@ -2552,6 +2552,13 @@ class _MatchDetailState extends State<MatchDetail> {
             .toList()
         : <Map<String, dynamic>>[];
 
+    final marketStateEvents = data['market_state_events'] is List
+        ? (data['market_state_events'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
     String bookmakerKey(dynamic raw) => raw
         .toString()
         .toLowerCase()
@@ -2883,6 +2890,7 @@ class _MatchDetailState extends State<MatchDetail> {
                         OddsChart(
                           latestRows: allLatest,
                           historyGroups: allHistoryGroups,
+                          marketStateEvents: marketStateEvents,
                           view: oddsView,
                         ),
 
@@ -3812,12 +3820,14 @@ class ChartSeries {
 class OddsChart extends StatefulWidget {
   final List<Map<String, dynamic>> latestRows;
   final List<Map<String, dynamic>> historyGroups;
+  final List<Map<String, dynamic>> marketStateEvents;
   final String view;
 
   const OddsChart({
     super.key,
     required this.latestRows,
     required this.historyGroups,
+    required this.marketStateEvents,
     this.view = 'Grafik',
   });
 
@@ -4033,6 +4043,7 @@ class _OddsChartState extends State<OddsChart> {
           outcomeIndex++) {
         final outcome = outcomes[outcomeIndex];
         final points = <_OddsPoint>[];
+        var breakBeforeNextActive = false;
 
         for (final group in groups) {
           DateTime? capturedAt;
@@ -4070,6 +4081,23 @@ class _OddsChartState extends State<OddsChart> {
 
           final raw = matched[outcome.value];
 
+          final statusMapRaw = matched["status_map"];
+          final statusMap = statusMapRaw is Map
+              ? Map<String, dynamic>.from(statusMapRaw)
+              : <String, dynamic>{};
+
+          final status =
+              statusMap[outcome.value]?.toString().toLowerCase();
+
+          if (status == "suspended") {
+            breakBeforeNextActive = true;
+            continue;
+          }
+
+          if (breakBeforeNextActive && status != "active") {
+            continue;
+          }
+
           if (raw is num &&
               raw.toDouble().isFinite &&
               raw.toDouble() > 1.0) {
@@ -4077,8 +4105,13 @@ class _OddsChartState extends State<OddsChart> {
               _OddsPoint(
                 time: capturedAt,
                 value: raw.toDouble(),
+                segmentStart: breakBeforeNextActive,
               ),
             );
+
+            if (status == "active") {
+              breakBeforeNextActive = false;
+            }
           }
         }
 
@@ -4214,7 +4247,9 @@ class _OddsChartState extends State<OddsChart> {
 
       final current = points[chosenIndex];
       final previous =
-          chosenIndex > 0 ? points[chosenIndex - 1] : null;
+          chosenIndex > 0 && !current.segmentStart
+              ? points[chosenIndex - 1]
+              : null;
 
       double? pct;
 
@@ -4253,7 +4288,10 @@ class _OddsChartState extends State<OddsChart> {
 
       for (int i = 0; i < points.length; i++) {
         final current = points[i];
-        final previous = i > 0 ? points[i - 1] : null;
+        final previous =
+            i > 0 && !current.segmentStart
+                ? points[i - 1]
+                : null;
 
         double? pct;
 
@@ -4284,6 +4322,162 @@ class _OddsChartState extends State<OddsChart> {
     });
 
     return out;
+  }
+
+  List<Map<String, dynamic>> _stateEventRecords() {
+    final out = <Map<String, dynamic>>[];
+
+    for (final raw in widget.marketStateEvents) {
+      final bookmaker = raw["bookmaker"]?.toString() ?? "";
+      if (!selectedBookmakers.any(
+        (name) => _bookmakerKey(name) == _bookmakerKey(bookmaker),
+      )) {
+        continue;
+      }
+
+      if (raw["market"]?.toString() != market) continue;
+
+      final eventSelection = raw["selection"]?.toString() ?? "";
+      if (selection != "Tümü" && eventSelection != selection) continue;
+
+      final capturedAt = DateTime.tryParse(
+        raw["captured_at"]?.toString() ?? "",
+      )?.toLocal();
+
+      if (capturedAt == null) continue;
+
+      out.add({
+        ...raw,
+        "time": capturedAt,
+      });
+    }
+
+    out.sort(
+      (a, b) => (b["time"] as DateTime).compareTo(a["time"] as DateTime),
+    );
+
+    return out;
+  }
+
+  Widget _stateEventHistory(List<Map<String, dynamic>> events) {
+    if (events.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151D19),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0xFF29342F)),
+      ),
+      child: Column(
+        children: [
+          for (final event in events)
+            Builder(
+              builder: (_) {
+                final type =
+                    event["event_type"]?.toString().toUpperCase() ?? "";
+                final bookmaker =
+                    event["bookmaker"]?.toString() ?? "";
+                final eventSelection =
+                    event["selection"]?.toString() ?? "";
+                final time = event["time"] as DateTime?;
+
+                final current =
+                    (event["current_odd"] as num?)?.toDouble();
+                final lastActive =
+                    (event["last_active_odd"] as num?)?.toDouble();
+                final gap =
+                    (event["reopen_gap_pct"] as num?)?.toDouble();
+
+                final isSuspend = type == "SUSPEND";
+
+                String valueText;
+                if (isSuspend) {
+                  valueText = current == null
+                      ? "Askıya alındı"
+                      : current.toStringAsFixed(2);
+                } else {
+                  final beforeText = lastActive?.toStringAsFixed(2) ?? "—";
+                  final afterText = current?.toStringAsFixed(2) ?? "—";
+                  final gapText = gap == null
+                      ? ""
+                      : "  ${gap >= 0 ? '+' : ''}${gap.toStringAsFixed(2)}%";
+                  valueText = "$beforeText → $afterText$gapText";
+                }
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 8,
+                  ),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Color(0xFF26302B)),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 70,
+                        child: Text(
+                          _oddsStamp(time),
+                          style: const TextStyle(
+                            fontSize: 8.2,
+                            color: Color(0xFF9EAAA4),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          "$bookmaker • $eventSelection",
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            isSuspend
+                                ? "ASKIYA ALINDI"
+                                : "YENİDEN AÇILDI",
+                            style: TextStyle(
+                              fontSize: 7.5,
+                              fontWeight: FontWeight.w900,
+                              color: isSuspend
+                                  ? const Color(0xFFFFB45E)
+                                  : const Color(0xFF62D98B),
+                            ),
+                          ),
+                          Text(
+                            valueText,
+                            style: TextStyle(
+                              fontSize: 9.2,
+                              fontWeight: FontWeight.w900,
+                              color: isSuspend
+                                  ? const Color(0xFF9EAAA4)
+                                  : const Color(0xFFE7F5EE),
+                              decoration: isSuspend && current != null
+                                  ? TextDecoration.lineThrough
+                                  : TextDecoration.none,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
   }
 
   Color _historyMoveColor(double? before, double after) {
@@ -4718,11 +4912,12 @@ class _OddsChartState extends State<OddsChart> {
   Widget build(BuildContext context) {
     final names = _bookmakerNames();
     final chartSeries = _series();
-      final historySeries = _series(applyRange: false);
+    final historySeries = _series(applyRange: false);
     final selectedMoves = _selectedMoves(chartSeries);
     final displayTime = _displayTime(chartSeries);
     final movementRecords = _movementRecords(historySeries);
-      final summaryRecords = _summaryRecords(historySeries);
+    final stateEventRecords = _stateEventRecords();
+    final summaryRecords = _summaryRecords(historySeries);
 
     return Container(
       width: double.infinity,
@@ -5141,6 +5336,8 @@ class _OddsChartState extends State<OddsChart> {
 
             const SizedBox(height: 7),
 
+              _stateEventHistory(stateEventRecords),
+
               if (selection == 'Tümü')
               _groupedMovementHistory(movementRecords)
             else if (movementRecords.isEmpty)
@@ -5280,10 +5477,12 @@ class _OddsChartState extends State<OddsChart> {
 class _OddsPoint {
   final DateTime time;
   final double value;
+  final bool segmentStart;
 
   const _OddsPoint({
     required this.time,
     required this.value,
+    this.segmentStart = false,
   });
 }
 
@@ -5512,6 +5711,11 @@ class OddsChartPainter extends CustomPainter {
         final x = xFor(current.time);
         final previousY = yForSeries(item, previous.value);
         final currentY = yForSeries(item, current.value);
+
+        if (current.segmentStart) {
+          path.moveTo(x, currentY);
+          continue;
+        }
 
         path.lineTo(x, previousY);
         path.lineTo(x, currentY);

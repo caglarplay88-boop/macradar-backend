@@ -1,314 +1,797 @@
-const puppeteer = require('puppeteer-core');
-const CHROME = '/data/data/com.termux/files/usr/bin/chromium-browser';
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const { parseBetExplorerUrl, sleep } = require('./util');
 
-let browserPromise = null;
+const execFileAsync = promisify(execFile);
+
+const TOR_SOCKS_PRIMARY =
+  process.env.TOR_SOCKS_PRIMARY ||
+  process.env.TOR_SOCKS ||
+  '127.0.0.1:9050';
+
+const TOR_SOCKS_FALLBACK =
+  process.env.TOR_SOCKS_FALLBACK || '';
+
+const TOR_COUNTRY_PRIMARY =
+  String(process.env.TOR_COUNTRY_PRIMARY || '')
+    .trim()
+    .toLowerCase();
+
+const TOR_COUNTRY_FALLBACK =
+  String(process.env.TOR_COUNTRY_FALLBACK || '')
+    .trim()
+    .toLowerCase();
+
+const ODDS_MIN_HEALTHY_BOOKMAKERS = Math.max(
+  1,
+  Math.min(
+    50,
+    Number(process.env.ODDS_MIN_HEALTHY_BOOKMAKERS) || 8
+  )
+);
+
+const USER_AGENT =
+  'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36';
 
 function bookmakerKey(name) {
   return String(name || '')
     .toLowerCase()
     .replace(/\s+/g, '')
     .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '');
+    .replace(/^www\./, '')
+    .replace(/\.(de|com|tr|eu|net|org)$/i, '');
+}
+
+function decodeHtml(value = '') {
+  return String(value)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#039;|&#39;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#(\d+);/g, (_, n) =>
+      String.fromCharCode(Number(n))
+    )
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function uniqueInPageOrder(rows) {
   const seen = new Set();
   const out = [];
-  for (const r of rows) {
-    const k = bookmakerKey(r.bookmaker);
-    if (!k || seen.has(k)) continue;
-    seen.add(k);
-    out.push(r);
+
+  for (const row of rows) {
+    const key = bookmakerKey(row.bookmaker);
+
+    if (!key || seen.has(key)) continue;
+
+    seen.add(key);
+    out.push(row);
+  }
+
+  return out;
+}
+
+function findBookmaker(rows, bookmaker) {
+  const wanted = bookmakerKey(bookmaker);
+
+  if (!wanted) return null;
+
+  return (
+    rows.find(
+      row => bookmakerKey(row.bookmaker) === wanted
+    ) || null
+  );
+}
+
+async function curlText(url, circuitTag, timeoutSeconds = 25, socksAddress = TOR_SOCKS_PRIMARY) {
+  try {
+    const { stdout } = await execFileAsync(
+      'curl',
+      [
+        '--silent',
+        '--show-error',
+        '--location',
+        '--fail',
+        '--compressed',
+
+        '--socks5-hostname',
+        socksAddress,
+
+        '--proxy-user',
+        circuitTag + ':macradar',
+
+        '--connect-timeout',
+        '10',
+
+        '--max-time',
+        String(timeoutSeconds),
+
+        '--header',
+        'User-Agent: ' + USER_AGENT,
+
+        '--header',
+        'Accept-Language: en-US,en;q=0.9',
+
+        '--header',
+        'Accept: application/json,text/javascript,*/*;q=0.01',
+
+        '--header',
+        'X-Requested-With: XMLHttpRequest',
+
+        '--header',
+        'Referer: https://www.betexplorer.com/',
+
+        url
+      ],
+      {
+        maxBuffer: 12 * 1024 * 1024,
+        timeout: (timeoutSeconds + 5) * 1000
+      }
+    );
+
+    return stdout;
+  } catch (error) {
+    const stderr = String(error?.stderr || '').trim();
+    const message = String(error?.message || error);
+
+    throw new Error(
+      stderr
+        ? `curl: ${stderr}`
+        : `curl: ${message}`
+    );
+  }
+}
+
+async function fetchMarket(eventId, type, circuitTag, socksAddress = TOR_SOCKS_PRIMARY) {
+  const url =
+    `https://www.betexplorer.com/match-odds/` +
+    `${eventId}/0/${type}/odds/?lang=en`;
+
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const text = await curlText(
+        url,
+        circuitTag,
+        25,
+        socksAddress
+      );
+
+      let data;
+
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(
+          `${type}: BetExplorer JSON döndürmedi`
+        );
+      }
+
+      if (!data || typeof data.odds !== 'string') {
+        throw new Error(
+          `${type}: odds verisi boş`
+        );
+      }
+
+      if (!data.odds.trim()) {
+        throw new Error(
+          `${type}: odds HTML boş`
+        );
+      }
+
+      return data.odds;
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < 2) {
+        await sleep(700);
+      }
+    }
+  }
+
+  throw lastError ||
+    new Error(`${type}: market alınamadı`);
+}
+
+function extractRows(html) {
+  return [
+    ...String(html).matchAll(
+      /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi
+    )
+  ].map(match => match[1]);
+}
+
+function extractOdds(rowHtml) {
+  const values = [];
+
+  const re =
+    /data-odd\s*=\s*["']([^"']+)["']/gi;
+
+  let match;
+
+  while ((match = re.exec(rowHtml))) {
+    const value = Number(
+      String(match[1]).replace(',', '.')
+    );
+
+    if (
+      Number.isFinite(value) &&
+      value > 1
+    ) {
+      values.push(value);
+    }
+  }
+
+  return values;
+}
+
+function extractOddStatuses(rowHtml) {
+  const out = [];
+  const re = /<td\b[^>]*\bdata-odd\s*=\s*["'][^"']+["'][^>]*>/gi;
+  let match;
+  while ((match = re.exec(rowHtml))) {
+    const tag = match[0];
+    const cm = tag.match(/\bclass\s*=\s*["']([^"']*)["']/i);
+    const classes = cm ? cm[1] : "";
+    out.push(/\binactive\b/i.test(classes) ? "suspended" : "active");
   }
   return out;
 }
 
-function firstThreeBookmakers(oneXtwo) {
-  const ordered = uniqueInPageOrder(oneXtwo);
-  const oneXbetIndex = ordered.findIndex(r =>
-    /(^|[^a-z0-9])1xbet([^a-z0-9]|$)/i.test(String(r.bookmaker || '')) ||
-    bookmakerKey(r.bookmaker).startsWith('1xbet')
+function extractBookmaker(rowHtml) {
+  let match = rowHtml.match(
+    /data-bookie\s*=\s*["']([^"']+)["']/i
   );
 
-  if (oneXbetIndex > 0) {
-    const [oneXbet] = ordered.splice(oneXbetIndex, 1);
-    ordered.unshift(oneXbet);
+  if (match) {
+    const value = decodeHtml(match[1]);
+    if (value) return value;
   }
 
-  return ordered.slice(0, 3);
-}
-
-function findBookmaker(rows, bookmaker) {
-  const target = bookmakerKey(bookmaker);
-  if (!target) return null;
-
-  const exact = rows.find(r => bookmakerKey(r.bookmaker) === target);
-  if (exact) return exact;
-
-  const bare = target.replace(/\.(de|com|tr|eu|net|org)$/i, '');
-  return rows.find(r => {
-    const k = bookmakerKey(r.bookmaker);
-    const kb = k.replace(/\.(de|com|tr|eu|net|org)$/i, '');
-    return kb === bare;
-  }) || null;
-}
-
-async function launchBrowser() {
-  const browser = await puppeteer.launch({
-    executablePath: CHROME,
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--no-zygote',
-      '--disable-background-networking',
-      '--disable-default-apps',
-      '--disable-extensions',
-      '--disable-sync',
-      '--proxy-server=socks5://127.0.0.1:9050'
-    ]
-  });
-  browser.on('disconnected', () => {
-    browserPromise = null;
-  });
-  return browser;
-}
-
-async function getBrowser() {
-  if (!browserPromise) browserPromise = launchBrowser();
-  let browser;
-  try {
-    browser = await browserPromise;
-    if (!browser.connected) throw new Error('browser disconnected');
-    return browser;
-  } catch (e) {
-    browserPromise = null;
-    throw e;
-  }
-}
-
-async function closeBrowser() {
-  const p = browserPromise;
-  browserPromise = null;
-  if (!p) return;
-  try {
-    const browser = await p;
-    if (browser.connected) await browser.close();
-  } catch {}
-}
-
-async function newConfiguredPage(browser) {
-  const page = await browser.newPage();
-  await page.setViewport({ width: 412, height: 915, deviceScaleFactor: 1 });
-  await page.setUserAgent(
-    'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36'
+  match = rowHtml.match(
+    /<a\b[^>]*title\s*=\s*["']([^"']+)["'][^>]*>/i
   );
-  await page.setExtraHTTPHeaders({ 'accept-language': 'en-US,en;q=0.9' });
-  await page.setRequestInterception(true);
-  page.on('request', req => {
-    const t = req.resourceType();
-    if (t === 'image' || t === 'media' || t === 'font') req.abort();
-    else req.continue();
-  });
-  return page;
+
+  if (match) {
+    const value = decodeHtml(match[1]);
+
+    if (value) return value;
+  }
+
+  match = rowHtml.match(
+    /class\s*=\s*["'][^"']*table-main__participant[^"']*["'][^>]*>([\s\S]*?)<\/[^>]+>/i
+  );
+
+  if (match) {
+    const value = decodeHtml(match[1]);
+
+    if (value) return value;
+  }
+
+  match = rowHtml.match(
+    /<td\b[^>]*>([\s\S]*?)<\/td>/i
+  );
+
+  if (match) {
+    const value = decodeHtml(match[1]);
+
+    if (value) return value;
+  }
+
+  return 'Bookmaker';
+}
+
+function extractTotal(rowHtml) {
+  const match = rowHtml.match(
+    /class\s*=\s*["'][^"']*table-main__doubleparameter[^"']*["'][^>]*>([\s\S]*?)<\/[^>]+>/i
+  );
+
+  if (!match) return '';
+
+  return decodeHtml(match[1])
+    .replace(',', '.')
+    .trim();
+}
+
+function parseMarketHtml(html, mode) {
+  const rows = [];
+
+  for (const tr of extractRows(html)) {
+    const values = extractOdds(tr);
+    const statuses = extractOddStatuses(tr);
+
+    if (!values.length) continue;
+
+    const bookmaker = extractBookmaker(tr);
+
+    if (mode === '1x2') {
+      if (values.length >= 3) {
+        rows.push({
+          bookmaker,
+          values: values.slice(0, 3),
+          statuses: statuses.slice(0, 3)
+        });
+      }
+
+      continue;
+    }
+
+    if (mode === 'bts') {
+      if (values.length >= 2) {
+        rows.push({
+          bookmaker,
+          values: values.slice(0, 2),
+          statuses: statuses.slice(0, 2)
+        });
+      }
+
+      continue;
+    }
+
+    if (mode === 'ou') {
+      const total = extractTotal(tr);
+
+      if (
+        (total === '1.5' || total === '2.5') &&
+        values.length >= 2
+      ) {
+        rows.push({
+          bookmaker,
+          total,
+          values: values.slice(0, 2),
+          statuses: statuses.slice(0, 2)
+        });
+      }
+    }
+  }
+
+  return rows;
 }
 
 async function pullOdds(rawUrl) {
   const parsed = parseBetExplorerUrl(rawUrl);
-  const browser = await getBrowser();
-  const page = await newConfiguredPage(browser);
+  let lastError = null;
 
-  try {
-    try {
-      await page.goto(parsed.url, { waitUntil: 'domcontentloaded', timeout: 22000 });
-    } catch (e) {
-      if (!/timeout/i.test(String(e?.message || e))) throw e;
-      console.log('[odds] navigation timeout, market endpointleri yine denenecek:', parsed.eventId);
+  const sources = [
+    {
+      name: 'primary',
+      socks: TOR_SOCKS_PRIMARY,
+      country: TOR_COUNTRY_PRIMARY || null
     }
+  ];
 
-    if (!String(page.url()).startsWith('https://www.betexplorer.com/')) {
-      try {
-        await page.goto('https://www.betexplorer.com/', {
-          waitUntil: 'domcontentloaded',
-          timeout: 12000
-        });
-      } catch (e) {
-        console.log('[odds] ana sayfa navigation uyarısı:', parsed.eventId, String(e?.message || e));
-      }
-    }
+  if (
+    TOR_SOCKS_FALLBACK &&
+    TOR_SOCKS_FALLBACK !== TOR_SOCKS_PRIMARY
+  ) {
+    sources.push({
+      name: 'fallback',
+      socks: TOR_SOCKS_FALLBACK,
+      country: TOR_COUNTRY_FALLBACK || null
+    });
+  }
 
-    await sleep(1600);
+  function marketCoverage(oneXtwo, ou15Rows, ou25Rows, btsRows) {
+    return {
+      ms: uniqueInPageOrder(oneXtwo).length,
+      ou15: uniqueInPageOrder(ou15Rows).length,
+      ou25: uniqueInPageOrder(ou25Rows).length,
+      btts: uniqueInPageOrder(btsRows).length
+    };
+  }
 
-    const navAfterConsent = page
-      .waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 9000 })
-      .catch(() => null);
+  function suspiciousCoverage(c) {
+    if (c.ms <= 0) return true;
 
-    const consentClicked = await page.evaluate(() => {
-      const buttons = [...document.querySelectorAll('button')];
-      const b = buttons.find(x => /18|confirm|yes|sim/i.test((x.innerText || '').trim()));
-      if (!b) return false;
-      b.click();
+    const reference = Math.max(
+      c.ms,
+      c.ou15,
+      c.ou25,
+      c.btts
+    );
+
+    // Tüm marketler birlikte çökerse oranları birbirine
+    // dengeli görünse bile snapshot sağlıklı sayılmaz.
+    if (reference < ODDS_MIN_HEALTHY_BOOKMAKERS) {
       return true;
-    }).catch(() => false);
-
-    if (consentClicked) {
-      await Promise.race([navAfterConsent, sleep(5500)]);
-      await sleep(1200);
-    } else {
-      await sleep(700);
     }
 
-    const meta = await page.evaluate(() => {
-      const body = (document.body?.innerText || '').replace(/\r/g, '');
-      const title = (document.querySelector('h1')?.innerText || '').trim();
-      const datePatterns = [
-        /(?:Today|Tomorrow|Yesterday),?\s+\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4},?\s+\d{1,2}:\d{2}/i,
-        /\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4},?\s+\d{1,2}:\d{2}/i,
-        /\d{1,2}\.\d{1,2}\.\d{4}\s+\d{1,2}:\d{2}/
-      ];
-      let dateTime = '';
-      for (const re of datePatterns) {
-        const m = body.match(re);
-        if (m) { dateTime = m[0]; break; }
-      }
-      return { title, dateTime };
-    }).catch(() => ({ title: '', dateTime: '' }));
+    const floor = Math.max(
+      2,
+      Math.floor(reference * 0.45)
+    );
 
-    async function fetchMarket(type) {
-      let lastError = null;
+    return (
+      c.ms < floor ||
+      c.ou15 < floor ||
+      c.ou25 < floor ||
+      c.btts < floor
+    );
+  }
 
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          return await page.evaluate(async ({ eventId, type }) => {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 18000);
-            try {
-              const url = `https://www.betexplorer.com/match-odds/${eventId}/0/${type}/odds/?lang=en`;
-              const r = await fetch(url, {
-                credentials: 'include',
-                signal: controller.signal,
-                headers: {
-                  'x-requested-with': 'XMLHttpRequest',
-                  'accept': 'application/json,text/javascript,*/*;q=0.01'
-                }
-              });
-              const text = await r.text();
-              if (!r.ok) throw new Error(`${type} HTTP ${r.status}`);
-              let data;
-              try { data = JSON.parse(text); }
-              catch { throw new Error(`${type} JSON değil`); }
-              if (!data.odds) throw new Error(`${type} odds boş`);
-              return data.odds;
-            } finally {
-              clearTimeout(timer);
-            }
-          }, { eventId: parsed.eventId, type });
-        } catch (e) {
-          lastError = e;
-          if (attempt < 2) await sleep(1200);
-        }
-      }
-
-      throw lastError || new Error(type + ' market alınamadı');
-    }
-
-    async function parseHtml(html, mode) {
-      return page.evaluate(({ html, mode }) => {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        function nameOf(tr) {
-          const a = tr.querySelector('a');
-          const title = (a?.getAttribute('title') || '').trim();
-          const txt = (tr.querySelector('.table-main__participant')?.textContent || '').trim();
-          const first = (tr.querySelector('td')?.textContent || '').trim();
-          return txt || title || first || 'Bookmaker';
-        }
-        function oddsOf(tr) {
-          return [...tr.querySelectorAll('[data-odd]')]
-            .map(x => Number((x.getAttribute('data-odd') || '').replace(',', '.')))
-            .filter(n => Number.isFinite(n) && n > 1);
-        }
-        const out = [];
-        for (const tr of [...doc.querySelectorAll('tr')]) {
-          const vals = oddsOf(tr);
-          if (!vals.length) continue;
-          if (mode === '1x2' && vals.length >= 3) {
-            out.push({ bookmaker: nameOf(tr), values: vals.slice(0, 3) });
-          } else if (mode === 'bts' && vals.length >= 2) {
-            out.push({ bookmaker: nameOf(tr), values: vals.slice(0, 2) });
-          } else if (mode === 'ou') {
-            const total = (tr.querySelector('.table-main__doubleparameter')?.textContent || '').trim().replace(',', '.');
-            if ((total === '1.5' || total === '2.5') && vals.length >= 2) {
-              out.push({ bookmaker: nameOf(tr), total, values: vals.slice(0, 2) });
-            }
-          }
-        }
-        return out;
-      }, { html, mode });
-    }
+  async function pullFromSource(source, circuit) {
+    const circuitTag =
+      'macradar-' +
+      source.name +
+      '-' +
+      parsed.eventId +
+      '-' +
+      Date.now() +
+      '-' +
+      circuit;
 
     const [h1x2, hou, hbts] = await Promise.all([
-      fetchMarket('1x2'),
-      fetchMarket('ou'),
-      fetchMarket('bts')
+      fetchMarket(parsed.eventId, '1x2', circuitTag, source.socks),
+      fetchMarket(parsed.eventId, 'ou', circuitTag, source.socks),
+      fetchMarket(parsed.eventId, 'bts', circuitTag, source.socks)
     ]);
 
-    const [oneXtwo, ou, bts] = await Promise.all([
-      parseHtml(h1x2, '1x2'),
-      parseHtml(hou, 'ou'),
-      parseHtml(hbts, 'bts')
-    ]);
+    const oneXtwo = parseMarketHtml(h1x2, '1x2');
+    const ou = parseMarketHtml(hou, 'ou');
+    const bts = parseMarketHtml(hbts, 'bts');
 
-    const selectedBooks = firstThreeBookmakers(oneXtwo);
-    console.log(
-      '[odds] ' + parsed.eventId + ' bookmakers=' +
-      selectedBooks.map(x => x.bookmaker).join(' | ')
+    const uniqueMs = uniqueInPageOrder(oneXtwo);
+
+    const ou15Rows = uniqueInPageOrder(
+      ou.filter(row => row.total === '1.5')
     );
-    const ou15Rows = uniqueInPageOrder(ou.filter(r => r.total === '1.5'));
-    const ou25Rows = uniqueInPageOrder(ou.filter(r => r.total === '2.5'));
+
+    const ou25Rows = uniqueInPageOrder(
+      ou.filter(row => row.total === '2.5')
+    );
+
     const btsRows = uniqueInPageOrder(bts);
 
-    const rows = selectedBooks.map(ms => {
-      const r = {
-        bookmaker: ms.bookmaker,
-        ms1: ms.values[0],
-        msx: ms.values[1],
-        ms2: ms.values[2]
-      };
-
-      const a15 = findBookmaker(ou15Rows, ms.bookmaker);
-      const a25 = findBookmaker(ou25Rows, ms.bookmaker);
-      const kg = findBookmaker(btsRows, ms.bookmaker);
-
-      if (a15) Object.assign(r, {
-        ou15_over: a15.values[0],
-        ou15_under: a15.values[1]
-      });
-
-      if (a25) Object.assign(r, {
-        ou25_over: a25.values[0],
-        ou25_under: a25.values[1]
-      });
-
-      if (kg) Object.assign(r, {
-        btts_yes: kg.values[0],
-        btts_no: kg.values[1]
-      });
-
-      return r;
-    }).filter(r =>
-      ['ms1','msx','ms2','ou15_over','ou15_under','ou25_over','ou25_under','btts_yes','btts_no']
-        .some(k => Number.isFinite(r[k]))
+    const coverage = marketCoverage(
+      uniqueMs,
+      ou15Rows,
+      ou25Rows,
+      btsRows
     );
 
-    if (!rows.length) throw new Error('Ayrıştırılabilir oran bulunamadı.');
+    // Bookmaker birleşimi:
+    // MS + O/U 1.5 + O/U 2.5 + KG.
+    const allMarketRows = [
+      ...uniqueMs,
+      ...ou15Rows,
+      ...ou25Rows,
+      ...btsRows
+    ];
 
-    return { ...parsed, meta, rows, capturedAt: new Date() };
-  } finally {
-    try { await page.close(); } catch {}
+    const candidateMap = new Map();
+
+    for (const row of allMarketRows) {
+      const key = bookmakerKey(row.bookmaker);
+      if (!key || candidateMap.has(key)) continue;
+
+      candidateMap.set(key, {
+        bookmaker: row.bookmaker
+      });
+    }
+
+    // Sadece sıralama kolaylığı için üç bilinen isim öne alınır;
+    // veri filtresi değildir.
+    const priorityNames = ['1xBet', '888sport', 'bet365'];
+    const orderedNames = [];
+
+    for (const wanted of priorityNames) {
+      const key = bookmakerKey(wanted);
+      if (candidateMap.has(key)) {
+        orderedNames.push(key);
+      }
+    }
+
+    for (const key of candidateMap.keys()) {
+      if (!orderedNames.includes(key)) {
+        orderedNames.push(key);
+      }
+    }
+
+    const rows = [];
+
+    for (const key of orderedNames) {
+      const base = candidateMap.get(key);
+      const bookmaker = base.bookmaker;
+
+      const ms = findBookmaker(uniqueMs, bookmaker);
+      const a15 = findBookmaker(ou15Rows, bookmaker);
+      const a25 = findBookmaker(ou25Rows, bookmaker);
+      const kg = findBookmaker(btsRows, bookmaker);
+
+      const row = {
+        bookmaker
+      };
+
+      if (ms) Object.assign(row, {
+  ms1: ms.values[0],
+  ms1_status: ms.statuses?.[0] || "unknown",
+  msx: ms.values[1],
+  msx_status: ms.statuses?.[1] || "unknown",
+  ms2: ms.values[2],
+  ms2_status: ms.statuses?.[2] || "unknown"
+});
+
+      if (a15) Object.assign(row, {
+  ou15_over: a15.values[0],
+  ou15_over_status: a15.statuses?.[0] || "unknown",
+  ou15_under: a15.values[1],
+  ou15_under_status: a15.statuses?.[1] || "unknown"
+});
+
+      if (a25) Object.assign(row, {
+  ou25_over: a25.values[0],
+  ou25_over_status: a25.statuses?.[0] || "unknown",
+  ou25_under: a25.values[1],
+  ou25_under_status: a25.statuses?.[1] || "unknown"
+});
+
+      if (kg) Object.assign(row, {
+  btts_yes: kg.values[0],
+  btts_yes_status: kg.statuses?.[0] || "unknown",
+  btts_no: kg.values[1],
+  btts_no_status: kg.statuses?.[1] || "unknown"
+});
+
+      const available = [
+        row.ms1, row.msx, row.ms2,
+        row.ou15_over, row.ou15_under,
+        row.ou25_over, row.ou25_under,
+        row.btts_yes, row.btts_no
+      ];
+
+      if (available.some(x => Number.isFinite(Number(x)))) {
+        rows.push(row);
+      }
+    }
+
+    if (!rows.length) {
+      throw new Error('Geçerli bookmaker oranı bulunamadı.');
+    }
+
+    return {
+      rows,
+      coverage,
+      source
+    };
   }
+
+  function qualityOf(result) {
+    const c = result.coverage;
+
+    const values = [
+      Number(c.ms) || 0,
+      Number(c.ou15) || 0,
+      Number(c.ou25) || 0,
+      Number(c.btts) || 0
+    ];
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const sum = values.reduce((a, b) => a + b, 0);
+
+    return {
+      healthy: !suspiciousCoverage(c),
+      min,
+      sum,
+      spread: max - min,
+      rows: result.rows.length
+    };
+  }
+
+  function betterCandidate(current, incoming) {
+    if (!current) return incoming;
+
+    const a = qualityOf(incoming.result);
+    const b = qualityOf(current.result);
+
+    if (a.healthy !== b.healthy) {
+      return a.healthy ? incoming : current;
+    }
+
+    if (a.min !== b.min) {
+      return a.min > b.min ? incoming : current;
+    }
+
+    if (a.sum !== b.sum) {
+      return a.sum > b.sum ? incoming : current;
+    }
+
+    if (a.spread !== b.spread) {
+      return a.spread < b.spread ? incoming : current;
+    }
+
+    if (a.rows !== b.rows) {
+      return a.rows > b.rows ? incoming : current;
+    }
+
+    if (
+      incoming.result.source.name === 'primary' &&
+      current.result.source.name !== 'primary'
+    ) {
+      return incoming;
+    }
+
+    return current;
+  }
+
+  function buildResult(candidate, degraded = false) {
+    const meta = {
+      source: 'betexplorer-direct-tor',
+      browser: false,
+      torCircuit: candidate.circuit,
+      torSource: candidate.result.source.name,
+      torCountry: candidate.result.source.country || null,
+      coverage: candidate.result.coverage
+    };
+
+    if (candidate.fallbackChecked) {
+      meta.fallbackChecked = true;
+    }
+
+    if (degraded) {
+      meta.degraded = true;
+    }
+
+    return {
+      ...parsed,
+      meta,
+      rows: candidate.result.rows,
+      capturedAt: new Date()
+    };
+  }
+
+  let bestDegraded = null;
+
+  for (let circuit = 1; circuit <= 8; circuit++) {
+    let primaryResult = null;
+    let fallbackResult = null;
+
+    try {
+      primaryResult = await pullFromSource(
+        sources[0],
+        circuit
+      );
+
+      if (!suspiciousCoverage(primaryResult.coverage)) {
+        console.log(
+          '[odds] ' +
+          parsed.eventId +
+          ' source=' +
+          primaryResult.source.name +
+          ' tor=' +
+          circuit +
+          ' coverage=' +
+          JSON.stringify(primaryResult.coverage) +
+          ' bookmakers=' +
+          primaryResult.rows.length
+        );
+
+        return buildResult({
+          result: primaryResult,
+          circuit,
+          fallbackChecked: false
+        });
+      }
+
+      console.log(
+        '[odds] ' +
+        parsed.eventId +
+        ' primary coverage şüpheli: ' +
+        JSON.stringify(primaryResult.coverage)
+      );
+    } catch (error) {
+      lastError = error;
+
+      console.log(
+        '[odds] ' +
+        parsed.eventId +
+        ' primary tor=' +
+        circuit +
+        ' başarısız: ' +
+        String(error?.message || error)
+      );
+    }
+
+    if (sources.length > 1) {
+      try {
+        fallbackResult = await pullFromSource(
+          sources[1],
+          circuit
+        );
+
+        if (!suspiciousCoverage(fallbackResult.coverage)) {
+          console.log(
+            '[odds] ' +
+            parsed.eventId +
+            ' source=' +
+            fallbackResult.source.name +
+            ' tor=' +
+            circuit +
+            ' coverage=' +
+            JSON.stringify(fallbackResult.coverage) +
+            ' bookmakers=' +
+            fallbackResult.rows.length
+          );
+
+          return buildResult({
+            result: fallbackResult,
+            circuit,
+            fallbackChecked: true
+          });
+        }
+
+        console.log(
+          '[odds] ' +
+          parsed.eventId +
+          ' fallback coverage şüpheli: ' +
+          JSON.stringify(fallbackResult.coverage)
+        );
+      } catch (error) {
+        lastError = error;
+
+        console.log(
+          '[odds] ' +
+          parsed.eventId +
+          ' fallback tor=' +
+          circuit +
+          ' başarısız: ' +
+          String(error?.message || error)
+        );
+      }
+    }
+
+    const degradedOptions = [
+      primaryResult,
+      fallbackResult
+    ].filter(Boolean);
+
+    for (const result of degradedOptions) {
+      bestDegraded = betterCandidate(
+        bestDegraded,
+        {
+          result,
+          circuit,
+          fallbackChecked: sources.length > 1
+        }
+      );
+    }
+
+    if (circuit < 8) {
+      await sleep(500);
+    }
+  }
+
+  if (bestDegraded) {
+    console.log(
+      '[odds] ' +
+      parsed.eventId +
+      ' DEGRADED source=' +
+      bestDegraded.result.source.name +
+      ' tor=' +
+      bestDegraded.circuit +
+      ' coverage=' +
+      JSON.stringify(bestDegraded.result.coverage) +
+      ' bookmakers=' +
+      bestDegraded.result.rows.length
+    );
+
+    return buildResult(bestDegraded, true);
+  }
+
+  throw lastError ||
+    new Error('8 Tor devresinde uygun oran seti alınamadı.');
 }
 
-module.exports = { pullOdds, closeBrowser };
+async function closeBrowser() {
+  // Browser kullanılmıyor.
+}
+
+module.exports = {
+  pullOdds,
+  closeBrowser
+};

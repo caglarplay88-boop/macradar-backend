@@ -38,6 +38,23 @@ async function initDb() {
       btts_no DOUBLE PRECISION
     );
 
+    CREATE TABLE IF NOT EXISTS snapshot_meta (
+      event_id TEXT NOT NULL,
+      captured_at TIMESTAMPTZ NOT NULL,
+      source TEXT,
+      tor_source TEXT,
+      tor_country TEXT,
+      tor_circuit INTEGER,
+      coverage JSONB NOT NULL DEFAULT '{}'::jsonb,
+      degraded BOOLEAN NOT NULL DEFAULT FALSE,
+      fallback_checked BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY(event_id, captured_at)
+    );
+
+    ALTER TABLE snapshot_meta
+      ADD COLUMN IF NOT EXISTS tor_country TEXT;
+
     CREATE TABLE IF NOT EXISTS odds_alerts (
       id BIGSERIAL PRIMARY KEY,
       event_id TEXT NOT NULL,
@@ -68,6 +85,32 @@ async function initDb() {
     ALTER TABLE snapshots
       ADD COLUMN IF NOT EXISTS bookmaker_rank INTEGER;
 
+    ALTER TABLE snapshots
+      ADD COLUMN IF NOT EXISTS status_map JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+    CREATE TABLE IF NOT EXISTS market_state_events (
+      id BIGSERIAL PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      captured_at TIMESTAMPTZ NOT NULL,
+      bookmaker TEXT NOT NULL,
+      market TEXT NOT NULL,
+      selection TEXT NOT NULL,
+      outcome_key TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      from_status TEXT,
+      to_status TEXT,
+      last_active_at TIMESTAMPTZ,
+      last_active_odd DOUBLE PRECISION,
+      current_odd DOUBLE PRECISION,
+      reopen_gap_pct DOUBLE PRECISION,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(event_id,captured_at,bookmaker,outcome_key,event_type)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_market_state_events_event_time
+      ON market_state_events(event_id,captured_at DESC);
+
+
     ALTER TABLE matches
       ADD COLUMN IF NOT EXISTS display_name TEXT;
 
@@ -94,6 +137,9 @@ async function initDb() {
 
     ALTER TABLE matches
       ADD COLUMN IF NOT EXISTS result_status TEXT;
+      ALTER TABLE matches
+        ADD COLUMN IF NOT EXISTS refresh_minutes INTEGER;
+
 
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
@@ -123,6 +169,9 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_snapshots_event_time
       ON snapshots(event_id, captured_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_snapshot_meta_event_time
+      ON snapshot_meta(event_id, captured_at DESC);
 
     CREATE INDEX IF NOT EXISTS idx_worker_runs_started
       ON worker_runs(started_at DESC);
@@ -185,6 +234,11 @@ function alertCandidates(previous, current) {
 
   const alerts = [];
   for (const [market, selection, key] of fields) {
+    const previousStatus = String(previous.status_map?.[key] || "unknown").toLowerCase();
+    const currentStatus = String(current[key + "_status"] || "unknown").toLowerCase();
+
+    if (previousStatus !== "active" || currentStatus !== "active") continue;
+
     const before = Number(previous[key]);
     const after = Number(current[key]);
     if (!Number.isFinite(before) || !Number.isFinite(after)) continue;
@@ -199,22 +253,114 @@ function alertCandidates(previous, current) {
   return alerts;
 }
 
-async function saveSnapshot({ eventId, url, slug, rows, capturedAt = new Date() }) {
+function marketStateTransitions(previous, current) {
+  if (!previous || !current) return [];
+
+  const fields = [
+    ["MS","1","ms1"], ["MS","X","msx"], ["MS","2","ms2"],
+    ["1.5","Üst","ou15_over"], ["1.5","Alt","ou15_under"],
+    ["2.5","Üst","ou25_over"], ["2.5","Alt","ou25_under"],
+    ["KG","Var","btts_yes"], ["KG","Yok","btts_no"]
+  ];
+
+  const out = [];
+
+  for (const [market, selection, key] of fields) {
+    const from = String(previous.status_map?.[key] || "unknown").toLowerCase();
+    const to = String(current[key + "_status"] || "unknown").toLowerCase();
+
+    if (!["active","suspended"].includes(from)) continue;
+    if (!["active","suspended"].includes(to)) continue;
+    if (from === to) continue;
+
+    out.push({
+      market,
+      selection,
+      key,
+      eventType: from === "active" && to === "suspended" ? "SUSPEND" : "REOPEN",
+      fromStatus: from,
+      toStatus: to
+    });
+  }
+
+  return out;
+}
+
+async function saveMarketStateEvents(client, eventId, capturedAt, previous, current) {
+  const transitions = marketStateTransitions(previous, current);
+
+  for (const t of transitions) {
+    let lastActive = null;
+
+    if (t.eventType === "REOPEN") {
+      lastActive = (await client.query(
+        "SELECT * FROM snapshots WHERE event_id=$1 AND LOWER(REPLACE(bookmaker, ' ', '')) = LOWER(REPLACE($2, ' ', '')) AND captured_at < $3 AND COALESCE(status_map ->> $4::text, 'unknown') = 'active' ORDER BY captured_at DESC, id DESC LIMIT 1",
+        [eventId, current.bookmaker, capturedAt, t.key]
+      )).rows[0] || null;
+    } else {
+      lastActive = previous;
+    }
+
+    const before = Number(lastActive?.[t.key]);
+    const after = Number(current[t.key]);
+
+    const gapPct =
+      t.eventType === "REOPEN" &&
+      Number.isFinite(before) &&
+      before > 0 &&
+      Number.isFinite(after)
+        ? ((after - before) / before) * 100
+        : null;
+
+    await client.query(
+      "INSERT INTO market_state_events(event_id,captured_at,bookmaker,market,selection,outcome_key,event_type,from_status,to_status,last_active_at,last_active_odd,current_odd,reopen_gap_pct) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING",
+      [
+        eventId,
+        capturedAt,
+        current.bookmaker,
+        t.market,
+        t.selection,
+        t.key,
+        t.eventType,
+        t.fromStatus,
+        t.toStatus,
+        lastActive?.captured_at || null,
+        Number.isFinite(before) ? before : null,
+        Number.isFinite(after) ? after : null,
+        gapPct
+      ]
+    );
+  }
+}
+
+function snapshotStatusMap(row) {
+  const keys = ["ms1","msx","ms2","ou15_over","ou15_under","ou25_over","ou25_under","btts_yes","btts_no"];
+  const out = {};
+  for (const key of keys) {
+    if (!Number.isFinite(Number(row[key]))) continue;
+    const raw = String(row[key + "_status"] || "unknown").toLowerCase();
+    out[key] = raw === "active" || raw === "suspended" ? raw : "unknown";
+  }
+  return out;
+}
+
+async function saveSnapshot({ eventId, url, slug, rows, capturedAt = new Date(), meta = null }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const currentPreferred =
-      rows.find(r => String(r.bookmaker || '').toLowerCase().replace(/\s+/g, '').startsWith('1xbet')) ||
-      rows[0] ||
-      null;
+    const previousByBookmaker = new Map();
 
-    let previousPreferred = null;
-    if (currentPreferred) {
-      previousPreferred = (await client.query(
+    for (const current of rows) {
+      const previous = (await client.query(
         "SELECT * FROM snapshots WHERE event_id=$1 AND LOWER(REPLACE(bookmaker, ' ', '')) = LOWER(REPLACE($2, ' ', '')) AND captured_at < $3 ORDER BY captured_at DESC, id DESC LIMIT 1",
-        [eventId, currentPreferred.bookmaker, capturedAt]
+        [eventId, current.bookmaker, capturedAt]
       )).rows[0] || null;
+
+      previousByBookmaker.set(
+        String(current.bookmaker || '').toLowerCase().replace(/\s+/g, ''),
+        previous
+      );
     }
 
     await client.query(`
@@ -231,28 +377,84 @@ async function saveSnapshot({ eventId, url, slug, rows, capturedAt = new Date() 
       await client.query(`
         INSERT INTO snapshots(
           event_id,captured_at,bookmaker,bookmaker_rank,ms1,msx,ms2,
-          ou15_over,ou15_under,ou25_over,ou25_under,btts_yes,btts_no
-        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          ou15_over,ou15_under,ou25_over,ou25_under,btts_yes,btts_no,status_map
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)
       `, [
         eventId, capturedAt, r.bookmaker, i + 1,
         r.ms1 ?? null, r.msx ?? null, r.ms2 ?? null,
         r.ou15_over ?? null, r.ou15_under ?? null,
         r.ou25_over ?? null, r.ou25_under ?? null,
-        r.btts_yes ?? null, r.btts_no ?? null
+        r.btts_yes ?? null, r.btts_no ?? null,
+        JSON.stringify(snapshotStatusMap(r))
       ]);
     }
+    for (const current of rows) {
+      const key = String(current.bookmaker || "")
+        .toLowerCase()
+        .replace(/\s+/g, "");
+
+      const previous = previousByBookmaker.get(key);
+
+      if (previous) {
+        await saveMarketStateEvents(
+          client,
+          eventId,
+          capturedAt,
+          previous,
+          current
+        );
+      }
+    }
+
+    await client.query(`
+      INSERT INTO snapshot_meta(
+        event_id,captured_at,source,tor_source,tor_country,tor_circuit,
+        coverage,degraded,fallback_checked
+      )
+      VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)
+      ON CONFLICT(event_id,captured_at) DO UPDATE SET
+        source=EXCLUDED.source,
+        tor_source=EXCLUDED.tor_source,
+        tor_country=EXCLUDED.tor_country,
+        tor_circuit=EXCLUDED.tor_circuit,
+        coverage=EXCLUDED.coverage,
+        degraded=EXCLUDED.degraded,
+        fallback_checked=EXCLUDED.fallback_checked
+    `, [
+      eventId,
+      capturedAt,
+      meta?.source ?? null,
+      meta?.torSource ?? null,
+      meta?.torCountry ?? null,
+      Number.isFinite(Number(meta?.torCircuit)) ? Number(meta.torCircuit) : null,
+      JSON.stringify(meta?.coverage || {}),
+      meta?.degraded === true,
+      meta?.fallbackChecked === true
+    ]);
+
     const activeRow = (await client.query(
       'SELECT active FROM matches WHERE event_id=$1',
       [eventId]
     )).rows[0];
 
-    if (activeRow?.active && currentPreferred && previousPreferred) {
-      const alerts = alertCandidates(previousPreferred, currentPreferred);
-      for (const alert of alerts) {
-        await client.query(
-          'INSERT INTO odds_alerts(event_id,captured_at,bookmaker,market,selection,previous_odd,current_odd,drop_pct) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING',
-          [eventId, capturedAt, currentPreferred.bookmaker, alert.market, alert.selection, alert.previousOdd, alert.currentOdd, alert.dropPct]
-        );
+    if (activeRow?.active) {
+      for (const current of rows) {
+        const key = String(current.bookmaker || '')
+          .toLowerCase()
+          .replace(/\s+/g, '');
+
+        const previous = previousByBookmaker.get(key);
+
+        if (!previous) continue;
+
+        const alerts = alertCandidates(previous, current);
+
+        for (const alert of alerts) {
+          await client.query(
+            'INSERT INTO odds_alerts(event_id,captured_at,bookmaker,market,selection,previous_odd,current_odd,drop_pct) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING',
+            [eventId, capturedAt, current.bookmaker, alert.market, alert.selection, alert.previousOdd, alert.currentOdd, alert.dropPct]
+          );
+        }
       }
     }
 
@@ -274,14 +476,91 @@ async function listMatches({ activeOnly = false } = {}) {
         SELECT COUNT(DISTINCT s.captured_at)::int
         FROM snapshots s
         WHERE s.event_id=m.event_id
-          AND EXISTS (
-            SELECT 1
-            FROM snapshots sx
-            WHERE sx.event_id=s.event_id
-              AND sx.captured_at=s.captured_at
-              AND LOWER(sx.bookmaker) LIKE '1xbet%'
-          )
-      ) AS capture_count
+      ) AS capture_count,
+      EXISTS (
+        SELECT 1
+        FROM (
+          SELECT
+            s.captured_at,
+            s.bookmaker,
+
+            LAG(s.captured_at) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS prev_time,
+
+            s.ms1,
+            LAG(s.ms1) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS p_ms1,
+
+            s.msx,
+            LAG(s.msx) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS p_msx,
+
+            s.ms2,
+            LAG(s.ms2) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS p_ms2,
+
+            s.ou15_under,
+            LAG(s.ou15_under) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS p_15u,
+
+            s.ou15_over,
+            LAG(s.ou15_over) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS p_15o,
+
+            s.ou25_under,
+            LAG(s.ou25_under) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS p_25u,
+
+            s.ou25_over,
+            LAG(s.ou25_over) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS p_25o,
+
+            s.btts_no,
+            LAG(s.btts_no) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS p_kgy,
+
+            s.btts_yes,
+            LAG(s.btts_yes) OVER (
+              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
+              ORDER BY s.captured_at
+            ) AS p_kgv
+
+          FROM snapshots s
+          WHERE s.event_id=m.event_id
+        ) z
+        WHERE z.captured_at >= NOW() - INTERVAL '60 minutes'
+          AND z.prev_time IS NOT NULL
+          AND z.captured_at - z.prev_time <= INTERVAL '35 minutes'
+          AND GREATEST(
+            ABS((z.ms1-z.p_ms1) / NULLIF(z.p_ms1,0)),
+            ABS((z.msx-z.p_msx) / NULLIF(z.p_msx,0)),
+            ABS((z.ms2-z.p_ms2) / NULLIF(z.p_ms2,0)),
+            ABS((z.ou15_under-z.p_15u) / NULLIF(z.p_15u,0)),
+            ABS((z.ou15_over-z.p_15o) / NULLIF(z.p_15o,0)),
+            ABS((z.ou25_under-z.p_25u) / NULLIF(z.p_25u,0)),
+            ABS((z.ou25_over-z.p_25o) / NULLIF(z.p_25o,0)),
+            ABS((z.btts_no-z.p_kgy) / NULLIF(z.p_kgy,0)),
+            ABS((z.btts_yes-z.p_kgv) / NULLIF(z.p_kgv,0))
+          ) >= 0.15
+      ) AS sharp_move_alert
     FROM matches m
     ${activeOnly ? 'WHERE m.active=TRUE' : ''}
     ORDER BY
@@ -351,6 +630,36 @@ async function getMatch(eventId) {
     params
   )).rows;
 
+  const allMeta = (await pool.query(
+    'SELECT * FROM snapshot_meta WHERE event_id=$1' + cutoffClause + ' ORDER BY captured_at',
+    params
+  )).rows;
+
+  const marketStateEvents = (await pool.query(
+    'SELECT * FROM market_state_events WHERE event_id=$1' + cutoffClause + ' ORDER BY captured_at,id',
+    params
+  )).rows;
+
+
+  const metaByCapturedAt = new Map(
+    allMeta.map(x => [
+      new Date(x.captured_at).toISOString(),
+      {
+        source: x.source,
+        tor_source: x.tor_source,
+        tor_country: x.tor_country,
+        tor_circuit: x.tor_circuit,
+        coverage: x.coverage || {},
+        degraded: x.degraded === true,
+        fallback_checked: x.fallback_checked === true
+      }
+    ])
+  );
+
+  const latestMeta = latest
+    ? metaByCapturedAt.get(new Date(latest).toISOString()) || null
+    : null;
+
   const groups = new Map();
   for (const r of all) {
     const key = new Date(r.captured_at).toISOString();
@@ -365,17 +674,21 @@ async function getMatch(eventId) {
     null;
   const preferredKey = keyOf(preferred?.bookmaker);
 
-  const historyGroups = [...groups.entries()].map(([captured_at, a]) => {
+  const allHistoryGroups = [...groups.entries()].map(([captured_at, a]) => {
     const ordered = [...a].sort((x, y) =>
       (x.bookmaker_rank ?? 999) - (y.bookmaker_rank ?? 999) || Number(x.id) - Number(y.id)
     );
     return {
       captured_at,
-      rows: ordered.slice(0, 3)
+      rows: ordered,
+      meta: metaByCapturedAt.get(captured_at) || null
     };
-  }).filter(group =>
-    group.rows.some(x => keyOf(x.bookmaker).startsWith('1xbet'))
-  );
+  });
+
+  const historyGroups = allHistoryGroups.map(group => ({
+    captured_at: group.captured_at,
+    rows: group.rows.slice(0, 3)
+  }));
 
   const history = historyGroups.map(group => {
     const ordered = group.rows;
@@ -404,10 +717,14 @@ async function getMatch(eventId) {
   return {
     ...m,
     latest_capture: latest,
+    latest_meta: latestMeta,
     latest_rows: rows.slice(0, 3),
+    all_latest_rows: rows,
     history_bookmaker: preferred?.bookmaker || null,
     history,
     history_groups: historyGroups,
+    all_history_groups: allHistoryGroups,
+    market_state_events: marketStateEvents,
     prematch_only: true,
     kickoff_cutoff: cutoff ? cutoff.toISOString() : null
   };
@@ -419,26 +736,59 @@ async function purgePostKickoffSnapshots() {
   )).rows;
 
   let deletedSnapshots = 0;
+  let deletedSnapshotMeta = 0;
   let deletedAlerts = 0;
+  let deletedMarketStateEvents = 0;
 
   for (const match of matches) {
     const cutoff = matchKickoffCutoff(match);
     if (!cutoff) continue;
 
-    const s = await pool.query(
-      'DELETE FROM snapshots WHERE event_id=$1 AND captured_at >= $2',
-      [match.event_id, cutoff]
-    );
-    deletedSnapshots += s.rowCount || 0;
+    const client = await pool.connect();
 
-    const a = await pool.query(
-      'DELETE FROM odds_alerts WHERE event_id=$1 AND captured_at >= $2',
-      [match.event_id, cutoff]
-    );
-    deletedAlerts += a.rowCount || 0;
+    try {
+      await client.query('BEGIN');
+
+      const sm = await client.query(
+        'DELETE FROM snapshot_meta WHERE event_id=$1 AND captured_at >= $2',
+        [match.event_id, cutoff]
+      );
+
+      const s = await client.query(
+        'DELETE FROM snapshots WHERE event_id=$1 AND captured_at >= $2',
+        [match.event_id, cutoff]
+      );
+
+      const a = await client.query(
+        'DELETE FROM odds_alerts WHERE event_id=$1 AND captured_at >= $2',
+        [match.event_id, cutoff]
+      );
+
+      const mse = await client.query(
+        'DELETE FROM market_state_events WHERE event_id=$1 AND captured_at >= $2',
+        [match.event_id, cutoff]
+      );
+
+      await client.query('COMMIT');
+
+      deletedSnapshotMeta += sm.rowCount || 0;
+      deletedSnapshots += s.rowCount || 0;
+      deletedAlerts += a.rowCount || 0;
+      deletedMarketStateEvents += mse.rowCount || 0;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
-  return { deletedSnapshots, deletedAlerts };
+  return {
+    deletedSnapshots,
+    deletedSnapshotMeta,
+    deletedAlerts,
+    deletedMarketStateEvents
+  };
 }
 
 async function setMatchLifecycle(eventId, {
@@ -504,6 +854,18 @@ async function setActive(eventId, active) {
      WHERE event_id=$1
      RETURNING *`,
     [eventId, active, active ? 'tracking' : 'removed']
+  );
+  return r.rows[0] || null;
+}
+
+async function setMatchRefreshMinutes(eventId, minutes) {
+  const r = await pool.query(
+    `UPDATE matches
+     SET refresh_minutes=$2,
+         updated_at=NOW()
+     WHERE event_id=$1
+     RETURNING *`,
+    [eventId, minutes]
   );
   return r.rows[0] || null;
 }
@@ -577,8 +939,9 @@ async function setSetting(key, value) {
 }
 
 async function getRefreshMinutes() {
-  const raw = Number(await getSetting('refresh_minutes', '50'));
-  return Number.isFinite(raw) ? raw : 50;
+  const raw = Number(await getSetting('refresh_minutes', '60'));
+  const allowed = new Set([15, 30, 60, 120]);
+  return allowed.has(raw) ? raw : 60;
 }
 
 async function getWorkerStatus() {
@@ -592,11 +955,30 @@ async function getWorkerStatus() {
     'SELECT COUNT(*)::int AS c FROM snapshots'
   )).rows[0].c);
   const refreshMinutes = await getRefreshMinutes();
+
+  const lastSnapshot = (await pool.query(
+    'SELECT MAX(captured_at) AS captured_at FROM snapshots'
+  )).rows[0]?.captured_at || null;
+
+  const lastSnapshotMs = lastSnapshot
+    ? new Date(lastSnapshot).getTime()
+    : null;
+
+  const snapshotAgeMinutes =
+    Number.isFinite(lastSnapshotMs)
+      ? Math.max(0, Math.floor((Date.now() - lastSnapshotMs) / 60000))
+      : null;
+
   return {
     last_run: last,
     active_matches: active,
     snapshot_rows: snapshots,
-    refresh_minutes: refreshMinutes
+    refresh_minutes: refreshMinutes,
+    last_successful_capture: lastSnapshot,
+    last_successful_capture_age_minutes: snapshotAgeMinutes,
+    stale: snapshotAgeMinutes != null
+      ? snapshotAgeMinutes > refreshMinutes + 5
+      : true
   };
 }
 
@@ -659,6 +1041,7 @@ module.exports = {
   listMatches,
   getMatch,
   setActive,
+  setMatchRefreshMinutes,
   createWorkerRun,
   updateWorkerRun,
   getWorkerStatus,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -577,6 +578,10 @@ class _BulletinPageState extends State<BulletinPage> {
   }
 
   bool bulletinVisible(Map<String, dynamic> m) {
+    // Bülten sadece henüz başlamamış ve takibe alınabilir maçları gösterir.
+    // Başlayan/biten maçların yeri Takip veya Arşiv ekranıdır.
+    if (bulletinLocked(m)) return false;
+
     final query = bulletinQuery.trim().toLowerCase();
 
     if (query.isNotEmpty) {
@@ -1535,22 +1540,37 @@ class _TrackedMatchCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              statusLine +
-                  '  ·  Son oran: ' +
-                  _trackShortStamp(match['last_capture']) +
-                  '  ·  ' +
-                  (match['capture_count']?.toString() ?? '0') +
-                  ' tur',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w700,
-                color: archived
-                    ? const Color(0xFF8794A8)
-                    : const Color(0xFF7DD3FC),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    statusLine +
+                        '  ·  Son oran: ' +
+                        _trackShortStamp(match['last_capture']),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: archived
+                          ? const Color(0xFF8794A8)
+                          : const Color(0xFF7DD3FC),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  (match['capture_count']?.toString() ?? '0') + ' tur',
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    color: archived
+                        ? const Color(0xFF8794A8)
+                        : const Color(0xFF7DD3FC),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -5005,6 +5025,7 @@ class _OddsChartState extends State<OddsChart> {
   String selection = 'Tümü';
   String range = 'Tümü';
   final Set<String> selectedBookmakers = <String>{};
+  String? historyBookmaker;
 
   // Parmakla grafikte seçilen an.
   DateTime? selectedTime;
@@ -5024,6 +5045,17 @@ class _OddsChartState extends State<OddsChart> {
         widget.latestRows.isNotEmpty) {
       _seedBookmakers();
     }
+
+    final names = _bookmakerNames();
+    if (names.isNotEmpty &&
+        (historyBookmaker == null ||
+            !names.any(
+              (name) =>
+                  _bookmakerKey(name) ==
+                  _bookmakerKey(historyBookmaker),
+            ))) {
+      historyBookmaker = names.first;
+    }
   }
 
   void _seedBookmakers() {
@@ -5032,6 +5064,44 @@ class _OddsChartState extends State<OddsChart> {
     for (final name in names.take(5)) {
       selectedBookmakers.add(name);
     }
+
+    if (historyBookmaker == null && names.isNotEmpty) {
+      historyBookmaker = names.first;
+    }
+  }
+
+  bool _isBookmakerSelected(String name) {
+    if (widget.view == 'Geçmiş') {
+      return historyBookmaker != null &&
+          _bookmakerKey(historyBookmaker) ==
+              _bookmakerKey(name);
+    }
+
+    return selectedBookmakers.contains(name);
+  }
+
+  Future<void> _openFullscreenChart(
+    List<_OddsSeries> chartSeries,
+  ) async {
+    if (chartSeries.isEmpty) return;
+
+    final picked = await Navigator.of(context).push<DateTime?>(
+      MaterialPageRoute(
+        builder: (_) => _FullscreenOddsChartPage(
+          series: chartSeries,
+          initialSelectedTime: selectedTime,
+          title: selection == 'Tümü'
+              ? market
+              : '$market · $selection',
+        ),
+      ),
+    );
+
+    if (!mounted || picked == null) return;
+
+    setState(() {
+      selectedTime = picked;
+    });
   }
 
   String _bookmakerKey(dynamic raw) {
@@ -5227,7 +5297,7 @@ class _OddsChartState extends State<OddsChart> {
     final result = <_OddsSeries>[];
 
     for (final bookmaker in names) {
-      if (!selectedBookmakers.contains(bookmaker)) continue;
+      if (!_isBookmakerSelected(bookmaker)) continue;
 
       final wanted = _bookmakerKey(bookmaker);
       final bookmakerIndex = names.indexOf(bookmaker);
@@ -5478,9 +5548,7 @@ class _OddsChartState extends State<OddsChart> {
     for (final raw in widget.openingOdds) {
       final bookmaker = raw['bookmaker']?.toString() ?? '';
 
-      if (!selectedBookmakers.any(
-        (name) => _bookmakerKey(name) == _bookmakerKey(bookmaker),
-      )) {
+      if (!_isBookmakerSelected(bookmaker)) {
         continue;
       }
 
@@ -5602,9 +5670,7 @@ class _OddsChartState extends State<OddsChart> {
 
     for (final raw in widget.marketStateEvents) {
       final bookmaker = raw["bookmaker"]?.toString() ?? "";
-      if (!selectedBookmakers.any(
-        (name) => _bookmakerKey(name) == _bookmakerKey(bookmaker),
-      )) {
+      if (!_isBookmakerSelected(bookmaker)) {
         continue;
       }
 
@@ -6267,7 +6333,7 @@ class _OddsChartState extends State<OddsChart> {
                 ),
               ),
               Text(
-                '${selectedBookmakers.length}/${names.length} bookmaker',
+                '${widget.view == 'Geçmiş' ? (historyBookmaker == null ? 0 : 1) : selectedBookmakers.length}/${names.length} bookmaker',
                 style: const TextStyle(
                   fontSize: 9,
                   color: Color(0xFF94A3B8),
@@ -6314,37 +6380,38 @@ class _OddsChartState extends State<OddsChart> {
 
           const SizedBox(height: 10),
 
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: names.isEmpty
-                      ? null
-                      : () {
-                          setState(() {
-                            selectedBookmakers
-                              ..clear()
-                              ..addAll(names);
-                          });
-                        },
-                  child: const Text('Tümünü seç'),
+          if (widget.view != 'Geçmiş')
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: names.isEmpty
+                        ? null
+                        : () {
+                            setState(() {
+                              selectedBookmakers
+                                ..clear()
+                                ..addAll(names);
+                            });
+                          },
+                    child: const Text('Tümünü seç'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: selectedBookmakers.isEmpty
-                      ? null
-                      : () {
-                          setState(() {
-                            selectedBookmakers.clear();
-                          });
-                        },
-                  child: const Text('Tümünü bırak'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: selectedBookmakers.isEmpty
+                        ? null
+                        : () {
+                            setState(() {
+                              selectedBookmakers.clear();
+                            });
+                          },
+                    child: const Text('Tümünü bırak'),
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
 
           const SizedBox(height: 7),
 
@@ -6356,10 +6423,12 @@ class _OddsChartState extends State<OddsChart> {
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
                     child: FilterChip(
-                      selected: selectedBookmakers.contains(name),
+                      selected: _isBookmakerSelected(name),
                       onSelected: (selected) {
                         setState(() {
-                          if (selected) {
+                          if (widget.view == 'Geçmiş') {
+                            historyBookmaker = name;
+                          } else if (selected) {
                             selectedBookmakers.add(name);
                           } else {
                             selectedBookmakers.remove(name);
@@ -6508,7 +6577,29 @@ class _OddsChartState extends State<OddsChart> {
                   ),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
+
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: chartSeries.isEmpty
+                  ? null
+                  : () => _openFullscreenChart(chartSeries),
+              icon: const Icon(
+                Icons.fullscreen_rounded,
+                size: 19,
+              ),
+              label: const Text(
+                'Tam ekran',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 2),
 
             if (selectedMoves.isNotEmpty) ...[
               Container(
@@ -6830,6 +6921,335 @@ class _OddsSeries {
     required this.color,
     required this.points,
   });
+}
+
+class _FullscreenOddsChartPage extends StatefulWidget {
+  final List<_OddsSeries> series;
+  final DateTime? initialSelectedTime;
+  final String title;
+
+  const _FullscreenOddsChartPage({
+    required this.series,
+    required this.initialSelectedTime,
+    required this.title,
+  });
+
+  @override
+  State<_FullscreenOddsChartPage> createState() =>
+      _FullscreenOddsChartPageState();
+}
+
+class _FullscreenOddsChartPageState
+    extends State<_FullscreenOddsChartPage> {
+  DateTime? selectedTime;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedTime = widget.initialSelectedTime;
+
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.immersiveSticky,
+    );
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.edgeToEdge,
+    );
+
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+    ]);
+
+    super.dispose();
+  }
+
+  DateTime? _displayTime() {
+    if (selectedTime != null) return selectedTime;
+
+    DateTime? latest;
+
+    for (final item in widget.series) {
+      for (final point in item.points) {
+        if (latest == null || point.time.isAfter(latest)) {
+          latest = point.time;
+        }
+      }
+    }
+
+    return latest;
+  }
+
+  void _selectTimeAt(
+    Offset position,
+    double width,
+  ) {
+    final points = <_OddsPoint>[
+      for (final item in widget.series) ...item.points,
+    ];
+
+    if (points.isEmpty) return;
+
+    const left = 38.0;
+    const right = 42.0;
+
+    final plotWidth = math.max(
+      1.0,
+      width - left - right,
+    );
+
+    final times = points
+        .map((e) => e.time.millisecondsSinceEpoch)
+        .toSet()
+        .toList()
+      ..sort();
+
+    final minTime = times.first;
+    final maxTime = times.last;
+
+    if (minTime == maxTime) {
+      setState(() {
+        selectedTime =
+            DateTime.fromMillisecondsSinceEpoch(minTime);
+      });
+      return;
+    }
+
+    final clampedX =
+        (position.dx - left).clamp(0.0, plotWidth);
+
+    final ratio = clampedX / plotWidth;
+
+    final target =
+        minTime + ((maxTime - minTime) * ratio).round();
+
+    int nearest = times.first;
+    int nearestDistance = (nearest - target).abs();
+
+    for (final time in times.skip(1)) {
+      final distance = (time - target).abs();
+
+      if (distance < nearestDistance) {
+        nearest = time;
+        nearestDistance = distance;
+      }
+    }
+
+    setState(() {
+      selectedTime =
+          DateTime.fromMillisecondsSinceEpoch(nearest);
+    });
+  }
+
+  List<Map<String, dynamic>> _selectedValues() {
+    final target = _displayTime();
+    if (target == null) return [];
+
+    final out = <Map<String, dynamic>>[];
+
+    for (final item in widget.series) {
+      final points = [...item.points]
+        ..sort((a, b) => a.time.compareTo(b.time));
+
+      _OddsPoint? chosen;
+
+      for (final point in points) {
+        if (!point.time.isAfter(target)) {
+          chosen = point;
+        } else {
+          break;
+        }
+      }
+
+      if (chosen == null) continue;
+
+      out.add({
+        'bookmaker': item.bookmaker,
+        'outcome': item.outcome,
+        'value': chosen.value,
+        'color': item.color,
+      });
+    }
+
+    return out;
+  }
+
+  String _stamp(DateTime? dt) {
+    if (dt == null) return '--:--';
+
+    return '${dt.hour.toString().padLeft(2, '0')}:'
+        '${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _close() {
+    Navigator.of(context).pop(selectedTime);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final values = _selectedValues();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B1220),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              top: 44,
+              bottom: 48,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  8,
+                  2,
+                  8,
+                  2,
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapDown: (details) =>
+                          _selectTimeAt(
+                        details.localPosition,
+                        constraints.maxWidth,
+                      ),
+                      onHorizontalDragUpdate: (details) =>
+                          _selectTimeAt(
+                        details.localPosition,
+                        constraints.maxWidth,
+                      ),
+                      child: CustomPaint(
+                        size: Size(
+                          constraints.maxWidth,
+                          constraints.maxHeight,
+                        ),
+                        painter: OddsChartPainter(
+                          series: widget.series,
+                          selectedTime: selectedTime,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            Positioned(
+              left: 6,
+              right: 8,
+              top: 2,
+              height: 40,
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: _close,
+                    icon: const Icon(
+                      Icons.fullscreen_exit_rounded,
+                    ),
+                    tooltip: 'Tam ekrandan çık',
+                  ),
+                  const SizedBox(width: 2),
+                  Expanded(
+                    child: Text(
+                      'Oran Grafiği · ${widget.title}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.swipe_rounded,
+                    size: 16,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    _stamp(_displayTime()),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFFCBD5E1),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Positioned(
+              left: 10,
+              right: 10,
+              bottom: 5,
+              height: 38,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final item in values)
+                      Container(
+                        margin: const EdgeInsets.only(
+                          right: 7,
+                        ),
+                        padding:
+                            const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF151E2B),
+                          borderRadius:
+                              BorderRadius.circular(8),
+                          border: Border.all(
+                            color:
+                                const Color(0xFF334155),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color:
+                                    item['color'] as Color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${item['bookmaker']} · '
+                              '${item['outcome']}  '
+                              '${(item['value'] as double).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 9.5,
+                                fontWeight:
+                                    FontWeight.w800,
+                                color:
+                                    Color(0xFFE2E8F0),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class OddsChartPainter extends CustomPainter {

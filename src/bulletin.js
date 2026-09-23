@@ -110,11 +110,35 @@ function parseDailyFootball(html) {
         name = slug.replace(/-/g, ' ');
       }
 
+      // BetExplorer skoru iç içe finishedResults div'lerinde tutuyor.
+      const scoreCell = body.match(
+        /data-live-cell="score"[^>]*>([\s\S]{0,600})/i
+      );
+
+      const scoreParts = scoreCell
+        ? [...scoreCell[1].matchAll(
+            /table-main__finishedResults[^>]*>\s*([^<]*)</gi
+          )]
+            .map(x => decodeHtml(x[1]))
+            .filter(x => /^\d+$/.test(x))
+            .map(Number)
+        : [];
+
       const resultM =
         body.match(/<[^>]*class="[^"]*(?:table-main__result|table-matches__result)[^"]*"[^>]*>([\s\S]*?)<\/(?:td|div|span)>/i) ||
         body.match(/data-live-cell="(?:score|result)"[^>]*>([\s\S]*?)<\/(?:td|div|span)>/i);
+
       const resultText = decodeHtml(resultM?.[1] || '');
       const scoreM = resultText.match(/(\d+)\s*[:\-]\s*(\d+)/);
+
+      const homeScore = scoreParts.length >= 2
+        ? scoreParts[0]
+        : (scoreM ? Number(scoreM[1]) : null);
+
+      const awayScore = scoreParts.length >= 2
+        ? scoreParts[1]
+        : (scoreM ? Number(scoreM[2]) : null);
+
       const finished = /^(?:FIN|FT|AET|PEN)$/i.test(rawTime);
 
       out.push({
@@ -124,9 +148,11 @@ function parseDailyFootball(html) {
         url: `https://www.betexplorer.com${link[1]}`,
         eventId,
         status: finished ? 'finished' : 'scheduled',
-        score: scoreM ? `${scoreM[1]}-${scoreM[2]}` : null,
-        homeScore: scoreM ? Number(scoreM[1]) : null,
-        awayScore: scoreM ? Number(scoreM[2]) : null
+        score: homeScore != null && awayScore != null
+          ? `${homeScore}-${awayScore}`
+          : null,
+        homeScore,
+        awayScore
       });
     }
   }

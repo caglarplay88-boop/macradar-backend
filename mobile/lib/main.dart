@@ -3963,6 +3963,31 @@ class _OddsChartState extends State<OddsChart> {
     });
   }
 
+  String? _latestOutcomeStatus(String bookmaker, String key) {
+    final wanted = _bookmakerKey(bookmaker);
+
+    for (final row in widget.latestRows) {
+      if (_bookmakerKey(row['bookmaker']) != wanted) continue;
+
+      final statusMapRaw = row['status_map'];
+      if (statusMapRaw is! Map) return null;
+
+      final statusMap = Map<String, dynamic>.from(statusMapRaw);
+      return statusMap[key]?.toString().toLowerCase();
+    }
+
+    return null;
+  }
+
+  bool _latestMarketSuspended(String bookmaker) {
+    if (activeOutcomes.isEmpty) return false;
+
+    return activeOutcomes.every(
+      (outcome) =>
+          _latestOutcomeStatus(bookmaker, outcome.value) == 'suspended',
+    );
+  }
+
   double? _latestOdd(String bookmaker) {
     if (selection == 'Tümü' || activeOutcomes.isEmpty) {
       return null;
@@ -3973,6 +3998,10 @@ class _OddsChartState extends State<OddsChart> {
 
     for (final row in widget.latestRows) {
       if (_bookmakerKey(row['bookmaker']) != wanted) continue;
+
+      if (_latestOutcomeStatus(bookmaker, key) == 'suspended') {
+        return null;
+      }
 
       final raw = row[key];
       if (raw is num) return raw.toDouble();
@@ -4758,18 +4787,33 @@ class _OddsChartState extends State<OddsChart> {
   }
 
   List<Map<String, dynamic>> _summaryRecords(List<_OddsSeries> series) {
+    String? outcomeKey(String label) {
+      for (final outcome in marketOutcomes) {
+        if (outcome.key == label) return outcome.value;
+      }
+      return null;
+    }
+
     if (selection != 'Tümü') {
       final out = <Map<String, dynamic>>[];
 
       for (final item in series) {
         if (item.points.isEmpty) continue;
 
+        final key = outcomeKey(item.outcome);
+        if (key != null &&
+            _latestOutcomeStatus(item.bookmaker, key) == 'suspended') {
+          continue;
+        }
+
         final points = <_OddsPoint>[...item.points]
           ..sort((a, b) => a.time.compareTo(b.time));
 
         final current = points.last;
         final previous =
-            points.length > 1 ? points[points.length - 2] : null;
+            points.length > 1 && !current.segmentStart
+                ? points[points.length - 2]
+                : null;
 
         out.add({
           "bookmaker": item.bookmaker,
@@ -4790,12 +4834,21 @@ class _OddsChartState extends State<OddsChart> {
     for (final item in series) {
       if (item.points.isEmpty) continue;
 
+      final outcomeValueKey = outcomeKey(item.outcome);
+      if (outcomeValueKey != null &&
+          _latestOutcomeStatus(item.bookmaker, outcomeValueKey) ==
+              'suspended') {
+        continue;
+      }
+
       final points = <_OddsPoint>[...item.points]
         ..sort((a, b) => a.time.compareTo(b.time));
 
       final current = points.last;
       final previous =
-          points.length > 1 ? points[points.length - 2] : null;
+          points.length > 1 && !current.segmentStart
+              ? points[points.length - 2]
+              : null;
 
       final key = _bookmakerKey(item.bookmaker);
 
@@ -5049,9 +5102,11 @@ class _OddsChartState extends State<OddsChart> {
                       },
                       visualDensity: VisualDensity.compact,
                       label: Text(
-                        _latestOdd(name) == null
-                            ? name
-                            : '$name  ${_latestOdd(name)!.toStringAsFixed(2)}',
+                        _latestMarketSuspended(name)
+                            ? '$name  •  ASKIYA ALINDI'
+                            : _latestOdd(name) == null
+                                ? name
+                                : '$name  ${_latestOdd(name)!.toStringAsFixed(2)}',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,

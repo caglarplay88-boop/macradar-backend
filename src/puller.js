@@ -1,5 +1,5 @@
-const { pullOdds, closeBrowser } = require('./odds');
-const { saveSnapshot } = require('./db');
+const { pullOdds, pullOpeningOdds, closeBrowser } = require('./odds');
+const { saveSnapshot, saveOpeningOdds, getOpeningFetchMeta, saveOpeningFetchMeta } = require('./db');
 const { sleep, parseBetExplorerUrl } = require('./util');
 
 const SCRAPER_URL = String(process.env.SCRAPER_URL || '').replace(/\/$/, '');
@@ -94,4 +94,69 @@ async function pullAndSave(url, { attempts = 3 } = {}) {
   };
 }
 
-module.exports = { pullAndSave };
+
+async function pullOpeningAndSave(url) {
+  const parsed = parseBetExplorerUrl(url);
+
+  const fetchMeta = await getOpeningFetchMeta(parsed.eventId);
+
+  if (fetchMeta?.status === 'complete') {
+    return {
+      ok: true,
+      eventId: parsed.eventId,
+      skipped: true,
+      reason: 'opening_already_complete',
+      rows: Number(fetchMeta.found || 0)
+    };
+  }
+
+  try {
+    const data = await pullOpeningOdds(parsed.url);
+
+    if (!Array.isArray(data.rows) || !data.rows.length) {
+      throw new Error('Doğrulanmış opening odds bulunamadı.');
+    }
+
+    const requested = Number(data.meta?.requested || 0);
+    const found = Number(data.meta?.found || data.rows.length);
+
+    const saved = await saveOpeningOdds(
+      parsed.eventId,
+      data.rows
+    );
+
+    const complete =
+      requested > 0 &&
+      found === requested;
+
+    await saveOpeningFetchMeta(parsed.eventId, {
+      status: complete ? 'complete' : 'partial',
+      requested,
+      found,
+      torSource: data.meta?.torSource || null,
+      torCountry: data.meta?.torCountry || null
+    });
+
+    return {
+      ok: true,
+      eventId: parsed.eventId,
+      rows: saved,
+      complete,
+      meta: data.meta || null
+    };
+  } catch (error) {
+    await saveOpeningFetchMeta(parsed.eventId, {
+      status: 'failed',
+      requested: 0,
+      found: 0
+    }).catch(() => {});
+
+    return {
+      ok: false,
+      eventId: parsed.eventId,
+      error: String(error?.message || error)
+    };
+  }
+}
+
+module.exports = { pullAndSave, pullOpeningAndSave };

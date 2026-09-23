@@ -243,6 +243,48 @@ function extractOddStatuses(rowHtml) {
   return out;
 }
 
+
+function extractOddCells(rowHtml) {
+  const cells = [];
+  const re = /<td\b[^>]*\bdata-odd\s*=\s*["'][^"']+["'][^>]*>/gi;
+
+  const attr = (tag, name) => {
+    const m = tag.match(
+      new RegExp("\\b" + name + "\\s*=\\s*[\"']([^\"']*)[\"']", "i")
+    );
+    return m ? decodeHtml(m[1]) : null;
+  };
+
+  let match;
+
+  while ((match = re.exec(rowHtml))) {
+    const tag = match[0];
+    const value = Number(
+      String(attr(tag, "data-odd") || "").replace(",", ".")
+    );
+
+    if (!Number.isFinite(value) || value <= 1) continue;
+
+    const className = attr(tag, "class") || "";
+
+    cells.push({
+      value,
+      status: /\binactive\b/i.test(className)
+        ? "suspended"
+        : "active",
+      oid: attr(tag, "data-oid"),
+      bid: attr(tag, "data-bid"),
+      bt: attr(tag, "data-bt"),
+      sc: attr(tag, "data-sc"),
+      hcp: attr(tag, "data-hcp"),
+      created: attr(tag, "data-created"),
+      pos: attr(tag, "data-pos")
+    });
+  }
+
+  return cells;
+}
+
 function extractBookmaker(rowHtml) {
   let match = rowHtml.match(
     /data-bookie\s*=\s*["']([^"']+)["']/i
@@ -304,6 +346,7 @@ function parseMarketHtml(html, mode) {
   for (const tr of extractRows(html)) {
     const values = extractOdds(tr);
     const statuses = extractOddStatuses(tr);
+    const cells = extractOddCells(tr);
 
     if (!values.length) continue;
 
@@ -314,7 +357,8 @@ function parseMarketHtml(html, mode) {
         rows.push({
           bookmaker,
           values: values.slice(0, 3),
-          statuses: statuses.slice(0, 3)
+          statuses: statuses.slice(0, 3),
+          cells: cells.slice(0, 3)
         });
       }
 
@@ -326,7 +370,8 @@ function parseMarketHtml(html, mode) {
         rows.push({
           bookmaker,
           values: values.slice(0, 2),
-          statuses: statuses.slice(0, 2)
+          statuses: statuses.slice(0, 2),
+          cells: cells.slice(0, 2)
         });
       }
 
@@ -344,13 +389,346 @@ function parseMarketHtml(html, mode) {
           bookmaker,
           total,
           values: values.slice(0, 2),
-          statuses: statuses.slice(0, 2)
+          statuses: statuses.slice(0, 2),
+          cells: cells.slice(0, 2)
         });
       }
     }
   }
 
   return rows;
+}
+
+
+function parseOpeningAt(rawDate, cellCreated) {
+  const opening = String(rawDate || '').match(
+    /(\d{1,2})\.(\d{1,2})\.\s+(\d{1,2}):(\d{2})/
+  );
+
+  const current = String(cellCreated || '').match(
+    /(\d{1,2}),(\d{1,2}),(\d{4}),(\d{1,2}),(\d{2})/
+  );
+
+  if (!opening || !current) return null;
+
+  const day = Number(opening[1]);
+  const month = Number(opening[2]);
+  const hour = Number(opening[3]);
+  const minute = Number(opening[4]);
+
+  const currentDay = Number(current[1]);
+  const currentMonth = Number(current[2]);
+  let year = Number(current[3]);
+  const currentHour = Number(current[4]);
+  const currentMinute = Number(current[5]);
+
+  const currentMs = Date.UTC(
+    year,
+    currentMonth - 1,
+    currentDay,
+    currentHour,
+    currentMinute
+  );
+
+  let openingMs = Date.UTC(
+    year,
+    month - 1,
+    day,
+    hour,
+    minute
+  );
+
+  // Ocak ayında takip edilen bir maç Aralık'ta açılmış olabilir.
+  if (openingMs > currentMs + 45 * 86400000) {
+    year -= 1;
+    openingMs = Date.UTC(
+      year,
+      month - 1,
+      day,
+      hour,
+      minute
+    );
+  }
+
+  return new Date(openingMs);
+}
+
+async function fetchArchiveOpening(
+  cell,
+  circuitTag,
+  socksAddress = TOR_SOCKS_PRIMARY
+) {
+  if (
+    !cell?.oid ||
+    !cell?.bid ||
+    !cell?.bt ||
+    !cell?.sc ||
+    !cell?.hcp
+  ) {
+    return null;
+  }
+
+  const url =
+    'https://www.betexplorer.com/archive-odds/' +
+    [
+      cell.oid,
+      cell.bid,
+      cell.bt,
+      cell.sc,
+      cell.hcp
+    ].map(encodeURIComponent).join('/') +
+    '/';
+
+  const text = await curlText(
+    url,
+    circuitTag,
+    25,
+    socksAddress
+  );
+
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('Archive odds JSON değil');
+  }
+
+  if (!Array.isArray(data) || !data.length) {
+    return null;
+  }
+
+  // BetExplorer popup kodu son elemanı "Opening odds" olarak gösteriyor.
+  const opening = data[data.length - 1];
+  const odd = Number(
+    String(opening?.odd || '').replace(',', '.')
+  );
+
+  if (!Number.isFinite(odd) || odd <= 1) {
+    return null;
+  }
+
+  return {
+    opening_odd: odd,
+    opening_at: parseOpeningAt(
+      opening.date,
+      cell.created
+    ),
+    source_date: opening.date || null
+  };
+}
+
+async function pullOpeningOdds(rawUrl) {
+  const parsed = parseBetExplorerUrl(rawUrl);
+
+  const sources = [
+    {
+      name: 'primary',
+      socks: TOR_SOCKS_PRIMARY,
+      country: TOR_COUNTRY_PRIMARY || null
+    }
+  ];
+
+  if (
+    TOR_SOCKS_FALLBACK &&
+    TOR_SOCKS_FALLBACK !== TOR_SOCKS_PRIMARY
+  ) {
+    sources.push({
+      name: 'fallback',
+      socks: TOR_SOCKS_FALLBACK,
+      country: TOR_COUNTRY_FALLBACK || null
+    });
+  }
+
+  let lastError = null;
+
+  for (const source of sources) {
+    const circuitTag =
+      'macradar-opening-' +
+      source.name +
+      '-' +
+      parsed.eventId +
+      '-' +
+      Date.now();
+
+    try {
+      const [h1x2, hou, hbts] = await Promise.all([
+        fetchMarket(
+          parsed.eventId,
+          '1x2',
+          circuitTag,
+          source.socks
+        ),
+        fetchMarket(
+          parsed.eventId,
+          'ou',
+          circuitTag,
+          source.socks
+        ),
+        fetchMarket(
+          parsed.eventId,
+          'bts',
+          circuitTag,
+          source.socks
+        )
+      ]);
+
+      const msRows = uniqueInPageOrder(
+        parseMarketHtml(h1x2, '1x2')
+      );
+
+      const ouRows = parseMarketHtml(hou, 'ou');
+
+      const ou15Rows = uniqueInPageOrder(
+        ouRows.filter(row => row.total === '1.5')
+      );
+
+      const ou25Rows = uniqueInPageOrder(
+        ouRows.filter(row => row.total === '2.5')
+      );
+
+      const btsRows = uniqueInPageOrder(
+        parseMarketHtml(hbts, 'bts')
+      );
+
+      const jobs = [];
+
+      const addJobs = (
+        rows,
+        market,
+        selections,
+        outcomeKeys
+      ) => {
+        for (const row of rows) {
+          for (let i = 0; i < outcomeKeys.length; i++) {
+            const cell = row.cells?.[i];
+
+            if (
+              !cell?.oid ||
+              !cell?.bid ||
+              !cell?.bt ||
+              !cell?.sc ||
+              !cell?.hcp
+            ) {
+              continue;
+            }
+
+            jobs.push({
+              bookmaker: row.bookmaker,
+              market,
+              selection: selections[i],
+              outcome_key: outcomeKeys[i],
+              cell
+            });
+          }
+        }
+      };
+
+      addJobs(
+        msRows,
+        'MS',
+        ['1', 'X', '2'],
+        ['ms1', 'msx', 'ms2']
+      );
+
+      addJobs(
+        ou15Rows,
+        '1.5',
+        ['Üst', 'Alt'],
+        ['ou15_over', 'ou15_under']
+      );
+
+      addJobs(
+        ou25Rows,
+        '2.5',
+        ['Üst', 'Alt'],
+        ['ou25_over', 'ou25_under']
+      );
+
+      addJobs(
+        btsRows,
+        'KG',
+        ['Var', 'Yok'],
+        ['btts_yes', 'btts_no']
+      );
+
+      const rows = [];
+      let cursor = 0;
+
+      const worker = async workerNo => {
+        while (true) {
+          const index = cursor++;
+          if (index >= jobs.length) return;
+
+          const job = jobs[index];
+
+          try {
+            const opening = await fetchArchiveOpening(
+              job.cell,
+              circuitTag + '-' + workerNo,
+              source.socks
+            );
+
+            if (!opening) continue;
+
+            rows.push({
+              bookmaker: job.bookmaker,
+              market: job.market,
+              selection: job.selection,
+              outcome_key: job.outcome_key,
+              opening_at: opening.opening_at,
+              opening_odd: opening.opening_odd,
+              source: 'betexplorer',
+              source_date: opening.source_date
+            });
+          } catch (error) {
+            console.log(
+              '[opening] ' +
+              parsed.eventId +
+              ' ' +
+              job.bookmaker +
+              ' ' +
+              job.outcome_key +
+              ' atlandı: ' +
+              String(error?.message || error)
+            );
+          }
+        }
+      };
+
+      const concurrency = Math.min(4, jobs.length);
+
+      await Promise.all(
+        Array.from(
+          { length: concurrency },
+          (_, i) => worker(i + 1)
+        )
+      );
+
+      if (!rows.length) {
+        throw new Error(
+          'BetExplorer opening odds bulunamadı.'
+        );
+      }
+
+      return {
+        ...parsed,
+        rows,
+        meta: {
+          source: 'betexplorer-archive-odds',
+          torSource: source.name,
+          torCountry: source.country || null,
+          requested: jobs.length,
+          found: rows.length
+        }
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ||
+    new Error('Opening odds alınamadı.');
 }
 
 async function pullOdds(rawUrl) {
@@ -793,5 +1171,6 @@ async function closeBrowser() {
 
 module.exports = {
   pullOdds,
+  pullOpeningOdds,
   closeBrowser
 };

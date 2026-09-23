@@ -1,9 +1,9 @@
 const http = require('http');
 const crypto = require('crypto');
 const { URL } = require('url');
-const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, archiveStartedMatch, finishMatch, pool, getPerformanceCache, markPerformancePreparing, savePerformanceCache, failPerformanceCache } = require('./db');
+const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, archiveStartedMatch, finishMatch, pool, getPerformanceCache, markPerformancePreparing, savePerformanceCache, failPerformanceCache, getOpeningOdds } = require('./db');
 const { getBulletin } = require('./bulletin');
-const { pullAndSave } = require('./puller');
+const { pullAndSave, pullOpeningAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
 const { seed } = require('./seed');
 const { runWorkerOnce } = require('./run-worker');
@@ -14,6 +14,30 @@ const API_KEY = String(process.env.API_KEY || '');
 const MOBILE_CODE_HASH = 'ee3a321e49e949c5ac27dc2a5504ba55a59b11eae7ab1f7b5357cd305b6e8968';
 
 const performanceBuilds = new Map();
+const openingFetches = new Set();
+
+function queueOpeningFetch(url, eventId) {
+  if (!url || !eventId || openingFetches.has(eventId)) return;
+
+  openingFetches.add(eventId);
+
+  setTimeout(async () => {
+    try {
+      const result = await pullOpeningAndSave(url);
+      console.log(
+        '[opening] ' + eventId + ' ' + JSON.stringify(result)
+      );
+    } catch (error) {
+      console.error(
+        '[opening] ' + eventId + ' hata: ' +
+        String(error?.message || error)
+      );
+    } finally {
+      openingFetches.delete(eventId);
+    }
+  }, 100);
+}
+
 const PERFORMANCE_ENGINE_VERSION = 3;
 
 function performanceCacheEnvelope(row) {
@@ -316,6 +340,7 @@ const server = http.createServer(async (req, res) => {
       if (cached?.payload) {
         return json(res, 200, {
           ...cached.payload,
+          opening_odds: await getOpeningOdds(eventId),
           performance_cache: performanceCacheEnvelope(cached)
         });
       }
@@ -361,6 +386,7 @@ const server = http.createServer(async (req, res) => {
       ) {
         return json(res, 200, {
           ...cached.payload,
+          opening_odds: await getOpeningOdds(eventId),
           performance_cache: performanceCacheEnvelope(cached)
         });
       }
@@ -448,6 +474,7 @@ const server = http.createServer(async (req, res) => {
           } else {
             await setActive(parsed.eventId, true);
             eventIds.push(parsed.eventId);
+            queueOpeningFetch(parsed.url, parsed.eventId);
           }
 
           results.push({

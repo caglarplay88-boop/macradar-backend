@@ -110,6 +110,34 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_market_state_events_event_time
       ON market_state_events(event_id,captured_at DESC);
 
+    CREATE TABLE IF NOT EXISTS opening_odds (
+      id BIGSERIAL PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      bookmaker TEXT NOT NULL,
+      market TEXT NOT NULL,
+      selection TEXT NOT NULL,
+      outcome_key TEXT NOT NULL,
+      opening_at TIMESTAMPTZ,
+      opening_odd DOUBLE PRECISION NOT NULL,
+      source TEXT NOT NULL DEFAULT 'betexplorer',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(event_id, bookmaker, outcome_key)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_opening_odds_event
+      ON opening_odds(event_id, bookmaker);
+
+    CREATE TABLE IF NOT EXISTS opening_fetch_meta (
+      event_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL DEFAULT 'pending',
+      requested INTEGER NOT NULL DEFAULT 0,
+      found INTEGER NOT NULL DEFAULT 0,
+      tor_source TEXT,
+      tor_country TEXT,
+      fetched_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
 
     ALTER TABLE matches
       ADD COLUMN IF NOT EXISTS display_name TEXT;
@@ -640,6 +668,15 @@ async function getMatch(eventId) {
     params
   )).rows;
 
+  const openingOdds = (await pool.query(`
+    SELECT
+      bookmaker, market, selection, outcome_key,
+      opening_at, opening_odd, source
+    FROM opening_odds
+    WHERE event_id=$1
+    ORDER BY bookmaker, market, selection
+  `, [eventId])).rows;
+
 
   const metaByCapturedAt = new Map(
     allMeta.map(x => [
@@ -725,6 +762,7 @@ async function getMatch(eventId) {
     history_groups: historyGroups,
     all_history_groups: allHistoryGroups,
     market_state_events: marketStateEvents,
+    opening_odds: openingOdds,
     prematch_only: true,
     kickoff_cutoff: cutoff ? cutoff.toISOString() : null
   };
@@ -1033,6 +1071,123 @@ async function failPerformanceCache(eventId, error) {
 }
 
 
+
+async function saveOpeningOdds(eventId, rows) {
+  if (!Array.isArray(rows) || !rows.length) return 0;
+
+  const client = await pool.connect();
+  let saved = 0;
+
+  try {
+    await client.query('BEGIN');
+
+    for (const row of rows) {
+      const odd = Number(row.opening_odd);
+      if (!Number.isFinite(odd) || odd <= 1) continue;
+
+      await client.query(`
+        INSERT INTO opening_odds(
+          event_id, bookmaker, market, selection, outcome_key,
+          opening_at, opening_odd, source
+        )
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+        ON CONFLICT(event_id, bookmaker, outcome_key) DO UPDATE SET
+          market=EXCLUDED.market,
+          selection=EXCLUDED.selection,
+          opening_at=COALESCE(opening_odds.opening_at, EXCLUDED.opening_at),
+          opening_odd=opening_odds.opening_odd,
+          source=opening_odds.source
+      `, [
+        eventId,
+        row.bookmaker,
+        row.market,
+        row.selection,
+        row.outcome_key,
+        row.opening_at || null,
+        odd,
+        row.source || 'betexplorer'
+      ]);
+
+      saved++;
+    }
+
+    await client.query('COMMIT');
+    return saved;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function getOpeningOdds(eventId) {
+  const r = await pool.query(`
+    SELECT
+      bookmaker, market, selection, outcome_key,
+      opening_at, opening_odd, source
+    FROM opening_odds
+    WHERE event_id=$1
+    ORDER BY bookmaker, market, selection
+  `, [eventId]);
+
+  return r.rows;
+}
+
+async function countOpeningOdds(eventId) {
+  const r = await pool.query(
+    `SELECT COUNT(*)::int AS count FROM opening_odds WHERE event_id=$1`,
+    [eventId]
+  );
+
+  return Number(r.rows[0]?.count || 0);
+}
+
+
+async function getOpeningFetchMeta(eventId) {
+  const r = await pool.query(`
+    SELECT *
+    FROM opening_fetch_meta
+    WHERE event_id=$1
+  `, [eventId]);
+
+  return r.rows[0] || null;
+}
+
+async function saveOpeningFetchMeta(eventId, {
+  status,
+  requested = 0,
+  found = 0,
+  torSource = null,
+  torCountry = null
+}) {
+  const r = await pool.query(`
+    INSERT INTO opening_fetch_meta(
+      event_id, status, requested, found,
+      tor_source, tor_country, fetched_at, updated_at
+    )
+    VALUES($1,$2,$3,$4,$5,$6,NOW(),NOW())
+    ON CONFLICT(event_id) DO UPDATE SET
+      status=EXCLUDED.status,
+      requested=EXCLUDED.requested,
+      found=EXCLUDED.found,
+      tor_source=EXCLUDED.tor_source,
+      tor_country=EXCLUDED.tor_country,
+      fetched_at=EXCLUDED.fetched_at,
+      updated_at=NOW()
+    RETURNING *
+  `, [
+    eventId,
+    status,
+    Number(requested) || 0,
+    Number(found) || 0,
+    torSource,
+    torCountry
+  ]);
+
+  return r.rows[0];
+}
+
 module.exports = {
   pool,
   initDb,
@@ -1057,5 +1212,10 @@ module.exports = {
   getPerformanceCache,
   markPerformancePreparing,
   savePerformanceCache,
-  failPerformanceCache
+  failPerformanceCache,
+  saveOpeningOdds,
+  getOpeningOdds,
+  countOpeningOdds,
+  getOpeningFetchMeta,
+  saveOpeningFetchMeta
 };

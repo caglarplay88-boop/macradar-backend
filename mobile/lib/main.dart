@@ -421,8 +421,8 @@ class MacRadarApp extends StatelessWidget {
       darkTheme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF58D6A6),
-        scaffoldBackgroundColor: const Color(0xFF0D1117),
+        colorSchemeSeed: const Color(0xFF3B82F6),
+        scaffoldBackgroundColor: const Color(0xFF0B1220),
         visualDensity: VisualDensity.compact,
         appBarTheme: const AppBarTheme(
           centerTitle: false,
@@ -494,6 +494,36 @@ class _HomeState extends State<Home> {
   }
 }
 
+class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double height;
+  final Widget child;
+
+  const _PinnedHeaderDelegate({
+    required this.height,
+    required this.child,
+  });
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(covariant _PinnedHeaderDelegate oldDelegate) {
+    return oldDelegate.height != height || oldDelegate.child != child;
+  }
+}
+
 class BulletinPage extends StatefulWidget {
   const BulletinPage({super.key});
 
@@ -509,10 +539,77 @@ class _BulletinPageState extends State<BulletinPage> {
   List<Map<String, dynamic>> matches = [];
   final Set<String> selected = {};
 
+  String bulletinQuery = '';
+  String bulletinTimeFilter = 'Tümü';
+  final TextEditingController bulletinSearchController =
+      TextEditingController();
+
   @override
   void initState() {
     super.initState();
     load();
+  }
+
+  @override
+  void dispose() {
+    bulletinSearchController.dispose();
+    super.dispose();
+  }
+
+  DateTime? bulletinKickoff(Map<String, dynamic> m) {
+    final dateText = m['date']?.toString() ?? iso(date);
+    final timeText = m['time']?.toString().trim() ?? '';
+
+    final dm =
+        RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(dateText);
+    final tm =
+        RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(timeText);
+
+    if (dm == null || tm == null) return null;
+
+    return DateTime(
+      int.parse(dm.group(1)!),
+      int.parse(dm.group(2)!),
+      int.parse(dm.group(3)!),
+      int.parse(tm.group(1)!),
+      int.parse(tm.group(2)!),
+    );
+  }
+
+  bool bulletinVisible(Map<String, dynamic> m) {
+    final query = bulletinQuery.trim().toLowerCase();
+
+    if (query.isNotEmpty) {
+      final searchable = [
+        m['name'],
+        m['league'],
+      ].whereType<Object>().map((e) => e.toString().toLowerCase()).join(' ');
+
+      if (!searchable.contains(query)) return false;
+    }
+
+    if (bulletinTimeFilter == 'Tümü') return true;
+
+    if (bulletinTimeFilter == 'Takipte') {
+      return m['followed'] == true;
+    }
+
+    final kickoff = bulletinKickoff(m);
+    if (kickoff == null) return false;
+
+    final minutes = kickoff.difference(DateTime.now()).inMinutes;
+    if (minutes < 0) return false;
+
+    switch (bulletinTimeFilter) {
+      case '0-3s':
+        return minutes <= 180;
+      case '3-6s':
+        return minutes > 180 && minutes <= 360;
+      case '6+s':
+        return minutes > 360;
+      default:
+        return true;
+    }
   }
 
   String iso(DateTime d) {
@@ -648,10 +745,50 @@ class _BulletinPageState extends State<BulletinPage> {
         date.month == now.month &&
         date.day == now.day;
 
+    final visibleMatches =
+        matches.where(bulletinVisible).toList();
+
+    visibleMatches.sort((a, b) {
+      final aTime = bulletinKickoff(a);
+      final bTime = bulletinKickoff(b);
+
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+
+      return aTime.compareTo(bTime);
+    });
+
     final groups = <String, List<Map<String, dynamic>>>{};
-    for (final m in matches) {
-      final league = m['league']?.toString() ?? 'Diğer';
-      groups.putIfAbsent(league, () => []).add(m);
+
+    for (final m in visibleMatches) {
+      final league = m['league']?.toString().trim();
+      final key = league == null || league.isEmpty ? 'Diğer' : league;
+
+      groups.putIfAbsent(key, () => []).add(m);
+    }
+
+    String selectedSummary = '${selected.length} maç seçildi';
+
+    if (selected.isNotEmpty) {
+      final latestSelectedUrl = selected.last;
+      Map<String, dynamic>? latestSelectedMatch;
+
+      for (final m in matches) {
+        if ((m['url']?.toString() ?? '') == latestSelectedUrl) {
+          latestSelectedMatch = m;
+          break;
+        }
+      }
+
+      final latestSelectedName =
+          latestSelectedMatch?['name']?.toString().trim() ?? '';
+
+      if (latestSelectedName.isNotEmpty) {
+        selectedSummary = selected.length == 1
+            ? latestSelectedName
+            : '$latestSelectedName  ·  +${selected.length - 1}';
+      }
     }
 
     return RefreshIndicator(
@@ -659,75 +796,251 @@ class _BulletinPageState extends State<BulletinPage> {
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
-              child: Row(
-                children: [
-                  IconButton.filledTonal(
-                    visualDensity: VisualDensity.compact,
-                    onPressed: isToday
-                        ? null
-                        : () {
-                            date = date.subtract(const Duration(days: 1));
-                            load();
-                          },
-                    icon: const Icon(Icons.chevron_left, size: 22),
-                  ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        const Text(
-                          'MAÇ BÜLTENİ',
-                          style: TextStyle(fontSize: 10, letterSpacing: 1.2),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _PinnedHeaderDelegate(
+              height: selected.isEmpty ? 166 : 216,
+              child: Material(
+                color: const Color(0xFF111827),
+                elevation: 3,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 7, 12, 7),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: 42,
+                        child: Row(
+                          children: [
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              onPressed: isToday
+                                  ? null
+                                  : () {
+                                      date = date.subtract(
+                                        const Duration(days: 1),
+                                      );
+                                      load();
+                                    },
+                              icon: const Icon(
+                                Icons.chevron_left_rounded,
+                                size: 24,
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    'MAÇ BÜLTENİ',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      letterSpacing: 1.15,
+                                      color: Color(0xFF94A3B8),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  Text(
+                                    iso(date),
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      color: Color(0xFFF1F5F9),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                date = date.add(const Duration(days: 1));
+                                load();
+                              },
+                              icon: const Icon(
+                                Icons.chevron_right_rounded,
+                                size: 24,
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          iso(date),
+                      ),
+                      const SizedBox(height: 5),
+                      SizedBox(
+                        height: 40,
+                        child: TextField(
+                          controller: bulletinSearchController,
+                          onChanged: (value) {
+                            setState(() {
+                              bulletinQuery = value;
+                            });
+                          },
                           style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 12.5,
+                            color: Color(0xFFF1F5F9),
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Takım veya maç ara',
+                            hintStyle: const TextStyle(
+                              color: Color(0xFF7F8EA3),
+                              fontSize: 12,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search_rounded,
+                              size: 19,
+                              color: Color(0xFF94A3B8),
+                            ),
+                            suffixIcon: bulletinQuery.isEmpty
+                                ? null
+                                : IconButton(
+                                    onPressed: () {
+                                      bulletinSearchController.clear();
+                                      setState(() {
+                                        bulletinQuery = '';
+                                      });
+                                    },
+                                    icon: const Icon(
+                                      Icons.close_rounded,
+                                      size: 17,
+                                    ),
+                                  ),
+                            filled: true,
+                            fillColor: const Color(0xFF1E293B),
+                            contentPadding: EdgeInsets.zero,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(11),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF334155),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(11),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF334155),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(11),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF60A5FA),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 34,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            for (final filter in const [
+                              'Tümü',
+                              '0-3s',
+                              '3-6s',
+                              '6+s',
+                              'Takipte',
+                            ])
+                              Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: ChoiceChip(
+                                  label: Text(
+                                    filter == '0-3s'
+                                        ? '0–3 saat'
+                                        : filter == '3-6s'
+                                            ? '3–6 saat'
+                                            : filter == '6+s'
+                                                ? '6+ saat'
+                                                : filter,
+                                  ),
+                                  selected:
+                                      bulletinTimeFilter == filter,
+                                  onSelected: (_) {
+                                    setState(() {
+                                      bulletinTimeFilter = filter;
+                                    });
+                                  },
+                                  visualDensity: VisualDensity.compact,
+                                  labelStyle: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: bulletinTimeFilter == filter
+                                        ? const Color(0xFFF8FAFC)
+                                        : const Color(0xFFCBD5E1),
+                                  ),
+                                  selectedColor:
+                                      const Color(0xFF334155),
+                                  backgroundColor:
+                                      const Color(0xFF1E293B),
+                                  side: BorderSide(
+                                    color: bulletinTimeFilter == filter
+                                        ? const Color(0xFF60A5FA)
+                                        : const Color(0xFF334155),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (selected.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 44,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  selectedSummary,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFFE2E8F0),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor:
+                                      const Color(0xFF2563EB),
+                                  foregroundColor: Colors.white,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: saving ? null : follow,
+                                icon: saving
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.add_task_rounded,
+                                        size: 17,
+                                      ),
+                                label: Text(
+                                  saving
+                                      ? 'Kaydediliyor'
+                                      : 'Takibe al',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  IconButton.filledTonal(
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () {
-                      date = date.add(const Duration(days: 1));
-                      load();
-                    },
-                    icon: const Icon(Icons.chevron_right, size: 22),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (selected.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 7),
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(38),
-                  ),
-                  onPressed: saving ? null : follow,
-                  icon: saving
-                      ? const SizedBox(
-                          width: 15,
-                          height: 15,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add_task, size: 18),
-                  label: Text(
-                    saving
-                        ? 'Kaydediliyor...'
-                        : selected.length.toString() + ' maçı takibe al',
-                    style: const TextStyle(fontSize: 13),
+                    ],
                   ),
                 ),
               ),
             ),
+          ),
           if (loading)
             const SliverFillRemaining(
               child: Center(child: CircularProgressIndicator()),
@@ -742,70 +1055,159 @@ class _BulletinPageState extends State<BulletinPage> {
               hasScrollBody: false,
               child: Center(child: Text('Bu tarihte maç bulunamadı.')),
             )
+          else if (groups.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Text(
+                  'Arama veya filtreye uygun maç yok.',
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            )
           else
-            for (final g in groups.entries) ...[
+            for (final g in groups.entries)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
-                  child: Text(
-                    g.key,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF9AA8B6),
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF151E2B),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: const Color(0xFF2A394B),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 9, 10, 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  g.key,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFFDCE5F0),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${g.value.length} maç',
+                                style: const TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF8291A6),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: Color(0xFF263445),
+                        ),
+                        for (int i = 0; i < g.value.length; i++)
+                          Builder(
+                            builder: (context) {
+                              final m = g.value[i];
+                              final url = m['url']?.toString() ?? '';
+                              final followed = m['followed'] == true;
+                              final locked = bulletinLocked(m);
+                              final checked =
+                                  followed || selected.contains(url);
+
+                              return Column(
+                                children: [
+                                  CheckboxListTile(
+                                    dense: true,
+                                    visualDensity: const VisualDensity(
+                                      horizontal: -2,
+                                      vertical: -2,
+                                    ),
+                                    contentPadding:
+                                        const EdgeInsets.fromLTRB(
+                                      11,
+                                      1,
+                                      7,
+                                      1,
+                                    ),
+                                    value: checked,
+                                    activeColor: const Color(0xFF2563EB),
+                                    checkColor: Colors.white,
+                                    onChanged: (followed || locked)
+                                        ? null
+                                        : (v) {
+                                            setState(() {
+                                              if (v == true) {
+                                                selected.add(url);
+                                              } else {
+                                                selected.remove(url);
+                                              }
+                                            });
+                                          },
+                                    controlAffinity:
+                                        ListTileControlAffinity.trailing,
+                                    title: Text(
+                                      m['name']?.toString() ?? '-',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFFF1F5F9),
+                                      ),
+                                    ),
+                                    subtitle: Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Text(
+                                        bulletinStatus(m) +
+                                            (followed
+                                                ? '  ·  Takipte'
+                                                : '') +
+                                            (m['archived'] == true
+                                                ? '  ·  Arşivde'
+                                                : ''),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: followed
+                                              ? const Color(0xFF7DD3FC)
+                                              : locked
+                                                  ? const Color(0xFFF59E0B)
+                                                  : const Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (i != g.value.length - 1)
+                                    const Divider(
+                                      height: 1,
+                                      indent: 11,
+                                      endIndent: 11,
+                                      color: Color(0xFF263445),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              SliverList.builder(
-                itemCount: g.value.length,
-                itemBuilder: (context, i) {
-                  final m = g.value[i];
-                  final url = m['url']?.toString() ?? '';
-                  final followed = m['followed'] == true;
-                  final locked = bulletinLocked(m);
-                  final checked = followed || selected.contains(url);
-
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 2, 10, 2),
-                    child: Card(
-                      child: CheckboxListTile(
-                        dense: true,
-                        visualDensity: const VisualDensity(vertical: -2),
-                        contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 10),
-                        value: checked,
-                        onChanged: (followed || locked)
-                            ? null
-                            : (v) {
-                                setState(() {
-                                  if (v == true) {
-                                    selected.add(url);
-                                  } else {
-                                    selected.remove(url);
-                                  }
-                                });
-                              },
-                        controlAffinity: ListTileControlAffinity.trailing,
-                        title: Text(
-                          m['name']?.toString() ?? '-',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        subtitle: Text(
-                          bulletinStatus(m) +
-                              (followed ? '  ·  Takipte' : '') +
-                              (m['archived'] == true ? '  ·  Geçmişte' : ''),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
         ],
       ),
@@ -873,6 +1275,46 @@ int _trackScheduleKey(Map<String, dynamic> m) {
     int.parse(tm.group(1)!),
     int.parse(tm.group(2)!),
   ).millisecondsSinceEpoch;
+}
+
+DateTime? _trackKickoffDateTime(Map<String, dynamic> m) {
+  final d = m['match_date']?.toString() ?? '';
+  final t = m['kickoff_time']?.toString() ?? '';
+
+  final dm = RegExp(r'(\d{4})-(\d{2})-(\d{2})').firstMatch(d);
+  final tm = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(t);
+
+  if (dm == null || tm == null) return null;
+
+  return DateTime(
+    int.parse(dm.group(1)!),
+    int.parse(dm.group(2)!),
+    int.parse(dm.group(3)!),
+    int.parse(tm.group(1)!),
+    int.parse(tm.group(2)!),
+  );
+}
+
+int? _trackMinutesUntilKickoff(Map<String, dynamic> m) {
+  final kickoff = _trackKickoffDateTime(m);
+  if (kickoff == null) return null;
+
+  return kickoff.difference(DateTime.now()).inMinutes;
+}
+
+String _trackCountdownLabel(Map<String, dynamic> m) {
+  final minutes = _trackMinutesUntilKickoff(m);
+
+  if (minutes == null) return '';
+  if (minutes < 0) return 'Başladı';
+  if (minutes == 0) return 'Şimdi';
+  if (minutes < 60) return '$minutes dk kaldı';
+
+  final hours = minutes ~/ 60;
+  final rest = minutes % 60;
+
+  if (rest == 0) return '${hours}s kaldı';
+  return '${hours}s ${rest}dk kaldı';
 }
 
 String _trackResultText(Map<String, dynamic> m) {
@@ -944,30 +1386,40 @@ class _DateMatchGroups extends StatelessWidget {
       children: [
         for (final key in keys)
           Card(
-            margin: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+            margin: const EdgeInsets.fromLTRB(10, 6, 10, 2),
             clipBehavior: Clip.antiAlias,
+            color: const Color(0xFF111827),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(
+                color: Color(0xFF263445),
+              ),
+            ),
             child: ExpansionTile(
               key: PageStorageKey<String>(
                 (archived ? 'finished-' : 'active-') + key,
               ),
-              initiallyExpanded: false,
+              initiallyExpanded: !archived,
               tilePadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 2,
+                horizontal: 12,
+                vertical: 0,
               ),
-              childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              childrenPadding: const EdgeInsets.fromLTRB(7, 0, 7, 7),
               title: Text(
                 _trackDateLabel(key),
                 style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFFDCE5F0),
                 ),
               ),
               subtitle: Text(
                 (groups[key]?.length ?? 0).toString() + ' maç',
                 style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF9AA8A0),
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF8291A6),
                 ),
               ),
               children: [
@@ -1003,47 +1455,83 @@ class _TrackedMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final score = _trackResultText(match);
     final lifecycle = match['lifecycle']?.toString() ?? '';
+
     final statusLine = archived
         ? (lifecycle == 'finished'
-            ? (score.isNotEmpty ? 'Bitti · ' + score : 'Bitti')
-            : 'Başladı · oran takibi kilitli')
+            ? 'Maç bitti'
+            : 'Oran takibi kapandı')
         : 'Oran takibi aktif';
+
+    final minutesLeft =
+        archived ? null : _trackMinutesUntilKickoff(match);
+
+    final lastHour = minutesLeft != null &&
+        minutesLeft >= 0 &&
+        minutesLeft <= 60;
+
+    final countdown = archived
+        ? ''
+        : _trackCountdownLabel(match).replaceAll(' kaldı', '');
 
     return Card(
       margin: const EdgeInsets.fromLTRB(2, 3, 2, 3),
-      color: const Color(0xFF172019),
+      color: lastHour
+          ? const Color(0xFF211B18)
+          : const Color(0xFF151E2B),
       elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(11),
+        side: BorderSide(
+          color: lastHour
+              ? const Color(0xFFF59E0B)
+              : const Color(0xFF2A394B),
+          width: lastHour ? 1.2 : 1,
+        ),
+      ),
       child: ListTile(
         dense: true,
         visualDensity: const VisualDensity(vertical: -1),
-        contentPadding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
-        leading: CircleAvatar(
-          radius: 18,
-          child: Icon(
-            archived ? Icons.lock_outline : Icons.sports_soccer,
-            size: 19,
+        contentPadding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+        minLeadingWidth: 8,
+        leading: Container(
+          width: 4,
+          height: 42,
+          decoration: BoxDecoration(
+            color: archived
+                ? const Color(0xFF64748B)
+                : lastHour
+                    ? const Color(0xFFF59E0B)
+                    : const Color(0xFF3B82F6),
+            borderRadius: BorderRadius.circular(8),
           ),
         ),
         title: Text(
           _trackTitle(match),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
+            fontSize: 13.2,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFFF1F5F9),
           ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 2),
             Text(
               (match['kickoff_time']?.toString().isNotEmpty == true
                       ? match['kickoff_time'].toString()
                       : '--:--') +
                   (match['league']?.toString().isNotEmpty == true
-                      ? '  ·  ' + match['league'].toString()
+                      ? '  ·  ${match['league']}'
                       : ''),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFB5C1D1),
               ),
             ),
             const SizedBox(height: 2),
@@ -1054,11 +1542,14 @@ class _TrackedMatchCard extends StatelessWidget {
                   '  ·  ' +
                   (match['capture_count']?.toString() ?? '0') +
                   ' tur',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
                 color: archived
-                    ? const Color(0xFFA8B3AC)
-                    : const Color(0xFF86D8B4),
+                    ? const Color(0xFF8794A8)
+                    : const Color(0xFF7DD3FC),
               ),
             ),
           ],
@@ -1067,15 +1558,70 @@ class _TrackedMatchCard extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!archived && countdown.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: lastHour
+                      ? const Color(0xFF7C2D12)
+                      : const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: lastHour
+                        ? const Color(0xFFFB923C)
+                        : const Color(0xFF3B4B61),
+                  ),
+                ),
+                child: Text(
+                  countdown,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    color: lastHour
+                        ? const Color(0xFFFFEDD5)
+                        : const Color(0xFFDCE5F0),
+                  ),
+                ),
+              ),
+            if (!archived &&
+                countdown.isNotEmpty &&
+                match['sharp_move_alert'] == true)
+              const SizedBox(width: 5),
             if (!archived && match['sharp_move_alert'] == true)
               const Icon(
                 Icons.warning_amber_rounded,
-                color: Color(0xFFE53935),
-                size: 20,
+                color: Color(0xFFEF4444),
+                size: 18,
               ),
-            if (!archived && match['sharp_move_alert'] == true)
-              const SizedBox(width: 2),
+            if (archived && score.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF475569),
+                  ),
+                ),
+                child: Text(
+                  'MS $score',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFFF1F5F9),
+                  ),
+                ),
+              ),
+            if (archived && score.isNotEmpty)
+              const SizedBox(width: 4),
             PopupMenuButton<String>(
+              padding: EdgeInsets.zero,
               onSelected: (x) {
                 if (x == 'remove') onRemove();
               },
@@ -1083,7 +1629,7 @@ class _TrackedMatchCard extends StatelessWidget {
                 PopupMenuItem(
                   value: 'remove',
                   child: Text(
-                    archived ? 'Geçmişten kaldır' : 'Takibi bırak',
+                    archived ? 'Arşivden kaldır' : 'Takibi bırak',
                   ),
                 ),
               ],
@@ -1107,10 +1653,93 @@ class _TrackedPageState extends State<TrackedPage> {
   String error = '';
   List<Map<String, dynamic>> matches = [];
 
+  String trackedQuery = '';
+  String trackedTimeFilter = 'Tümü';
+  final TextEditingController trackedSearchController =
+      TextEditingController();
+
   @override
   void initState() {
     super.initState();
     load();
+  }
+
+  @override
+  void dispose() {
+    trackedSearchController.dispose();
+    super.dispose();
+  }
+
+  DateTime? trackedKickoff(Map<String, dynamic> m) {
+    final rawDate = m['match_date']?.toString() ?? '';
+    final rawTime = m['kickoff_time']?.toString() ?? '';
+
+    final dm =
+        RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(rawDate);
+    final tm =
+        RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(rawTime);
+
+    if (dm == null || tm == null) return null;
+
+    return DateTime(
+      int.parse(dm.group(1)!),
+      int.parse(dm.group(2)!),
+      int.parse(dm.group(3)!),
+      int.parse(tm.group(1)!),
+      int.parse(tm.group(2)!),
+    );
+  }
+
+  int? trackedMinutesLeft(Map<String, dynamic> m) {
+    final kickoff = trackedKickoff(m);
+    if (kickoff == null) return null;
+    return kickoff.difference(DateTime.now()).inMinutes;
+  }
+
+  bool trackedVisible(Map<String, dynamic> m) {
+    final query = trackedQuery.trim().toLowerCase();
+
+    if (query.isNotEmpty) {
+      final searchable = [
+        _trackTitle(m),
+        m['league'],
+      ]
+          .whereType<Object>()
+          .map((e) => e.toString().toLowerCase())
+          .join(' ');
+
+      if (!searchable.contains(query)) return false;
+    }
+
+    if (trackedTimeFilter == 'Tümü') return true;
+
+    final minutes = trackedMinutesLeft(m);
+    if (minutes == null || minutes < 0) return false;
+
+    switch (trackedTimeFilter) {
+      case '1s':
+        return minutes <= 60;
+      case '3s':
+        return minutes <= 180;
+      case '6s':
+        return minutes <= 360;
+      default:
+        return true;
+    }
+  }
+
+  String trackedCountdown(Map<String, dynamic> m) {
+    final minutes = trackedMinutesLeft(m);
+
+    if (minutes == null) return '';
+    if (minutes < 0) return 'Başladı';
+    if (minutes < 60) return '$minutes dk';
+
+    final hours = minutes ~/ 60;
+    final rest = minutes % 60;
+
+    if (rest == 0) return '${hours}s';
+    return '${hours}s ${rest}dk';
   }
 
   Future<void> load() async {
@@ -1178,57 +1807,219 @@ class _TrackedPageState extends State<TrackedPage> {
     if (loading) return const Center(child: CircularProgressIndicator());
     if (error.isNotEmpty) return ErrorPane(message: error, retry: load);
 
-    final active = matches.where((m) => m['active'] == true).toList()
-      ..sort((a, b) => _trackScheduleKey(a).compareTo(_trackScheduleKey(b)));
+    final active = matches
+        .where((m) => m['active'] == true)
+        .where(trackedVisible)
+        .toList()
+      ..sort((a, b) {
+        final aTime = trackedKickoff(a);
+        final bTime = trackedKickoff(b);
+
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+
+        return aTime.compareTo(bTime);
+      });
 
     final finishedCount =
         matches.where((m) => m['archived'] == true).length;
 
     return RefreshIndicator(
       onRefresh: load,
-      child: ListView(
+      child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 18),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: openFinished,
-                icon: const Icon(Icons.history_rounded, size: 19),
-                label: Text(
-                  finishedCount > 0
-                      ? 'Biten Maçlar  ·  ' + finishedCount.toString()
-                      : 'Biten Maçlar',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
+        slivers: [
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _PinnedHeaderDelegate(
+              height: 142,
+              child: Material(
+                color: const Color(0xFF111827),
+                elevation: 3,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 7),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: 38,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E293B),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: const Color(0xFF334155),
+                                  ),
+                                ),
+                                child: TextField(
+                                  controller: trackedSearchController,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      trackedQuery = value;
+                                    });
+                                  },
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: Color(0xFFF1F5F9),
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: 'Takım ara',
+                                    hintStyle: const TextStyle(
+                                      color: Color(0xFF7F8EA3),
+                                      fontSize: 12,
+                                    ),
+                                    prefixIcon: const Icon(
+                                      Icons.search_rounded,
+                                      size: 18,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                    suffixIcon: trackedQuery.isEmpty
+                                        ? null
+                                        : IconButton(
+                                            onPressed: () {
+                                              trackedSearchController.clear();
+                                              setState(() {
+                                                trackedQuery = '';
+                                              });
+                                            },
+                                            icon: const Icon(
+                                              Icons.close_rounded,
+                                              size: 17,
+                                            ),
+                                          ),
+                                    contentPadding: EdgeInsets.zero,
+                                    border: InputBorder.none,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: openFinished,
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(0, 38),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 10),
+                                foregroundColor: const Color(0xFFD7E1EC),
+                                side: const BorderSide(
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.archive_outlined,
+                                size: 17,
+                              ),
+                              label: Text(
+                                finishedCount > 0
+                                    ? 'Arşiv $finishedCount'
+                                    : 'Arşiv',
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      SizedBox(
+                        height: 34,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            for (final filter in const [
+                              'Tümü',
+                              '1s',
+                              '3s',
+                              '6s',
+                            ])
+                              Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: ChoiceChip(
+                                  label: Text(
+                                    filter == '1s'
+                                        ? 'Son 1 Saat'
+                                        : filter == '3s'
+                                            ? '3 Saat'
+                                            : filter == '6s'
+                                                ? '6 Saat'
+                                                : 'Tümü',
+                                  ),
+                                  selected: trackedTimeFilter == filter,
+                                  onSelected: (_) {
+                                    setState(() {
+                                      trackedTimeFilter = filter;
+                                    });
+                                  },
+                                  visualDensity: VisualDensity.compact,
+                                  selectedColor: filter == '1s'
+                                      ? const Color(0xFF7C2D12)
+                                      : const Color(0xFF334155),
+                                  backgroundColor:
+                                      const Color(0xFF1E293B),
+                                  side: BorderSide(
+                                    color: trackedTimeFilter == filter
+                                        ? filter == '1s'
+                                            ? const Color(0xFFFB923C)
+                                            : const Color(0xFF60A5FA)
+                                        : const Color(0xFF334155),
+                                  ),
+                                  labelStyle: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    color: trackedTimeFilter == filter
+                                        ? const Color(0xFFF8FAFC)
+                                        : const Color(0xFFCBD5E1),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Text(
+                            'AKTİF TAKİP',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .7,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${active.length} maç',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF7F8EA3),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                ),
               ),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 10, 16, 2),
-            child: Text(
-              'AKTİF TAKİP',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .8,
-                color: Color(0xFF9AA8B6),
-              ),
+          SliverToBoxAdapter(
+            child: _DateMatchGroups(
+              matches: active,
+              archived: false,
+              onOpen: openMatch,
+              onRemove: remove,
             ),
           ),
-          _DateMatchGroups(
-            matches: active,
-            archived: false,
-            onOpen: openMatch,
-            onRemove: remove,
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 18),
           ),
         ],
       ),
@@ -1248,10 +2039,70 @@ class _FinishedMatchesPageState extends State<FinishedMatchesPage> {
   String error = '';
   List<Map<String, dynamic>> matches = [];
 
+  String archiveQuery = '';
+  String archiveRange = '30g';
+  String archiveLeague = 'Tümü';
+  final TextEditingController archiveSearchController =
+      TextEditingController();
+
   @override
   void initState() {
     super.initState();
     load();
+  }
+
+  @override
+  void dispose() {
+    archiveSearchController.dispose();
+    super.dispose();
+  }
+
+  DateTime? archiveMatchDate(Map<String, dynamic> m) {
+    final raw = m['match_date']?.toString() ?? '';
+    final dm =
+        RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(raw);
+
+    if (dm == null) return null;
+
+    return DateTime(
+      int.parse(dm.group(1)!),
+      int.parse(dm.group(2)!),
+      int.parse(dm.group(3)!),
+    );
+  }
+
+  bool archiveVisible(Map<String, dynamic> m) {
+    final query = archiveQuery.trim().toLowerCase();
+
+    if (query.isNotEmpty) {
+      final searchable = [
+        _trackTitle(m),
+        m['league'],
+      ]
+          .whereType<Object>()
+          .map((e) => e.toString().toLowerCase())
+          .join(' ');
+
+      if (!searchable.contains(query)) return false;
+    }
+
+    if (archiveLeague != 'Tümü' &&
+        (m['league']?.toString().trim() ?? '') != archiveLeague) {
+      return false;
+    }
+
+    if (archiveRange == 'Tümü') return true;
+
+    final matchDate = archiveMatchDate(m);
+    if (matchDate == null) return false;
+
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+
+    final days = archiveRange == '7g' ? 7 : 30;
+    final oldest = start.subtract(Duration(days: days - 1));
+
+    return !matchDate.isBefore(oldest);
   }
 
   Future<void> load() async {
@@ -1306,40 +2157,344 @@ class _FinishedMatchesPageState extends State<FinishedMatchesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final leagueOptions = matches
+        .map((m) => m['league']?.toString().trim() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    final visibleMatches =
+        matches.where(archiveVisible).toList()
+          ..sort(
+            (a, b) => _trackScheduleKey(b)
+                .compareTo(_trackScheduleKey(a)),
+          );
+
+    final selectedLeagueValue =
+        archiveLeague == 'Tümü' || leagueOptions.contains(archiveLeague)
+            ? archiveLeague
+            : 'Tümü';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Biten Maçlar',
-          style: TextStyle(fontWeight: FontWeight.w800),
+          'Arşiv',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+          ),
         ),
       ),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
           : error.isNotEmpty
-              ? ErrorPane(message: error, retry: load)
+              ? ErrorPane(
+                  message: error,
+                  retry: load,
+                )
               : RefreshIndicator(
                   onRefresh: load,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 22),
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-                        child: Text(
-                          'TARİHE GÖRE',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .8,
-                            color: Color(0xFF9AA8B6),
+                  child: CustomScrollView(
+                    physics:
+                        const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverPersistentHeader(
+                        pinned: true,
+                        delegate: _PinnedHeaderDelegate(
+                          height: 137,
+                          child: Material(
+                            color: const Color(0xFF111827),
+                            elevation: 3,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                8,
+                                12,
+                                7,
+                              ),
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    height: 39,
+                                    child: TextField(
+                                      controller:
+                                          archiveSearchController,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          archiveQuery = value;
+                                        });
+                                      },
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        color: Color(0xFFF1F5F9),
+                                      ),
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            'Takım veya eski maç ara',
+                                        hintStyle: const TextStyle(
+                                          color: Color(0xFF7F8EA3),
+                                          fontSize: 12,
+                                        ),
+                                        prefixIcon: const Icon(
+                                          Icons.search_rounded,
+                                          size: 18,
+                                          color: Color(0xFF94A3B8),
+                                        ),
+                                        suffixIcon:
+                                            archiveQuery.isEmpty
+                                                ? null
+                                                : IconButton(
+                                                    onPressed: () {
+                                                      archiveSearchController
+                                                          .clear();
+                                                      setState(() {
+                                                        archiveQuery = '';
+                                                      });
+                                                    },
+                                                    icon: const Icon(
+                                                      Icons.close_rounded,
+                                                      size: 17,
+                                                    ),
+                                                  ),
+                                        filled: true,
+                                        fillColor:
+                                            const Color(0xFF1E293B),
+                                        contentPadding:
+                                            EdgeInsets.zero,
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          borderSide:
+                                              const BorderSide(
+                                            color: Color(0xFF334155),
+                                          ),
+                                        ),
+                                        enabledBorder:
+                                            OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          borderSide:
+                                              const BorderSide(
+                                            color: Color(0xFF334155),
+                                          ),
+                                        ),
+                                        focusedBorder:
+                                            OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          borderSide:
+                                              const BorderSide(
+                                            color: Color(0xFF60A5FA),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  SizedBox(
+                                    height: 34,
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: ListView(
+                                            scrollDirection:
+                                                Axis.horizontal,
+                                            children: [
+                                              for (final range
+                                                  in const [
+                                                '7g',
+                                                '30g',
+                                                'Tümü',
+                                              ])
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                    right: 6,
+                                                  ),
+                                                  child: ChoiceChip(
+                                                    label: Text(
+                                                      range == '7g'
+                                                          ? '7 Gün'
+                                                          : range ==
+                                                                  '30g'
+                                                              ? '30 Gün'
+                                                              : 'Tümü',
+                                                    ),
+                                                    selected:
+                                                        archiveRange ==
+                                                            range,
+                                                    onSelected: (_) {
+                                                      setState(() {
+                                                        archiveRange =
+                                                            range;
+                                                      });
+                                                    },
+                                                    visualDensity:
+                                                        VisualDensity
+                                                            .compact,
+                                                    selectedColor:
+                                                        const Color(
+                                                      0xFF334155,
+                                                    ),
+                                                    backgroundColor:
+                                                        const Color(
+                                                      0xFF1E293B,
+                                                    ),
+                                                    side: BorderSide(
+                                                      color: archiveRange ==
+                                                              range
+                                                          ? const Color(
+                                                              0xFF60A5FA,
+                                                            )
+                                                          : const Color(
+                                                              0xFF334155,
+                                                            ),
+                                                    ),
+                                                    labelStyle:
+                                                        TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                      color: archiveRange ==
+                                                              range
+                                                          ? const Color(
+                                                              0xFFF8FAFC,
+                                                            )
+                                                          : const Color(
+                                                              0xFFCBD5E1,
+                                                            ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Container(
+                                          height: 37,
+                                          padding:
+                                              const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFF1E293B,
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(9),
+                                            border: Border.all(
+                                              color: const Color(
+                                                0xFF334155,
+                                              ),
+                                            ),
+                                          ),
+                                          child:
+                                              DropdownButtonHideUnderline(
+                                            child: DropdownButton<String>(
+                                              value:
+                                                  selectedLeagueValue,
+                                              isExpanded: true,
+                                              dropdownColor:
+                                                  const Color(
+                                                0xFF1E293B,
+                                              ),
+                                              icon: const Icon(
+                                                Icons
+                                                    .keyboard_arrow_down_rounded,
+                                                color: Color(
+                                                  0xFF94A3B8,
+                                                ),
+                                              ),
+                                              style: const TextStyle(
+                                                fontSize: 10.5,
+                                                fontWeight:
+                                                    FontWeight.w800,
+                                                color: Color(
+                                                  0xFFDCE5F0,
+                                                ),
+                                              ),
+                                              items: [
+                                                const DropdownMenuItem(
+                                                  value: 'Tümü',
+                                                  child: Text(
+                                                    'Tüm ligler',
+                                                  ),
+                                                ),
+                                                for (final league
+                                                    in leagueOptions)
+                                                  DropdownMenuItem(
+                                                    value: league,
+                                                    child: Text(
+                                                      league,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow
+                                                              .ellipsis,
+                                                    ),
+                                                  ),
+                                              ],
+                                              onChanged: (value) {
+                                                if (value == null) return;
+                                                setState(() {
+                                                  archiveLeague =
+                                                      value;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        '${visibleMatches.length} maç',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight:
+                                              FontWeight.w800,
+                                          color: Color(0xFF8291A6),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                      _DateMatchGroups(
-                        matches: matches,
-                        archived: true,
-                        onOpen: openMatch,
-                        onRemove: remove,
+                      if (visibleMatches.isEmpty)
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: Text(
+                              'Filtreye uygun arşiv kaydı yok.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        SliverToBoxAdapter(
+                          child: _DateMatchGroups(
+                            matches: visibleMatches,
+                            archived: true,
+                            onOpen: openMatch,
+                            onRemove: remove,
+                          ),
+                        ),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: 22),
                       ),
                     ],
                   ),
@@ -2381,7 +3536,7 @@ class _MatchDetailState extends State<MatchDetail> {
                                   fontWeight:
                                       FontWeight.w900,
                                   color: Color(
-                                    0xFF8CDAB8,
+                                    0xFF60A5FA,
                                   ),
                                 ),
                               ),
@@ -2392,7 +3547,7 @@ class _MatchDetailState extends State<MatchDetail> {
                                 style: TextStyle(
                                   fontSize: 9,
                                   color: Color(
-                                    0xFF758078,
+                                    0xFF94A3B8,
                                   ),
                                 ),
                               ),
@@ -2426,7 +3581,7 @@ class _MatchDetailState extends State<MatchDetail> {
                                   fontWeight:
                                       FontWeight.w900,
                                   color: Color(
-                                    0xFF8CDAB8,
+                                    0xFF60A5FA,
                                   ),
                                 ),
                               ),
@@ -2476,7 +3631,7 @@ class _MatchDetailState extends State<MatchDetail> {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: const Color(
-                      0xFF18211D,
+                      0xFF151E2B,
                     ),
                     borderRadius:
                         BorderRadius.circular(10),
@@ -2554,6 +3709,13 @@ class _MatchDetailState extends State<MatchDetail> {
 
     final marketStateEvents = data['market_state_events'] is List
         ? (data['market_state_events'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    final openingOdds = data['opening_odds'] is List
+        ? (data['opening_odds'] as List)
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList()
@@ -2762,9 +3924,9 @@ class _MatchDetailState extends State<MatchDetail> {
                           ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(10),
-                            color: const Color(0xFF18201C),
+                            color: const Color(0xFF151E2B),
                             border: Border.all(
-                              color: const Color(0xFF34433B),
+                              color: const Color(0xFF334155),
                             ),
                           ),
                           child: Row(
@@ -2794,7 +3956,7 @@ class _MatchDetailState extends State<MatchDetail> {
                           ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(9),
-                            color: const Color(0xFF18201C),
+                            color: const Color(0xFF151E2B),
                           ),
                           child: Text(
                             refreshMessage,
@@ -2824,12 +3986,12 @@ class _MatchDetailState extends State<MatchDetail> {
                         height: 42,
                         padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF111814),
+                          color: const Color(0xFF111827),
                           borderRadius:
                               BorderRadius.circular(11),
                           border: Border.all(
                             color:
-                                const Color(0xFF2B3932),
+                                const Color(0xFF334155),
                           ),
                         ),
                         child: Row(
@@ -2843,7 +4005,7 @@ class _MatchDetailState extends State<MatchDetail> {
                                 child: Material(
                                   color: oddsView == view
                                       ? const Color(
-                                          0xFF244C3C,
+                                          0xFF1E3A5F,
                                         )
                                       : Colors.transparent,
                                   borderRadius:
@@ -2870,10 +4032,10 @@ class _MatchDetailState extends State<MatchDetail> {
                                           color:
                                               oddsView == view
                                                   ? const Color(
-                                                      0xFFE7F5EE,
+                                                      0xFFF1F5F9,
                                                     )
                                                   : const Color(
-                                                      0xFF8C9992,
+                                                      0xFF94A3B8,
                                                     ),
                                         ),
                                       ),
@@ -2891,6 +4053,7 @@ class _MatchDetailState extends State<MatchDetail> {
                           latestRows: allLatest,
                           historyGroups: allHistoryGroups,
                           marketStateEvents: marketStateEvents,
+                          openingOdds: openingOdds,
                           view: oddsView,
                         ),
 
@@ -2918,7 +4081,7 @@ class _DetailTabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? const Color(0xFF244C3C) : Colors.transparent,
+      color: selected ? const Color(0xFF1E3A5F) : Colors.transparent,
       borderRadius: BorderRadius.circular(9),
       child: InkWell(
         borderRadius: BorderRadius.circular(9),
@@ -2930,8 +4093,8 @@ class _DetailTabButton extends StatelessWidget {
               icon,
               size: 17,
               color: selected
-                  ? const Color(0xFF8BE2BE)
-                  : const Color(0xFF8D9992),
+                  ? const Color(0xFF60A5FA)
+                  : const Color(0xFF94A3B8),
             ),
             const SizedBox(width: 7),
             Text(
@@ -2940,8 +4103,8 @@ class _DetailTabButton extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
                 color: selected
-                    ? const Color(0xFFE8F5EF)
-                    : const Color(0xFF9AA59F),
+                    ? const Color(0xFFF1F5F9)
+                    : const Color(0xFF94A3B8),
               ),
             ),
           ],
@@ -3186,7 +4349,7 @@ class _PerformancePanelState extends State<PerformancePanel>
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
       decoration: const BoxDecoration(
-        color: Color(0xFF151E18),
+        color: Color(0xFF151E2B),
         borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       child: Row(
@@ -3209,7 +4372,7 @@ class _PerformancePanelState extends State<PerformancePanel>
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF58D6A6),
+                color: Color(0xFF60A5FA),
                 letterSpacing: 1.1,
               ),
             ),
@@ -3398,7 +4561,7 @@ class _PerformancePanelState extends State<PerformancePanel>
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF8BE2BE),
+                color: Color(0xFF60A5FA),
               ),
             ),
           ),
@@ -3409,7 +4572,7 @@ class _PerformancePanelState extends State<PerformancePanel>
                 'Eksik oyuncu verisi alınamadı.',
                 style: TextStyle(
                   fontSize: 11,
-                  color: Color(0xFF8D9992),
+                  color: Color(0xFF94A3B8),
                 ),
               ),
             )
@@ -3420,7 +4583,7 @@ class _PerformancePanelState extends State<PerformancePanel>
                 'Kayıtlı eksik oyuncu yok.',
                 style: TextStyle(
                   fontSize: 11,
-                  color: Color(0xFF8D9992),
+                  color: Color(0xFF94A3B8),
                 ),
               ),
             ),
@@ -3433,7 +4596,7 @@ class _PerformancePanelState extends State<PerformancePanel>
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF121813),
+                  color: const Color(0xFF111827),
                   borderRadius: BorderRadius.circular(9),
                 ),
                 child: Row(
@@ -3530,7 +4693,7 @@ class _PerformancePanelState extends State<PerformancePanel>
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF8BE2BE),
+                color: Color(0xFF60A5FA),
               ),
             ),
           ),
@@ -3618,7 +4781,7 @@ class _PerformancePanelState extends State<PerformancePanel>
               padding: EdgeInsets.all(8),
               child: Text(
                 'Geçmiş karşılaşma bulunamadı.',
-                style: TextStyle(fontSize: 11, color: Color(0xFF8D9992)),
+                style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
               ),
             ),
           for (final m in rows)
@@ -3626,7 +4789,7 @@ class _PerformancePanelState extends State<PerformancePanel>
               margin: const EdgeInsets.only(bottom: 5),
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF121813),
+                color: const Color(0xFF111827),
                 borderRadius: BorderRadius.circular(9),
               ),
               child: Row(
@@ -3747,7 +4910,7 @@ class _PerformancePanelState extends State<PerformancePanel>
                           Icon(
                             Icons.refresh_rounded,
                             size: 13,
-                            color: Color(0xFF8BE2BE),
+                            color: Color(0xFF60A5FA),
                           ),
                           SizedBox(width: 3),
                           Text(
@@ -3755,7 +4918,7 @@ class _PerformancePanelState extends State<PerformancePanel>
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF8BE2BE),
+                              color: Color(0xFF60A5FA),
                             ),
                           ),
                         ],
@@ -3821,6 +4984,7 @@ class OddsChart extends StatefulWidget {
   final List<Map<String, dynamic>> latestRows;
   final List<Map<String, dynamic>> historyGroups;
   final List<Map<String, dynamic>> marketStateEvents;
+  final List<Map<String, dynamic>> openingOdds;
   final String view;
 
   const OddsChart({
@@ -3828,6 +4992,7 @@ class OddsChart extends StatefulWidget {
     required this.latestRows,
     required this.historyGroups,
     required this.marketStateEvents,
+    required this.openingOdds,
     this.view = 'Grafik',
   });
 
@@ -4305,6 +5470,85 @@ class _OddsChartState extends State<OddsChart> {
   }
 
 
+  List<Map<String, dynamic>> _openingRecords(
+    List<_OddsSeries> chartSeries,
+  ) {
+    final out = <Map<String, dynamic>>[];
+
+    for (final raw in widget.openingOdds) {
+      final bookmaker = raw['bookmaker']?.toString() ?? '';
+
+      if (!selectedBookmakers.any(
+        (name) => _bookmakerKey(name) == _bookmakerKey(bookmaker),
+      )) {
+        continue;
+      }
+
+      if (raw['market']?.toString() != market) continue;
+
+      final outcomeKey = raw['outcome_key']?.toString() ?? '';
+
+      MapEntry<String, String>? outcome;
+
+      for (final item in marketOutcomes) {
+        if (item.value == outcomeKey) {
+          outcome = item;
+          break;
+        }
+      }
+
+      if (outcome == null) continue;
+
+      if (selection != 'Tümü' && outcome.key != selection) {
+        continue;
+      }
+
+      final oddRaw = raw['opening_odd'];
+      final odd = oddRaw is num
+          ? oddRaw.toDouble()
+          : double.tryParse(oddRaw?.toString() ?? '');
+
+      if (odd == null || !odd.isFinite || odd <= 1) continue;
+
+      final time = DateTime.tryParse(
+        raw['opening_at']?.toString() ?? '',
+      )?.toLocal();
+
+      if (time == null) continue;
+
+      Color color = const Color(0xFF94A3B8);
+
+      for (final series in chartSeries) {
+        if (_bookmakerKey(series.bookmaker) ==
+                _bookmakerKey(bookmaker) &&
+            series.outcome == outcome.key) {
+          color = series.color;
+          break;
+        }
+      }
+
+      out.add({
+        'bookmaker': bookmaker,
+        'outcome': outcome.key,
+        'color': color,
+        'time': time,
+        'before': null,
+        'after': odd,
+        'pct': null,
+        'changed': false,
+        'opening': true,
+      });
+    }
+
+    out.sort((a, b) {
+      final at = a['time'] as DateTime;
+      final bt = b['time'] as DateTime;
+      return bt.compareTo(at);
+    });
+
+    return out;
+  }
+
   List<Map<String, dynamic>> _movementRecords(
     List<_OddsSeries> chartSeries,
   ) {
@@ -4395,9 +5639,9 @@ class _OddsChartState extends State<OddsChart> {
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF151D19),
+        color: const Color(0xFF151E2B),
         borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: const Color(0xFF29342F)),
+        border: Border.all(color: const Color(0xFF334155)),
       ),
       child: Column(
         children: [
@@ -4442,7 +5686,7 @@ class _OddsChartState extends State<OddsChart> {
                   ),
                   decoration: const BoxDecoration(
                     border: Border(
-                      bottom: BorderSide(color: Color(0xFF26302B)),
+                      bottom: BorderSide(color: Color(0xFF263445)),
                     ),
                   ),
                   child: Row(
@@ -4453,7 +5697,7 @@ class _OddsChartState extends State<OddsChart> {
                           _oddsStamp(time),
                           style: const TextStyle(
                             fontSize: 8.2,
-                            color: Color(0xFF9EAAA4),
+                            color: Color(0xFF94A3B8),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -4490,8 +5734,8 @@ class _OddsChartState extends State<OddsChart> {
                               fontSize: 9.2,
                               fontWeight: FontWeight.w900,
                               color: isSuspend
-                                  ? const Color(0xFF9EAAA4)
-                                  : const Color(0xFFE7F5EE),
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFFF1F5F9),
                               decoration: isSuspend && current != null
                                   ? TextDecoration.lineThrough
                                   : TextDecoration.none,
@@ -4511,7 +5755,7 @@ class _OddsChartState extends State<OddsChart> {
 
   Color _historyMoveColor(double? before, double after) {
     if (before == null || (after - before).abs() < 0.0001) {
-      return const Color(0xFF9EAAA4);
+      return const Color(0xFF94A3B8);
     }
 
     // Oran düşüşü yeşil, yükseliş kırmızı.
@@ -4535,8 +5779,9 @@ class _OddsChartState extends State<OddsChart> {
       if (rawTime is! DateTime) continue;
 
       final bookmaker = record['bookmaker']?.toString() ?? '';
+      final recordType = record['opening'] == true ? 'opening' : 'tracked';
       final key =
-          '${_bookmakerKey(bookmaker)}|${rawTime.millisecondsSinceEpoch}';
+          '${_bookmakerKey(bookmaker)}|$recordType|${rawTime.millisecondsSinceEpoch}';
 
       final group = grouped.putIfAbsent(
         key,
@@ -4551,10 +5796,22 @@ class _OddsChartState extends State<OddsChart> {
     }
 
     final rows = grouped.values.toList()
-      ..sort(
-        (a, b) =>
-            (b['time'] as DateTime).compareTo(a['time'] as DateTime),
-      );
+      ..sort((a, b) {
+        final aItems = a['items'] as List<Map<String, dynamic>>;
+        final bItems = b['items'] as List<Map<String, dynamic>>;
+
+        final aOpening =
+            aItems.any((item) => item['opening'] == true);
+        final bOpening =
+            bItems.any((item) => item['opening'] == true);
+
+        if (aOpening != bOpening) {
+          return aOpening ? 1 : -1;
+        }
+
+        return (b['time'] as DateTime)
+            .compareTo(a['time'] as DateTime);
+      });
 
     for (final row in rows) {
       final items = row['items'] as List<Map<String, dynamic>>;
@@ -4573,7 +5830,7 @@ class _OddsChartState extends State<OddsChart> {
           'Bu seçim için kayıt yok.',
           style: TextStyle(
             fontSize: 10,
-            color: Color(0xFF8FA099),
+            color: Color(0xFF94A3B8),
           ),
         ),
       );
@@ -4582,10 +5839,10 @@ class _OddsChartState extends State<OddsChart> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF151D19),
+        color: const Color(0xFF151E2B),
         borderRadius: BorderRadius.circular(9),
         border: Border.all(
-          color: const Color(0xFF29342F),
+          color: const Color(0xFF334155),
         ),
       ),
       child: Column(
@@ -4601,7 +5858,7 @@ class _OddsChartState extends State<OddsChart> {
             decoration: const BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: Color(0xFF334039),
+                  color: Color(0xFF334155),
                 ),
               ),
             ),
@@ -4624,7 +5881,7 @@ class _OddsChartState extends State<OddsChart> {
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 9,
-                              color: Color(0xFF9EAAA4),
+                              color: Color(0xFF94A3B8),
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -4641,6 +5898,8 @@ class _OddsChartState extends State<OddsChart> {
               builder: (context) {
                 final items =
                     row['items'] as List<Map<String, dynamic>>;
+                final isOpening =
+                    items.any((item) => item['opening'] == true);
 
                 return Container(
                   padding: const EdgeInsets.symmetric(
@@ -4650,7 +5909,7 @@ class _OddsChartState extends State<OddsChart> {
                   decoration: const BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
-                        color: Color(0xFF26302B),
+                        color: Color(0xFF263445),
                       ),
                     ),
                   ),
@@ -4659,10 +5918,12 @@ class _OddsChartState extends State<OddsChart> {
                       SizedBox(
                         width: 70,
                         child: Text(
-                          _oddsStamp(row['time'] as DateTime?),
+                          isOpening
+                              ? 'AÇILIŞ\n${_oddsStamp(row['time'] as DateTime?)}'
+                              : _oddsStamp(row['time'] as DateTime?),
                           style: const TextStyle(
                             fontSize: 8.2,
-                            color: Color(0xFF9EAAA4),
+                            color: Color(0xFF94A3B8),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -4706,7 +5967,7 @@ class _OddsChartState extends State<OddsChart> {
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           fontSize: 9,
-                                          color: Color(0xFF6F7B75),
+                                          color: Color(0xFF7F8EA3),
                                         ),
                                       );
                                     }
@@ -4969,6 +6230,11 @@ class _OddsChartState extends State<OddsChart> {
     final selectedMoves = _selectedMoves(chartSeries);
     final displayTime = _displayTime(chartSeries);
     final movementRecords = _movementRecords(historySeries);
+    final openingRecords = _openingRecords(historySeries);
+    final historyRecords = <Map<String, dynamic>>[
+      ...movementRecords,
+      ...openingRecords,
+    ];
     final stateEventRecords = _stateEventRecords();
     final summaryRecords = _summaryRecords(historySeries);
 
@@ -4976,10 +6242,10 @@ class _OddsChartState extends State<OddsChart> {
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF111814),
+        color: const Color(0xFF111827),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFF2B3932),
+          color: const Color(0xFF334155),
         ),
       ),
       child: Column(
@@ -5004,7 +6270,7 @@ class _OddsChartState extends State<OddsChart> {
                 '${selectedBookmakers.length}/${names.length} bookmaker',
                 style: const TextStyle(
                   fontSize: 9,
-                  color: Color(0xFF8FA099),
+                  color: Color(0xFF94A3B8),
                 ),
               ),
             ],
@@ -5130,7 +6396,7 @@ class _OddsChartState extends State<OddsChart> {
                   ),
                   Text(
                     "${summaryRecords.length} bookmaker",
-                    style: const TextStyle(fontSize: 9, color: Color(0xFF8FA099)),
+                    style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8)),
                   ),
                 ],
               ),
@@ -5138,15 +6404,15 @@ class _OddsChartState extends State<OddsChart> {
               if (summaryRecords.isEmpty)
                 const Text(
                   "Bu seçim için henüz kayıt yok.",
-                  style: TextStyle(fontSize: 10, color: Color(0xFF8FA099)),
+                  style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
                 )
               else
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF151D19),
+                    color: const Color(0xFF151E2B),
                     borderRadius: BorderRadius.circular(9),
-                    border: Border.all(color: const Color(0xFF29342F)),
+                    border: Border.all(color: const Color(0xFF334155)),
                   ),
                   child: Column(
                     children: [
@@ -5154,7 +6420,7 @@ class _OddsChartState extends State<OddsChart> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
                           decoration: const BoxDecoration(
-                            border: Border(bottom: BorderSide(color: Color(0xFF26302B))),
+                            border: Border(bottom: BorderSide(color: Color(0xFF263445))),
                           ),
                           child: Row(
                             children: [
@@ -5167,7 +6433,7 @@ class _OddsChartState extends State<OddsChart> {
                               ),
                               Text(
                                 _oddsStamp(record["time"] as DateTime?),
-                                style: const TextStyle(fontSize: 8.5, color: Color(0xFF9EAAA4)),
+                                style: const TextStyle(fontSize: 8.5, color: Color(0xFF94A3B8)),
                               ),
                               const SizedBox(width: 8),
                               Flexible(
@@ -5196,10 +6462,10 @@ class _OddsChartState extends State<OddsChart> {
             height: 270,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: const Color(0xFF18211D),
+              color: const Color(0xFF151E2B),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: const Color(0xFF29342F),
+                color: const Color(0xFF334155),
               ),
             ),
             child: chartSeries.isEmpty
@@ -5208,7 +6474,7 @@ class _OddsChartState extends State<OddsChart> {
                       'Bu seçim için çizilecek oran geçmişi yok.',
                       style: TextStyle(
                         fontSize: 10,
-                        color: Color(0xFF8FA099),
+                        color: Color(0xFF94A3B8),
                       ),
                     ),
                   )
@@ -5249,10 +6515,10 @@ class _OddsChartState extends State<OddsChart> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF18211D),
+                  color: const Color(0xFF151E2B),
                   borderRadius: BorderRadius.circular(9),
                   border: Border.all(
-                    color: const Color(0xFF2B3932),
+                    color: const Color(0xFF334155),
                   ),
                 ),
                 child: Column(
@@ -5379,10 +6645,10 @@ class _OddsChartState extends State<OddsChart> {
                   ),
                 ),
                 Text(
-                    '${movementRecords.length} kayıt',
+                    '${historyRecords.length} kayıt',
                   style: const TextStyle(
                     fontSize: 9,
-                    color: Color(0xFF8FA099),
+                    color: Color(0xFF94A3B8),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -5394,15 +6660,15 @@ class _OddsChartState extends State<OddsChart> {
               _stateEventHistory(stateEventRecords),
 
               if (selection == 'Tümü')
-              _groupedMovementHistory(movementRecords)
-            else if (movementRecords.isEmpty)
+              _groupedMovementHistory(historyRecords)
+            else if (historyRecords.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 10),
                 child: Text(
                   'Bu seçim için kayıt yok.',
                   style: TextStyle(
                     fontSize: 10,
-                    color: Color(0xFF8FA099),
+                    color: Color(0xFF94A3B8),
                   ),
                 ),
               )
@@ -5410,15 +6676,15 @@ class _OddsChartState extends State<OddsChart> {
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF151D19),
+                  color: const Color(0xFF151E2B),
                   borderRadius: BorderRadius.circular(9),
                   border: Border.all(
-                    color: const Color(0xFF29342F),
+                    color: const Color(0xFF334155),
                   ),
                 ),
                 child: Column(
                   children: [
-                      for (final record in movementRecords)
+                      for (final record in historyRecords)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 9,
@@ -5427,7 +6693,7 @@ class _OddsChartState extends State<OddsChart> {
                         decoration: const BoxDecoration(
                           border: Border(
                             bottom: BorderSide(
-                              color: Color(0xFF26302B),
+                              color: Color(0xFF263445),
                             ),
                           ),
                         ),
@@ -5441,7 +6707,7 @@ class _OddsChartState extends State<OddsChart> {
                                 ),
                                 style: const TextStyle(
                                   fontSize: 8.5,
-                                  color: Color(0xFF9EAAA4),
+                                  color: Color(0xFF94A3B8),
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -5478,6 +6744,17 @@ class _OddsChartState extends State<OddsChart> {
                                       record['after'] as double;
                                   final pct =
                                       record['pct'] as double?;
+
+                                  if (record['opening'] == true) {
+                                    return Text(
+                                      'AÇILIŞ  ${after.toStringAsFixed(2)}',
+                                      textAlign: TextAlign.right,
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    );
+                                  }
 
                                   if (before == null) {
                                     return Text(
@@ -5690,7 +6967,7 @@ class OddsChartPainter extends CustomPainter {
     }
 
     final gridPaint = Paint()
-      ..color = const Color(0xFF303B36)
+      ..color = const Color(0xFF334155)
       ..strokeWidth = 1;
 
     for (int i = 0; i <= 4; i++) {
@@ -5714,7 +6991,7 @@ class OddsChartPainter extends CustomPainter {
         Offset(2, y - 6),
         const TextStyle(
           fontSize: 8,
-          color: Color(0xFF89958F),
+          color: Color(0xFF94A3B8),
         ),
       );
     }
@@ -5737,7 +7014,7 @@ class OddsChartPainter extends CustomPainter {
         Offset(x, plot.top),
         Offset(x, plot.bottom),
         Paint()
-          ..color = const Color(0xFFE7F5EE)
+          ..color = const Color(0xFFF1F5F9)
               .withValues(alpha: 0.65)
           ..strokeWidth = 1.4,
       );
@@ -5841,7 +7118,7 @@ class OddsChartPainter extends CustomPainter {
         Offset(x, plot.bottom + 8),
         const TextStyle(
           fontSize: 8,
-          color: Color(0xFF8FA099),
+          color: Color(0xFF94A3B8),
         ),
       );
     }

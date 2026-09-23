@@ -5026,6 +5026,8 @@ class _OddsChartState extends State<OddsChart> {
   String range = 'Tümü';
   final Set<String> selectedBookmakers = <String>{};
   String? historyBookmaker;
+  int historyPageSize = 50;
+  int historyPage = 0;
 
   // Parmakla grafikte seçilen an.
   DateTime? selectedTime;
@@ -5088,11 +5090,23 @@ class _OddsChartState extends State<OddsChart> {
     final picked = await Navigator.of(context).push<DateTime?>(
       MaterialPageRoute(
         builder: (_) => _FullscreenOddsChartPage(
-          series: chartSeries,
           initialSelectedTime: selectedTime,
-          title: selection == 'Tümü'
-              ? market
-              : '$market · $selection',
+          initialMarket: market,
+          initialSelection: selection,
+          bookmakerNames: _bookmakerNames(),
+          initialBookmakers: chartSeries
+              .map((item) => item.bookmaker)
+              .toSet(),
+          seriesBuilder: (
+            marketValue,
+            selectionValue,
+            bookmakerValues,
+          ) =>
+              _series(
+            marketOverride: marketValue,
+            selectionOverride: selectionValue,
+            bookmakersOverride: bookmakerValues,
+          ),
         ),
       ),
     );
@@ -5146,8 +5160,8 @@ class _OddsChartState extends State<OddsChart> {
     return out;
   }
 
-  List<MapEntry<String, String>> get marketOutcomes {
-    if (market == 'MS') {
+  List<MapEntry<String, String>> _marketOutcomesFor(String value) {
+    if (value == 'MS') {
       return const [
         MapEntry('1', 'ms1'),
         MapEntry('X', 'msx'),
@@ -5155,14 +5169,14 @@ class _OddsChartState extends State<OddsChart> {
       ];
     }
 
-    if (market == '1.5') {
+    if (value == '1.5') {
       return const [
         MapEntry('Alt', 'ou15_under'),
         MapEntry('Üst', 'ou15_over'),
       ];
     }
 
-    if (market == '2.5') {
+    if (value == '2.5') {
       return const [
         MapEntry('Alt', 'ou25_under'),
         MapEntry('Üst', 'ou25_over'),
@@ -5174,6 +5188,9 @@ class _OddsChartState extends State<OddsChart> {
       MapEntry('Yok', 'btts_no'),
     ];
   }
+
+  List<MapEntry<String, String>> get marketOutcomes =>
+      _marketOutcomesFor(market);
 
   List<MapEntry<String, String>> get activeOutcomes {
     if (selection == 'Tümü') return marketOutcomes;
@@ -5247,7 +5264,12 @@ class _OddsChartState extends State<OddsChart> {
     return null;
   }
 
-  List<_OddsSeries> _series({bool applyRange = true}) {
+  List<_OddsSeries> _series({
+    bool applyRange = true,
+    String? marketOverride,
+    String? selectionOverride,
+    Set<String>? bookmakersOverride,
+  }) {
     final groups = <Map<String, dynamic>>[
       ...widget.historyGroups,
     ];
@@ -5293,11 +5315,26 @@ class _OddsChartState extends State<OddsChart> {
     }
 
     final names = _bookmakerNames();
-    final outcomes = activeOutcomes;
+    final effectiveMarket = marketOverride ?? market;
+    final effectiveSelection = selectionOverride ?? selection;
+    final allOutcomes = _marketOutcomesFor(effectiveMarket);
+    final outcomes = effectiveSelection == 'Tümü'
+        ? allOutcomes
+        : allOutcomes
+            .where((item) => item.key == effectiveSelection)
+            .toList();
     final result = <_OddsSeries>[];
 
     for (final bookmaker in names) {
-      if (!_isBookmakerSelected(bookmaker)) continue;
+      final selected = bookmakersOverride == null
+          ? _isBookmakerSelected(bookmaker)
+          : bookmakersOverride.any(
+              (name) =>
+                  _bookmakerKey(name) ==
+                  _bookmakerKey(bookmaker),
+            );
+
+      if (!selected) continue;
 
       final wanted = _bookmakerKey(bookmaker);
       final bookmakerIndex = names.indexOf(bookmaker);
@@ -5382,7 +5419,7 @@ class _OddsChartState extends State<OddsChart> {
         if (points.isEmpty) continue;
 
         final colorIndex =
-            bookmakerIndex * marketOutcomes.length + outcomeIndex;
+            bookmakerIndex * allOutcomes.length + outcomeIndex;
         final hue = ((colorIndex * 47) % 360).toDouble();
 
         result.add(
@@ -5902,6 +5939,69 @@ class _OddsChartState extends State<OddsChart> {
       );
     }
 
+    final trackedRows = rows.where((row) {
+      final items =
+          row['items'] as List<Map<String, dynamic>>;
+      return !items.any(
+        (item) => item['opening'] == true,
+      );
+    }).toList();
+
+    final openingRows = rows.where((row) {
+      final items =
+          row['items'] as List<Map<String, dynamic>>;
+      return items.any(
+        (item) => item['opening'] == true,
+      );
+    }).toList();
+
+    final totalRows = trackedRows.length;
+
+    final availablePageSizes = <int>[
+      50,
+      if (totalRows > 50) 100,
+      if (totalRows > 100) 200,
+      if (totalRows > 200) 300,
+      if (totalRows > 300) 500,
+    ];
+
+    if (historyPageSize > 0 &&
+        !availablePageSizes.contains(historyPageSize)) {
+      availablePageSizes.add(historyPageSize);
+      availablePageSizes.sort();
+    }
+
+    final effectivePageSize =
+        historyPageSize <= 0 ? totalRows : historyPageSize;
+
+    final pageCount = historyPageSize <= 0
+        ? 1
+        : math.max(
+            1,
+            (totalRows + effectivePageSize - 1) ~/
+                effectivePageSize,
+          ).toInt();
+
+    final safePage = historyPage.clamp(0, pageCount - 1).toInt();
+
+    final startIndex = historyPageSize <= 0
+        ? 0
+        : safePage * effectivePageSize;
+
+    final endIndex = historyPageSize <= 0
+        ? totalRows
+        : math.min(
+            startIndex + effectivePageSize,
+            totalRows,
+          ).toInt();
+
+    final visibleRows = <Map<String, dynamic>>[
+      ...trackedRows.sublist(startIndex, endIndex),
+      if (historyPageSize <= 0 ||
+          safePage == pageCount - 1)
+        ...openingRows,
+    ];
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -5913,6 +6013,136 @@ class _OddsChartState extends State<OddsChart> {
       ),
       child: Column(
         children: [
+          if (totalRows > 50)
+            Container(
+              padding: const EdgeInsets.fromLTRB(
+                8,
+                5,
+                6,
+                5,
+              ),
+              decoration: const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: Color(0xFF334155),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '${startIndex + 1}–$endIndex / $totalRows',
+                    style: const TextStyle(
+                      fontSize: 8.5,
+                      color: Color(0xFF94A3B8),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: historyPageSize,
+                      isDense: true,
+                      dropdownColor:
+                          const Color(0xFF151E2B),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFE2E8F0),
+                      ),
+                      items: [
+                        for (final size
+                            in availablePageSizes)
+                          DropdownMenuItem<int>(
+                            value: size,
+                            child: Text('$size'),
+                          ),
+                        const DropdownMenuItem<int>(
+                          value: -1,
+                          child: Text('Tümü'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          historyPageSize = value;
+                          historyPage = 0;
+                        });
+                      },
+                    ),
+                  ),
+                  if (historyPageSize > 0 &&
+                      pageCount > 1) ...[
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: safePage <= 0
+                          ? null
+                          : () {
+                              setState(() {
+                                historyPage =
+                                    safePage - 1;
+                              });
+                            },
+                      borderRadius:
+                          BorderRadius.circular(6),
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.chevron_left_rounded,
+                          size: 18,
+                          color: safePage <= 0
+                              ? const Color(0xFF475569)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 3,
+                      ),
+                      child: Text(
+                        '${safePage + 1}/$pageCount',
+                        style: const TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFFCBD5E1),
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: safePage >= pageCount - 1
+                          ? null
+                          : () {
+                              setState(() {
+                                historyPage =
+                                    safePage + 1;
+                              });
+                            },
+                      borderRadius:
+                          BorderRadius.circular(6),
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          size: 18,
+                          color:
+                              safePage >= pageCount - 1
+                                  ? const Color(
+                                      0xFF475569,
+                                    )
+                                  : const Color(
+                                      0xFFE2E8F0,
+                                    ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
 
           // 1 / X / 2 - Alt / Üst - Var / Yok
           // sadece burada bir kez başlık olarak görünür.
@@ -5959,7 +6189,7 @@ class _OddsChartState extends State<OddsChart> {
             ),
           ),
 
-          for (final row in rows)
+          for (final row in visibleRows)
             Builder(
               builder: (context) {
                 final items =
@@ -6301,6 +6531,15 @@ class _OddsChartState extends State<OddsChart> {
       ...movementRecords,
       ...openingRecords,
     ];
+
+    final historyRowCount = <String>{
+      for (final record in historyRecords)
+        if (record['time'] is DateTime &&
+            record['opening'] != true)
+          '${_bookmakerKey(record['bookmaker'])}|'
+          '${(record['time'] as DateTime).millisecondsSinceEpoch}',
+    }.length;
+
     final stateEventRecords = _stateEventRecords();
     final summaryRecords = _summaryRecords(historySeries);
 
@@ -6736,7 +6975,7 @@ class _OddsChartState extends State<OddsChart> {
                   ),
                 ),
                 Text(
-                    '${historyRecords.length} kayıt',
+                    '$historyRowCount kayıt',
                   style: const TextStyle(
                     fontSize: 9,
                     color: Color(0xFF94A3B8),
@@ -6924,14 +7163,24 @@ class _OddsSeries {
 }
 
 class _FullscreenOddsChartPage extends StatefulWidget {
-  final List<_OddsSeries> series;
   final DateTime? initialSelectedTime;
-  final String title;
+  final String initialMarket;
+  final String initialSelection;
+  final List<String> bookmakerNames;
+  final Set<String> initialBookmakers;
+  final List<_OddsSeries> Function(
+    String market,
+    String selection,
+    Set<String> bookmakers,
+  ) seriesBuilder;
 
   const _FullscreenOddsChartPage({
-    required this.series,
     required this.initialSelectedTime,
-    required this.title,
+    required this.initialMarket,
+    required this.initialSelection,
+    required this.bookmakerNames,
+    required this.initialBookmakers,
+    required this.seriesBuilder,
   });
 
   @override
@@ -6942,11 +7191,19 @@ class _FullscreenOddsChartPage extends StatefulWidget {
 class _FullscreenOddsChartPageState
     extends State<_FullscreenOddsChartPage> {
   DateTime? selectedTime;
+  late String market;
+  late String selection;
+  late Set<String> selectedBookmakers;
 
   @override
   void initState() {
     super.initState();
+
     selectedTime = widget.initialSelectedTime;
+    market = widget.initialMarket;
+    selection = widget.initialSelection;
+    selectedBookmakers =
+        Set<String>.from(widget.initialBookmakers);
 
     SystemChrome.setPreferredOrientations(const [
       DeviceOrientation.landscapeLeft,
@@ -6971,14 +7228,54 @@ class _FullscreenOddsChartPageState
     super.dispose();
   }
 
-  DateTime? _displayTime() {
+  List<MapEntry<String, String>> _outcomes() {
+    if (market == 'MS') {
+      return const [
+        MapEntry('1', 'ms1'),
+        MapEntry('X', 'msx'),
+        MapEntry('2', 'ms2'),
+      ];
+    }
+
+    if (market == '1.5') {
+      return const [
+        MapEntry('Alt', 'ou15_under'),
+        MapEntry('Üst', 'ou15_over'),
+      ];
+    }
+
+    if (market == '2.5') {
+      return const [
+        MapEntry('Alt', 'ou25_under'),
+        MapEntry('Üst', 'ou25_over'),
+      ];
+    }
+
+    return const [
+      MapEntry('Var', 'btts_yes'),
+      MapEntry('Yok', 'btts_no'),
+    ];
+  }
+
+  List<_OddsSeries> _currentSeries() {
+    return widget.seriesBuilder(
+      market,
+      selection,
+      selectedBookmakers,
+    );
+  }
+
+  DateTime? _displayTime(
+    List<_OddsSeries> series,
+  ) {
     if (selectedTime != null) return selectedTime;
 
     DateTime? latest;
 
-    for (final item in widget.series) {
+    for (final item in series) {
       for (final point in item.points) {
-        if (latest == null || point.time.isAfter(latest)) {
+        if (latest == null ||
+            point.time.isAfter(latest)) {
           latest = point.time;
         }
       }
@@ -6990,9 +7287,10 @@ class _FullscreenOddsChartPageState
   void _selectTimeAt(
     Offset position,
     double width,
+    List<_OddsSeries> series,
   ) {
     final points = <_OddsPoint>[
-      for (final item in widget.series) ...item.points,
+      for (final item in series) ...item.points,
     ];
 
     if (points.isEmpty) return;
@@ -7017,21 +7315,28 @@ class _FullscreenOddsChartPageState
     if (minTime == maxTime) {
       setState(() {
         selectedTime =
-            DateTime.fromMillisecondsSinceEpoch(minTime);
+            DateTime.fromMillisecondsSinceEpoch(
+          minTime,
+        );
       });
       return;
     }
 
     final clampedX =
-        (position.dx - left).clamp(0.0, plotWidth);
+        (position.dx - left).clamp(
+      0.0,
+      plotWidth,
+    );
 
     final ratio = clampedX / plotWidth;
 
     final target =
-        minTime + ((maxTime - minTime) * ratio).round();
+        minTime +
+        ((maxTime - minTime) * ratio).round();
 
     int nearest = times.first;
-    int nearestDistance = (nearest - target).abs();
+    int nearestDistance =
+        (nearest - target).abs();
 
     for (final time in times.skip(1)) {
       final distance = (time - target).abs();
@@ -7044,19 +7349,26 @@ class _FullscreenOddsChartPageState
 
     setState(() {
       selectedTime =
-          DateTime.fromMillisecondsSinceEpoch(nearest);
+          DateTime.fromMillisecondsSinceEpoch(
+        nearest,
+      );
     });
   }
 
-  List<Map<String, dynamic>> _selectedValues() {
-    final target = _displayTime();
+  List<Map<String, dynamic>> _selectedValues(
+    List<_OddsSeries> series,
+  ) {
+    final target = _displayTime(series);
+
     if (target == null) return [];
 
     final out = <Map<String, dynamic>>[];
 
-    for (final item in widget.series) {
+    for (final item in series) {
       final points = [...item.points]
-        ..sort((a, b) => a.time.compareTo(b.time));
+        ..sort(
+          (a, b) => a.time.compareTo(b.time),
+        );
 
       _OddsPoint? chosen;
 
@@ -7082,10 +7394,172 @@ class _FullscreenOddsChartPageState
   }
 
   String _stamp(DateTime? dt) {
-    if (dt == null) return '--:--';
+    if (dt == null) return '--/-- --:--';
 
-    return '${dt.hour.toString().padLeft(2, '0')}:'
+    return '${dt.day.toString().padLeft(2, '0')}/'
+        '${dt.month.toString().padLeft(2, '0')} '
+        '${dt.hour.toString().padLeft(2, '0')}:'
         '${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _changeMarket(String value) {
+    setState(() {
+      market = value;
+      selection = 'Tümü';
+      selectedTime = null;
+    });
+  }
+
+  Future<void> _showBookmakers() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor:
+          const Color(0xFF101827),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (
+            context,
+            sheetSetState,
+          ) {
+            return SafeArea(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight:
+                      MediaQuery.of(context)
+                              .size
+                              .height *
+                          0.62,
+                ),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.fromLTRB(
+                    14,
+                    10,
+                    14,
+                    12,
+                  ),
+                  child: Column(
+                    mainAxisSize:
+                        MainAxisSize.min,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Bookmaker  '
+                            '${selectedBookmakers.length}/'
+                            '${widget.bookmakerNames.length}',
+                            style:
+                                const TextStyle(
+                              fontSize: 13,
+                              fontWeight:
+                                  FontWeight.w900,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                selectedBookmakers =
+                                    widget
+                                        .bookmakerNames
+                                        .toSet();
+                                selectedTime =
+                                    null;
+                              });
+
+                              sheetSetState(() {});
+                            },
+                            child: const Text(
+                              'Hepsini seç',
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                selectedBookmakers
+                                    .clear();
+                                selectedTime =
+                                    null;
+                              });
+
+                              sheetSetState(() {});
+                            },
+                            child: const Text(
+                              'Tümünü bırak',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Flexible(
+                        child:
+                            SingleChildScrollView(
+                          child: Wrap(
+                            spacing: 7,
+                            runSpacing: 5,
+                            children: [
+                              for (final name
+                                  in widget
+                                      .bookmakerNames)
+                                FilterChip(
+                                  selected:
+                                      selectedBookmakers
+                                          .contains(
+                                    name,
+                                  ),
+                                  label: Text(
+                                    name,
+                                    style:
+                                        const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight:
+                                          FontWeight
+                                              .w800,
+                                    ),
+                                  ),
+                                  visualDensity:
+                                      VisualDensity
+                                          .compact,
+                                  onSelected:
+                                      (enabled) {
+                                    setState(() {
+                                      if (enabled) {
+                                        selectedBookmakers
+                                            .add(
+                                          name,
+                                        );
+                                      } else {
+                                        selectedBookmakers
+                                            .remove(
+                                          name,
+                                        );
+                                      }
+
+                                      selectedTime =
+                                          null;
+                                    });
+
+                                    sheetSetState(
+                                      () {},
+                                    );
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _close() {
@@ -7094,91 +7568,277 @@ class _FullscreenOddsChartPageState
 
   @override
   Widget build(BuildContext context) {
-    final values = _selectedValues();
+    final series = _currentSeries();
+    final values =
+        _selectedValues(series);
+    final displayTime =
+        _displayTime(series);
+
+    final selections = <String>[
+      'Tümü',
+      ..._outcomes().map(
+        (item) => item.key,
+      ),
+    ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1220),
+      backgroundColor:
+          const Color(0xFF0B1220),
       body: SafeArea(
         child: Stack(
           children: [
             Positioned.fill(
-              top: 44,
-              bottom: 48,
+              top: 88,
+              bottom: 50,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(
+                padding:
+                    const EdgeInsets.fromLTRB(
                   8,
                   2,
                   8,
                   2,
                 ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTapDown: (details) =>
-                          _selectTimeAt(
-                        details.localPosition,
-                        constraints.maxWidth,
-                      ),
-                      onHorizontalDragUpdate: (details) =>
-                          _selectTimeAt(
-                        details.localPosition,
-                        constraints.maxWidth,
-                      ),
-                      child: CustomPaint(
-                        size: Size(
-                          constraints.maxWidth,
-                          constraints.maxHeight,
+                child: series.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Bu seçim için çizilecek oran geçmişi yok.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color:
+                                Color(0xFF94A3B8),
+                          ),
                         ),
-                        painter: OddsChartPainter(
-                          series: widget.series,
-                          selectedTime: selectedTime,
-                        ),
+                      )
+                    : LayoutBuilder(
+                        builder: (
+                          context,
+                          constraints,
+                        ) {
+                          return GestureDetector(
+                            behavior:
+                                HitTestBehavior
+                                    .opaque,
+                            onTapDown: (details) =>
+                                _selectTimeAt(
+                              details
+                                  .localPosition,
+                              constraints
+                                  .maxWidth,
+                              series,
+                            ),
+                            onHorizontalDragUpdate:
+                                (details) =>
+                                    _selectTimeAt(
+                              details
+                                  .localPosition,
+                              constraints
+                                  .maxWidth,
+                              series,
+                            ),
+                            child: CustomPaint(
+                              size: Size(
+                                constraints
+                                    .maxWidth,
+                                constraints
+                                    .maxHeight,
+                              ),
+                              painter:
+                                  OddsChartPainter(
+                                series: series,
+                                selectedTime:
+                                    selectedTime,
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
             ),
 
             Positioned(
-              left: 6,
+              left: 5,
               right: 8,
-              top: 2,
+              top: 0,
               height: 40,
               child: Row(
                 children: [
                   IconButton(
                     onPressed: _close,
                     icon: const Icon(
-                      Icons.fullscreen_exit_rounded,
+                      Icons
+                          .fullscreen_exit_rounded,
                     ),
-                    tooltip: 'Tam ekrandan çık',
+                    tooltip:
+                        'Tam ekrandan çık',
                   ),
                   const SizedBox(width: 2),
-                  Expanded(
+                  Text(
+                    'Oran Grafiği',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight:
+                          FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          const Color(0xFF151E2B),
+                      borderRadius:
+                          BorderRadius.circular(
+                        7,
+                      ),
+                      border: Border.all(
+                        color: const Color(
+                          0xFF334155,
+                        ),
+                      ),
+                    ),
                     child: Text(
-                      'Oran Grafiği · ${widget.title}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      _stamp(displayTime),
                       style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
+                        fontSize: 10,
+                        fontWeight:
+                            FontWeight.w900,
+                        color:
+                            Color(0xFFE2E8F0),
                       ),
                     ),
                   ),
-                  const Icon(
-                    Icons.swipe_rounded,
-                    size: 16,
-                    color: Color(0xFF94A3B8),
+                  const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed:
+                        _showBookmakers,
+                    icon: const Icon(
+                      Icons.tune_rounded,
+                      size: 15,
+                    ),
+                    label: Text(
+                      'Siteler '
+                      '${selectedBookmakers.length}/'
+                      '${widget.bookmakerNames.length}',
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight:
+                            FontWeight.w900,
+                      ),
+                    ),
+                    style:
+                        OutlinedButton.styleFrom(
+                      visualDensity:
+                          VisualDensity.compact,
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 5),
-                  Text(
-                    _stamp(_displayTime()),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFFCBD5E1),
+                ],
+              ),
+            ),
+
+            Positioned(
+              left: 8,
+              right: 8,
+              top: 42,
+              height: 42,
+              child: Row(
+                children: [
+                  for (final value in const [
+                    'MS',
+                    '1.5',
+                    '2.5',
+                    'KG',
+                  ])
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(
+                        right: 5,
+                      ),
+                      child: ChoiceChip(
+                        label: Text(
+                          value,
+                          style:
+                              const TextStyle(
+                            fontSize: 9,
+                            fontWeight:
+                                FontWeight.w900,
+                          ),
+                        ),
+                        selected:
+                            market == value,
+                        visualDensity:
+                            VisualDensity
+                                .compact,
+                        onSelected: (_) =>
+                            _changeMarket(
+                          value,
+                        ),
+                      ),
+                    ),
+                  Container(
+                    width: 1,
+                    height: 24,
+                    margin:
+                        const EdgeInsets.symmetric(
+                      horizontal: 4,
+                    ),
+                    color:
+                        const Color(0xFF334155),
+                  ),
+                  Expanded(
+                    child:
+                        SingleChildScrollView(
+                      scrollDirection:
+                          Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final item
+                              in selections)
+                            Padding(
+                              padding:
+                                  const EdgeInsets
+                                      .only(
+                                right: 5,
+                              ),
+                              child:
+                                  ChoiceChip(
+                                label: Text(
+                                  item,
+                                  style:
+                                      const TextStyle(
+                                    fontSize: 9,
+                                    fontWeight:
+                                        FontWeight
+                                            .w800,
+                                  ),
+                                ),
+                                selected:
+                                    selection ==
+                                        item,
+                                visualDensity:
+                                    VisualDensity
+                                        .compact,
+                                onSelected: (_) {
+                                  setState(() {
+                                    selection =
+                                        item;
+                                    selectedTime =
+                                        null;
+                                  });
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -7189,53 +7849,109 @@ class _FullscreenOddsChartPageState
               left: 10,
               right: 10,
               bottom: 5,
-              height: 38,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
+              height: 40,
+              child:
+                  SingleChildScrollView(
+                scrollDirection:
+                    Axis.horizontal,
                 child: Row(
                   children: [
+                    Container(
+                      margin:
+                          const EdgeInsets.only(
+                        right: 7,
+                      ),
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color: const Color(
+                          0xFF1E293B,
+                        ),
+                        borderRadius:
+                            BorderRadius
+                                .circular(8),
+                        border: Border.all(
+                          color: const Color(
+                            0xFF475569,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        _stamp(displayTime),
+                        style:
+                            const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight:
+                              FontWeight.w900,
+                          color: Color(
+                            0xFFF8FAFC,
+                          ),
+                        ),
+                      ),
+                    ),
                     for (final item in values)
                       Container(
-                        margin: const EdgeInsets.only(
+                        margin:
+                            const EdgeInsets.only(
                           right: 7,
                         ),
                         padding:
-                            const EdgeInsets.symmetric(
+                            const EdgeInsets
+                                .symmetric(
                           horizontal: 8,
                           vertical: 5,
                         ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF151E2B),
+                        decoration:
+                            BoxDecoration(
+                          color: const Color(
+                            0xFF151E2B,
+                          ),
                           borderRadius:
-                              BorderRadius.circular(8),
+                              BorderRadius
+                                  .circular(8),
                           border: Border.all(
-                            color:
-                                const Color(0xFF334155),
+                            color: const Color(
+                              0xFF334155,
+                            ),
                           ),
                         ),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisSize:
+                              MainAxisSize.min,
                           children: [
                             Container(
                               width: 7,
                               height: 7,
-                              decoration: BoxDecoration(
+                              decoration:
+                                  BoxDecoration(
                                 color:
-                                    item['color'] as Color,
-                                shape: BoxShape.circle,
+                                    item['color']
+                                        as Color,
+                                shape: BoxShape
+                                    .circle,
                               ),
                             ),
-                            const SizedBox(width: 6),
+                            const SizedBox(
+                              width: 6,
+                            ),
                             Text(
                               '${item['bookmaker']} · '
                               '${item['outcome']}  '
                               '${(item['value'] as double).toStringAsFixed(2)}',
-                              style: const TextStyle(
+                              style:
+                                  const TextStyle(
                                 fontSize: 9.5,
                                 fontWeight:
-                                    FontWeight.w800,
-                                color:
-                                    Color(0xFFE2E8F0),
+                                    FontWeight
+                                        .w800,
+                                color: Color(
+                                  0xFFE2E8F0,
+                                ),
                               ),
                             ),
                           ],

@@ -194,12 +194,12 @@ class Api {
   ) async {
     Object? last;
 
-    for (int attempt = 1; attempt <= 3; attempt++) {
+    for (int attempt = 1; attempt <= 2; attempt++) {
       try {
         return await request();
       } catch (e) {
         last = e;
-        if (attempt < 3) {
+        if (attempt < 2) {
           await Future.delayed(Duration(seconds: attempt * 2));
         }
       }
@@ -212,7 +212,7 @@ class Api {
     final r = await _retry(
       () => http
           .get(Uri.parse(baseUrl + path))
-          .timeout(const Duration(seconds: 90)),
+          .timeout(const Duration(seconds: 30)),
     );
     return decode(r);
   }
@@ -228,7 +228,7 @@ class Api {
             headers: writeHeaders,
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 90)),
+          .timeout(const Duration(seconds: 30)),
     );
     return decode(r);
   }
@@ -254,7 +254,7 @@ class Api {
             Uri.parse(baseUrl + path),
             headers: writeHeaders,
           )
-          .timeout(const Duration(seconds: 90)),
+          .timeout(const Duration(seconds: 30)),
     );
     return decode(r);
   }

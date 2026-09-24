@@ -184,6 +184,10 @@ Future<void> main() async {
 }
 
 class Api {
+  Map<String, String> get readHeaders => {
+        'x-api-key': mobileKey,
+      };
+
   Map<String, String> get writeHeaders => {
         'content-type': 'application/json',
         'x-api-key': mobileKey,
@@ -211,7 +215,10 @@ class Api {
   Future<Map<String, dynamic>> get(String path) async {
     final r = await _retry(
       () => http
-          .get(Uri.parse(baseUrl + path))
+          .get(
+            Uri.parse(baseUrl + path),
+            headers: readHeaders,
+          )
           .timeout(const Duration(seconds: 30)),
     );
     return decode(r);

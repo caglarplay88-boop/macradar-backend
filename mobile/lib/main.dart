@@ -7194,6 +7194,9 @@ class _FullscreenOddsChartPageState
   late String market;
   late String selection;
   late Set<String> selectedBookmakers;
+  List<_OddsSeries>? _seriesCache;
+  String? _seriesCacheKey;
+  List<int> _seriesTimesCache = const [];
 
   @override
   void initState() {
@@ -7258,11 +7261,32 @@ class _FullscreenOddsChartPageState
   }
 
   List<_OddsSeries> _currentSeries() {
-    return widget.seriesBuilder(
+    final bookmakerKey = selectedBookmakers.toList()..sort();
+    final cacheKey =
+        '$market|$selection|${bookmakerKey.join('|')}';
+
+    if (_seriesCacheKey == cacheKey &&
+        _seriesCache != null) {
+      return _seriesCache!;
+    }
+
+    final built = widget.seriesBuilder(
       market,
       selection,
       selectedBookmakers,
     );
+
+    final times = <int>{
+      for (final item in built)
+        for (final point in item.points)
+          point.time.millisecondsSinceEpoch,
+    }.toList()
+      ..sort();
+
+    _seriesCacheKey = cacheKey;
+    _seriesCache = built;
+    _seriesTimesCache = times;
+    return built;
   }
 
   DateTime? _displayTime(
@@ -7287,13 +7311,10 @@ class _FullscreenOddsChartPageState
   void _selectTimeAt(
     Offset position,
     double width,
-    List<_OddsSeries> series,
   ) {
-    final points = <_OddsPoint>[
-      for (final item in series) ...item.points,
-    ];
+    final times = _seriesTimesCache;
 
-    if (points.isEmpty) return;
+    if (times.isEmpty) return;
 
     const left = 38.0;
     const right = 42.0;
@@ -7303,16 +7324,15 @@ class _FullscreenOddsChartPageState
       width - left - right,
     );
 
-    final times = points
-        .map((e) => e.time.millisecondsSinceEpoch)
-        .toSet()
-        .toList()
-      ..sort();
-
     final minTime = times.first;
     final maxTime = times.last;
 
     if (minTime == maxTime) {
+      if (selectedTime?.millisecondsSinceEpoch ==
+          minTime) {
+        return;
+      }
+
       setState(() {
         selectedTime =
             DateTime.fromMillisecondsSinceEpoch(
@@ -7334,17 +7354,33 @@ class _FullscreenOddsChartPageState
         minTime +
         ((maxTime - minTime) * ratio).round();
 
-    int nearest = times.first;
-    int nearestDistance =
-        (nearest - target).abs();
+    int low = 0;
+    int high = times.length - 1;
 
-    for (final time in times.skip(1)) {
-      final distance = (time - target).abs();
+    while (low < high) {
+      final mid = (low + high) >> 1;
 
-      if (distance < nearestDistance) {
-        nearest = time;
-        nearestDistance = distance;
+      if (times[mid] < target) {
+        low = mid + 1;
+      } else {
+        high = mid;
       }
+    }
+
+    int nearest = times[low];
+
+    if (low > 0) {
+      final previous = times[low - 1];
+
+      if ((previous - target).abs() <=
+          (nearest - target).abs()) {
+        nearest = previous;
+      }
+    }
+
+    if (selectedTime?.millisecondsSinceEpoch ==
+        nearest) {
+      return;
     }
 
     setState(() {
@@ -7365,18 +7401,23 @@ class _FullscreenOddsChartPageState
     final out = <Map<String, dynamic>>[];
 
     for (final item in series) {
-      final points = [...item.points]
-        ..sort(
-          (a, b) => a.time.compareTo(b.time),
-        );
+      final points = item.points;
 
+      if (points.isEmpty) continue;
+
+      int low = 0;
+      int high = points.length - 1;
       _OddsPoint? chosen;
 
-      for (final point in points) {
+      while (low <= high) {
+        final mid = (low + high) >> 1;
+        final point = points[mid];
+
         if (!point.time.isAfter(target)) {
           chosen = point;
+          low = mid + 1;
         } else {
-          break;
+          high = mid - 1;
         }
       }
 
@@ -7624,7 +7665,6 @@ class _FullscreenOddsChartPageState
                                   .localPosition,
                               constraints
                                   .maxWidth,
-                              series,
                             ),
                             onHorizontalDragUpdate:
                                 (details) =>
@@ -7633,20 +7673,41 @@ class _FullscreenOddsChartPageState
                                   .localPosition,
                               constraints
                                   .maxWidth,
-                              series,
                             ),
-                            child: CustomPaint(
-                              size: Size(
-                                constraints
-                                    .maxWidth,
-                                constraints
-                                    .maxHeight,
-                              ),
-                              painter:
-                                  OddsChartPainter(
-                                series: series,
-                                selectedTime:
-                                    selectedTime,
+                            child: SizedBox(
+                              width: constraints
+                                  .maxWidth,
+                              height: constraints
+                                  .maxHeight,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  RepaintBoundary(
+                                    child: CustomPaint(
+                                      painter:
+                                          OddsChartPainter(
+                                        series: series,
+                                        selectedTime:
+                                            null,
+                                      ),
+                                    ),
+                                  ),
+                                  CustomPaint(
+                                    painter:
+                                        _OddsSelectionPainter(
+                                      minTime:
+                                          _seriesTimesCache.isEmpty
+                                              ? null
+                                              : _seriesTimesCache.first,
+                                      maxTime:
+                                          _seriesTimesCache.isEmpty
+                                              ? null
+                                              : _seriesTimesCache.last,
+                                      selectedTime:
+                                          selectedTime,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           );
@@ -8305,6 +8366,75 @@ class OddsChartPainter extends CustomPainter {
     covariant OddsChartPainter oldDelegate,
   ) {
     return oldDelegate.series != series ||
+        oldDelegate.selectedTime != selectedTime;
+  }
+}
+
+class _OddsSelectionPainter extends CustomPainter {
+  final int? minTime;
+  final int? maxTime;
+  final DateTime? selectedTime;
+
+  const _OddsSelectionPainter({
+    required this.minTime,
+    required this.maxTime,
+    required this.selectedTime,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (selectedTime == null ||
+        minTime == null ||
+        maxTime == null) {
+      return;
+    }
+
+    const left = 38.0;
+    const top = 14.0;
+    const right = 42.0;
+    const bottom = 28.0;
+
+    final plot = Rect.fromLTRB(
+      left,
+      top,
+      size.width - right,
+      size.height - bottom,
+    );
+
+    if (plot.width <= 0 || plot.height <= 0) return;
+
+    final minMillis = minTime!.toDouble();
+    final maxMillis = maxTime!.toDouble();
+
+    final selectedMillis =
+        selectedTime!.millisecondsSinceEpoch.toDouble();
+
+    final clampedMillis =
+        selectedMillis.clamp(minMillis, maxMillis);
+
+    final x = (maxMillis - minMillis).abs() < 1
+        ? plot.center.dx
+        : plot.left +
+            ((clampedMillis - minMillis) /
+                    (maxMillis - minMillis)) *
+                plot.width;
+
+    canvas.drawLine(
+      Offset(x, plot.top),
+      Offset(x, plot.bottom),
+      Paint()
+        ..color = const Color(0xFFF1F5F9)
+            .withValues(alpha: 0.65)
+        ..strokeWidth = 1.4,
+    );
+  }
+
+  @override
+  bool shouldRepaint(
+    covariant _OddsSelectionPainter oldDelegate,
+  ) {
+    return oldDelegate.minTime != minTime ||
+        oldDelegate.maxTime != maxTime ||
         oldDelegate.selectedTime != selectedTime;
   }
 }

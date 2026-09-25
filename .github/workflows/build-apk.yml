@@ -139,15 +139,7 @@ jobs:
           cd mobile_build
           set -o pipefail
           if ! flutter build apk --release 2>&1 | tee /tmp/macradar-flutter-build.log; then
-            python3 - <<'PYLOG'
-            from pathlib import Path
-            text = Path('/tmp/macradar-flutter-build.log').read_text(errors='replace')
-            tail = '
-'.join(text.splitlines()[-80:])
-            tail = tail.replace('%', '%25').replace('', '%0D').replace('
-', '%0A')
-            print('::error::' + tail)
-            PYLOG
+            tail -80 /tmp/macradar-flutter-build.log | sed 's/%/%25/g' | sed 's/^/::error::/'
             exit 1
           fi
 

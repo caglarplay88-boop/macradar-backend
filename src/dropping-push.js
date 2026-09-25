@@ -279,6 +279,7 @@ async function flushDroppingPushes({
   let sentAlerts = 0;
   let sentDevices = 0;
   let failedDevices = 0;
+  const disabledDeviceIds = new Set();
 
   for (const alert of alerts) {
     let delivered = 0;
@@ -289,7 +290,8 @@ async function flushDroppingPushes({
     );
 
     for (const device of devices) {
-      if (deliveredDeviceIds.has(String(device.id))) {
+      const deviceId = String(device.id);
+      if (disabledDeviceIds.has(deviceId) || deliveredDeviceIds.has(deviceId)) {
         continue;
       }
 
@@ -300,7 +302,7 @@ async function flushDroppingPushes({
           device.id,
           { sent: true }
         );
-        deliveredDeviceIds.add(String(device.id));
+        deliveredDeviceIds.add(deviceId);
         delivered++;
         sentDevices++;
       } catch (error) {
@@ -311,6 +313,7 @@ async function flushDroppingPushes({
             { error: 'UNREGISTERED' }
           );
           await disableDroppingPushDevice(device.token);
+          disabledDeviceIds.add(deviceId);
           attemptErrors.push(
             'device=' + device.id + ' UNREGISTERED'
           );

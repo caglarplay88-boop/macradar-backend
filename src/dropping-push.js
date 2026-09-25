@@ -156,8 +156,8 @@ function buildMessage(alert, deviceToken) {
         priority: 'HIGH',
         ttl: '300s',
         notification: {
-          channel_id: 'macradar_dropping_fcm',
-          sound: 'default',
+          channel_id: 'macradar_dropping_live_v2',
+          sound: 'dropping_alert',
           default_vibrate_timings: true,
           visibility: 'PUBLIC',
           notification_priority: 'PRIORITY_MAX'

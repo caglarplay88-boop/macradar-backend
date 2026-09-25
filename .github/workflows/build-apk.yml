@@ -56,6 +56,47 @@ jobs:
         run: |
           sed -i 's/android:label="macradar"/android:label="MacRadar"/' mobile_build/android/app/src/main/AndroidManifest.xml
           sed -i 's#android:icon="@mipmap/ic_launcher"#android:icon="@drawable/macradar_icon"#' mobile_build/android/app/src/main/AndroidManifest.xml
+
+          # Dedicated PCM WAV for the high-importance Dropping channel.
+          mkdir -p mobile_build/android/app/src/main/res/raw
+          python3 - <<'PYSOUND'
+          import math, struct, wave
+
+          rate = 44100
+          segments = [
+              (880, 0.18),
+              (0, 0.06),
+              (1175, 0.18),
+              (0, 0.06),
+              (1568, 0.28),
+              (0, 0.08),
+              (1175, 0.16),
+              (1568, 0.32),
+          ]
+
+          frames = []
+          for frequency, duration in segments:
+              count = max(1, int(rate * duration))
+              for i in range(count):
+                  if frequency == 0:
+                      sample = 0
+                  else:
+                      attack = min(1.0, i / max(1, int(rate * 0.012)))
+                      release = min(1.0, (count - i - 1) / max(1, int(rate * 0.025)))
+                      envelope = max(0.0, min(attack, release))
+                      fundamental = math.sin(2.0 * math.pi * frequency * i / rate)
+                      harmonic = 0.28 * math.sin(4.0 * math.pi * frequency * i / rate)
+                      sample = int(0.78 * 32767 * envelope * (fundamental + harmonic) / 1.28)
+                  frames.append(struct.pack('<h', sample))
+
+          path = 'mobile_build/android/app/src/main/res/raw/dropping_alert.wav'
+          with wave.open(path, 'wb') as output:
+              output.setnchannels(1)
+              output.setsampwidth(2)
+              output.setframerate(rate)
+              output.writeframes(b''.join(frames))
+          PYSOUND
+
           mkdir -p mobile_build/android/app/src/main/res/drawable
           python3 - <<'PY'
           import struct, zlib, math

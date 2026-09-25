@@ -9305,6 +9305,18 @@ class _DroppingPageState extends State<DroppingPage> {
                 if (v != null) _applyLiveFilter(bookies: v);
               },
             ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: settingNotifications,
+              title: const Text('Bildirimler'),
+              subtitle: const Text(
+                'Yeni veya de\u011fi\u015fen oran d\u00fc\u015f\u00fc\u015flerinde uyar',
+              ),
+              onChanged: savingSettings
+                  ? null
+                  : (v) => setState(() => settingNotifications = v),
+            ),
           ],
         ),
       ),
@@ -9333,18 +9345,6 @@ class _DroppingPageState extends State<DroppingPage> {
               ),
             ),
             const SizedBox(height: 16),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: settingNotifications,
-              title: const Text('Bildirimler'),
-              subtitle: const Text(
-                'Yeni veya de\u011fi\u015fen oran d\u00fc\u015f\u00fc\u015flerinde uyar',
-              ),
-              onChanged: savingSettings
-                  ? null
-                  : (v) => setState(() => settingNotifications = v),
-            ),
-            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(

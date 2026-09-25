@@ -192,8 +192,8 @@ jobs:
           import zipfile
 
           apk = 'mobile_build/build/app/outputs/flutter-apk/app-release.apk'
-          channel = b'macradar_dropping_live_v2'
-          sound_name = b'dropping_alert'
+          channel_forms = [b'macradar_dropping_live_v2', 'macradar_dropping_live_v2'.encode('utf-16le')]
+          sound_forms = [b'dropping_alert', 'dropping_alert'.encode('utf-16le')]
 
           with zipfile.ZipFile(apk) as z:
               names = z.namelist()
@@ -207,9 +207,9 @@ jobs:
                   except Exception:
                       continue
 
-                  if channel in data:
+                  if any(value in data for value in channel_forms):
                       channel_found = True
-                  if sound_name in data:
+                  if any(value in data for value in sound_forms):
                       sound_ref_found = True
 
                   if data.startswith(b'RIFF') and b'WAVE' in data[:16]:
@@ -227,12 +227,17 @@ jobs:
               print('APK_CHANNEL_STRING=' + ('FOUND' if channel_found else 'MISSING'))
               print('APK_SOUND_REF_STRING=' + ('FOUND' if sound_ref_found else 'MISSING'))
 
+              errors = []
               if not wav_matches:
-                  raise SystemExit('Dedicated Dropping WAV payload is missing from APK')
+                  errors.append('Dedicated Dropping WAV payload is missing from APK')
               if not channel_found:
-                  raise SystemExit('Dropping notification channel id is missing from APK')
+                  errors.append('Dropping notification channel id is missing from APK binary')
               if not sound_ref_found:
-                  raise SystemExit('Dropping sound reference is missing from APK')
+                  errors.append('Dropping sound reference is missing from APK binary')
+              for message in errors:
+                  print('::error file=.github/workflows/build-apk.yml,line=187::' + message)
+              if errors:
+                  raise SystemExit(' | '.join(errors))
 
               print('APK_DROPPING_SOUND=OK entry=' + wav_matches[0][0] + ' seconds=' + format(wav_matches[0][1], '.2f'))
               print('APK_DROPPING_CHANNEL=OK id=macradar_dropping_live_v2')

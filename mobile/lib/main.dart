@@ -8602,7 +8602,6 @@ class _DroppingPageState extends State<DroppingPage> {
   int settingHours = 1;
   String settingMatches = 'today';
   int settingBookies = 30;
-  int settingPoll = 60;
   bool settingNotifications = true;
 
   @override
@@ -8659,7 +8658,6 @@ class _DroppingPageState extends State<DroppingPage> {
         settingHours = _num(fetchedSettings['drops_in_last_hours'])?.toInt() ?? 1;
         settingMatches = fetchedSettings['matches_for']?.toString() ?? 'today';
         settingBookies = _num(fetchedSettings['bookies_pct'])?.toInt() ?? 30;
-        settingPoll = _num(fetchedSettings['poll_seconds'])?.toInt() ?? 60;
         settingNotifications = fetchedSettings['notifications_enabled'] == true;
         loading = false;
       });
@@ -9189,7 +9187,6 @@ class _DroppingPageState extends State<DroppingPage> {
           'drops_in_last_hours': settingHours,
           'matches_for': settingMatches,
           'bookies_pct': settingBookies,
-          'poll_seconds': settingPoll,
           'notifications_enabled': settingNotifications,
         },
       );
@@ -9203,7 +9200,6 @@ class _DroppingPageState extends State<DroppingPage> {
             settingHours = _num(saved['drops_in_last_hours'])?.toInt() ?? settingHours;
             settingMatches = saved['matches_for']?.toString() ?? settingMatches;
             settingBookies = _num(saved['bookies_pct'])?.toInt() ?? settingBookies;
-            settingPoll = _num(saved['poll_seconds'])?.toInt() ?? settingPoll;
             settingNotifications = saved['notifications_enabled'] == true;
           });
         }
@@ -9337,26 +9333,6 @@ class _DroppingPageState extends State<DroppingPage> {
               ),
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<int>(
-              value: settingPoll,
-              decoration: const InputDecoration(
-                labelText: 'Kontrol s\u0131kl\u0131\u011f\u0131',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 15, child: Text('15 saniye')),
-                DropdownMenuItem(value: 30, child: Text('30 saniye')),
-                DropdownMenuItem(value: 60, child: Text('60 saniye')),
-                DropdownMenuItem(value: 120, child: Text('120 saniye')),
-                DropdownMenuItem(value: 300, child: Text('300 saniye')),
-              ],
-              onChanged: savingSettings
-                  ? null
-                  : (v) {
-                      if (v != null) setState(() => settingPoll = v);
-                    },
-            ),
-            const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: settingNotifications,

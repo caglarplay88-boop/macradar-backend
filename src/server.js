@@ -8,9 +8,11 @@ const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
 const { seed } = require('./seed');
 const { runWorkerOnce } = require('./run-worker');
 const { buildPerformancePackage } = require('./performance');
+const { ensureDroppingSchema, listDroppingCurrent, listDroppingAlerts, getDroppingHealth, getDroppingSettings, updateDroppingSettings, registerDroppingPushDevice, disableDroppingPushDevice } = require('./dropping-store');
 
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = String(process.env.API_KEY || '');
+const HTTP_ONLY = String(process.env.MACRADAR_HTTP_ONLY || '') === '1';
 const MOBILE_CODE_HASH = 'ee3a321e49e949c5ac27dc2a5504ba55a59b11eae7ab1f7b5357cd305b6e8968';
 
 const performanceBuilds = new Map();
@@ -310,6 +312,137 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (req.method === 'POST' && u.pathname === '/api/dropping/device-token') {
+      await ensureDroppingSchema();
+      const body = await readJson(req);
+      const token = String(body.token || '').trim();
+      const platform = String(body.platform || 'android').trim().toLowerCase();
+      const deviceId = body.device_id == null ? null : String(body.device_id).trim();
+
+      if (token.length < 20 || token.length > 4096) {
+        return json(res, 400, { error: 'Gecersiz FCM token.' });
+      }
+      if (!['android'].includes(platform)) {
+        return json(res, 400, { error: 'Gecersiz platform.' });
+      }
+      if (deviceId && deviceId.length > 200) {
+        return json(res, 400, { error: 'Gecersiz device_id.' });
+      }
+
+      const device = await registerDroppingPushDevice({
+        token,
+        platform,
+        deviceId: deviceId || null
+      });
+
+      return json(res, 200, {
+        ok: true,
+        device: {
+          id: device.id,
+          platform: device.platform,
+          device_id: device.device_id,
+          enabled: device.enabled,
+          updated_at: device.updated_at
+        }
+      });
+    }
+
+    if (req.method === 'POST' && u.pathname === '/api/dropping/device-token/disable') {
+      await ensureDroppingSchema();
+      const body = await readJson(req);
+      const token = String(body.token || '').trim();
+
+      if (token.length < 20 || token.length > 4096) {
+        return json(res, 400, { error: 'Gecersiz FCM token.' });
+      }
+
+      const device = await disableDroppingPushDevice(token);
+      return json(res, 200, { ok: true, disabled: Boolean(device) });
+    }
+
+    if (req.method === 'GET' && u.pathname === '/api/dropping/settings') {
+      await ensureDroppingSchema();
+      const settings = await getDroppingSettings();
+      return json(res, 200, {
+        ...settings,
+        allowed_drops_in_last_hours: [1, 2, 12, 24, 48],
+        allowed_matches_for: ['today', 'today_tomorrow', '7d', 'anytime'],
+        allowed_bookies_pct: [30, 40, 50, 60, 70],
+        allowed_poll_seconds: [15, 30, 60, 120, 300]
+      });
+    }
+
+    if (req.method === 'POST' && u.pathname === '/api/dropping/settings') {
+      await ensureDroppingSchema();
+      const current = await getDroppingSettings();
+      const body = await readJson(req);
+
+      const next = {
+        drops_in_last_hours:
+          body.drops_in_last_hours === undefined
+            ? Number(current.drops_in_last_hours)
+            : Number(body.drops_in_last_hours),
+        matches_for:
+          body.matches_for === undefined
+            ? String(current.matches_for)
+            : String(body.matches_for),
+        bookies_pct:
+          body.bookies_pct === undefined
+            ? Number(current.bookies_pct)
+            : Number(body.bookies_pct),
+        poll_seconds:
+          body.poll_seconds === undefined
+            ? Number(current.poll_seconds)
+            : Number(body.poll_seconds),
+        notifications_enabled:
+          body.notifications_enabled === undefined
+            ? current.notifications_enabled === true
+            : body.notifications_enabled === true
+      };
+
+      if (![1, 2, 12, 24, 48].includes(next.drops_in_last_hours)) {
+        return json(res, 400, { error: 'Gecersiz drops_in_last_hours.' });
+      }
+      if (!['today', 'today_tomorrow', '7d', 'anytime'].includes(next.matches_for)) {
+        return json(res, 400, { error: 'Gecersiz matches_for.' });
+      }
+      if (![30, 40, 50, 60, 70].includes(next.bookies_pct)) {
+        return json(res, 400, { error: 'Gecersiz bookies_pct.' });
+      }
+      if (![15, 30, 60, 120, 300].includes(next.poll_seconds)) {
+        return json(res, 400, { error: 'Gecersiz poll_seconds.' });
+      }
+      if (
+        body.notifications_enabled !== undefined &&
+        typeof body.notifications_enabled !== 'boolean'
+      ) {
+        return json(res, 400, { error: 'notifications_enabled boolean olmali.' });
+      }
+
+      return json(res, 200, {
+        ok: true,
+        settings: await updateDroppingSettings(next)
+      });
+    }
+
+    if (req.method === 'GET' && u.pathname === '/api/dropping/current') {
+      await ensureDroppingSchema();
+      return json(res, 200, { items: await listDroppingCurrent() });
+    }
+
+    if (req.method === 'GET' && u.pathname === '/api/dropping/alerts') {
+      await ensureDroppingSchema();
+      const afterId = Number(u.searchParams.get('after_id') || 0);
+      const limit = Number(u.searchParams.get('limit') || 50);
+      const alerts = await listDroppingAlerts({ afterId, limit });
+      return json(res, 200, { alerts });
+    }
+
+    if (req.method === 'GET' && u.pathname === '/api/dropping/status') {
+      await ensureDroppingSchema();
+      return json(res, 200, await getDroppingHealth());
+    }
+
     if (req.method === 'GET' && u.pathname === '/api/alerts') {
       const afterId = Number(u.searchParams.get('after_id') || 0);
       const limit = Number(u.searchParams.get('limit') || 30);
@@ -567,11 +700,17 @@ const server = http.createServer(async (req, res) => {
 });
 
 (async () => {
-  await initDb();
-  const seedResult = await seed();
-  console.log('Seed:', seedResult);
+  if (HTTP_ONLY) {
+    console.log('[http-only] initDb/seed skipped.');
+  } else {
+    await initDb();
+    const seedResult = await seed();
+    console.log('Seed:', seedResult);
+  }
+
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`MacRadar backend ${PORT} portunda.`);
+    if (HTTP_ONLY) return;
     setTimeout(async () => {
       await enrichActiveSchedules();
       const cleanup = await purgePostKickoffSnapshots();

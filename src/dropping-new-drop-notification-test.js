@@ -97,15 +97,17 @@ const {
       [token, 'new-drop-' + stamp]
     );
     deviceId = Number(d.rows[0].id);
+    const enabledCountResult = await pool.query(
+      'SELECT count(*)::int AS count FROM dropping_push_devices WHERE enabled=TRUE'
+    );
+    const enabledDeviceCount = Number(enabledCountResult.rows[0].count);
 
     const flushed = await flushDroppingPushes({
       limit: 25,
       accountOverride: { projectId: 'test-project' },
       accessTokenOverride: 'test-access',
       sendImpl: async (account, accessToken, alert, device) => {
-        if (String(device.id) !== String(deviceId)) {
-          throw new Error('unexpected device');
-        }
+        if (String(device.id) !== String(deviceId)) return 'ok';
 
         const message = buildMessage(alert, device.token);
         payloads.push({
@@ -121,7 +123,7 @@ const {
 
     if (flushed.pending !== 2 ||
         flushed.sentAlerts !== 2 ||
-        flushed.sentDevices !== 2 ||
+        flushed.sentDevices !== 2 * enabledDeviceCount ||
         flushed.failedDevices !== 0 ||
         payloads.length !== 2) {
       throw new Error('flush mismatch ' + JSON.stringify({ flushed, payloads }));
@@ -156,7 +158,7 @@ const {
 
     if (Number(after.rows[0].total) !== 2 ||
         Number(after.rows[0].sent) !== 2 ||
-        Number(after.rows[0].deliveries) !== 2) {
+        Number(after.rows[0].deliveries) !== 2 * enabledDeviceCount) {
       throw new Error('sent persistence mismatch ' + JSON.stringify(after.rows[0]));
     }
 

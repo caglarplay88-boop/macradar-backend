@@ -46,13 +46,21 @@ function parseDropping(html) {
   const byType = Object.fromEntries(parts.map(x => [x.type, x.value]));
   let currentDate = byType.day + '.' + byType.month + '.' + byType.year;
   let currentLeague = null;
+  let currentCountryCode = null;
+  let currentCountry = null;
 
   for (const block of blocks) {
     const league = block.match(/table-main__tournament[^>]*>[\s\S]*?<\/i>([^<]+)<\/a>/i);
     const date = block.match(/table-main__date">([^<]+)</i);
+    const flag = block.match(/<img[^>]+src="[^"]*\/([^/"?]+)\.svg(?:\?[^"]*)?"[^>]*>/i);
 
     if (league) currentLeague = decodeHtml(league[1]);
     if (date) currentDate = decodeHtml(date[1]);
+    if (flag) {
+      currentCountryCode = String(flag[1] || '').toLowerCase() || null;
+      const alt = flag[0].match(/\balt="([^"]*)"/i);
+      currentCountry = alt ? decodeHtml(alt[1]) : null;
+    }
 
     const matchLink = block.match(/href="\/football\/[^"]+\/([A-Za-z0-9]+)\/">([^<]+)<\/a>/i);
     const time = block.match(/table-main__time">([^<]+)</i);
@@ -61,6 +69,21 @@ function parseDropping(html) {
     const oddsCells = [
       ...block.matchAll(/<td class="table-main__odds([^"]*)"[^>]*data-oid="([^"]+)"[\s\S]*?<\/td>/gi)
     ];
+
+    const currentOdds = oddsCells.slice(0, 3).map(cellMatch => {
+      const cell = cellMatch[0];
+      const dropped = cell.match(/<li>Drop:\s*\d+%<\/li>[\s\S]*?<span data-odd="([^"]+)"><\/span>\s*&raquo;\s*<span data-odd="([^"]+)"><\/span>/i);
+      if (dropped) return Number(dropped[2]);
+      const button = cell.match(/<button\b[^>]*data-odd="([^"]+)"/i);
+      if (button) return Number(button[1]);
+      const anyOdd = cell.match(/\bdata-odd="([^"]+)"/i);
+      return anyOdd ? Number(anyOdd[1]) : null;
+    });
+
+    const bestBetOddMatch = block.match(/<td class="bestbet-odd"[^>]*data-odd="([^"]+)"/i);
+    const bestBetBookmakerMatch = block.match(/<td class="bestbet-logo"[^>]*title="([^"]+)"/i);
+    const bestBetOdd = bestBetOddMatch ? Number(bestBetOddMatch[1]) : null;
+    const bestBetBookmaker = bestBetBookmakerMatch ? decodeHtml(bestBetBookmakerMatch[1]) : null;
 
     for (let index = 0; index < oddsCells.length && index < 3; index++) {
       const classes = oddsCells[index][1] || '';
@@ -77,11 +100,18 @@ function parseDropping(html) {
         time: time ? decodeHtml(time[1]) : null,
         date: currentDate,
         league: currentLeague,
+        country: currentCountry,
+        countryCode: currentCountryCode,
         selection,
         outcomeId: oddsCells[index][2],
         dropPct: Number(detail[1]),
         oldOdd: Number(detail[2]),
         currentOdd: Number(detail[3]),
+        odd1: currentOdds[0] ?? null,
+        oddX: currentOdds[1] ?? null,
+        odd2: currentOdds[2] ?? null,
+        bestBetOdd,
+        bestBetBookmaker,
         bookiesPct: Number(detail[4]),
         bookiesDown: Number(detail[5]),
         bookiesTotal: Number(detail[6])

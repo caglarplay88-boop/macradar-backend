@@ -17,6 +17,13 @@ async function ensureDroppingSchema() {
       bookies_pct INTEGER,
       bookies_down INTEGER,
       bookies_total INTEGER,
+      country_code TEXT,
+      country_name TEXT,
+      odd_1 DOUBLE PRECISION,
+      odd_x DOUBLE PRECISION,
+      odd_2 DOUBLE PRECISION,
+      best_bet_odd DOUBLE PRECISION,
+      best_bet_bookmaker TEXT,
       first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       last_notified_odd DOUBLE PRECISION,
@@ -25,6 +32,13 @@ async function ensureDroppingSchema() {
 
     ALTER TABLE dropping_state
       ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE dropping_state ADD COLUMN IF NOT EXISTS country_code TEXT;
+    ALTER TABLE dropping_state ADD COLUMN IF NOT EXISTS country_name TEXT;
+    ALTER TABLE dropping_state ADD COLUMN IF NOT EXISTS odd_1 DOUBLE PRECISION;
+    ALTER TABLE dropping_state ADD COLUMN IF NOT EXISTS odd_x DOUBLE PRECISION;
+    ALTER TABLE dropping_state ADD COLUMN IF NOT EXISTS odd_2 DOUBLE PRECISION;
+    ALTER TABLE dropping_state ADD COLUMN IF NOT EXISTS best_bet_odd DOUBLE PRECISION;
+    ALTER TABLE dropping_state ADD COLUMN IF NOT EXISTS best_bet_bookmaker TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_dropping_state_last_seen
       ON dropping_state(last_seen_at DESC);
@@ -49,6 +63,13 @@ async function ensureDroppingSchema() {
       bookies_pct INTEGER,
       bookies_down INTEGER,
       bookies_total INTEGER,
+      country_code TEXT,
+      country_name TEXT,
+      odd_1 DOUBLE PRECISION,
+      odd_x DOUBLE PRECISION,
+      odd_2 DOUBLE PRECISION,
+      best_bet_odd DOUBLE PRECISION,
+      best_bet_bookmaker TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       push_eligible BOOLEAN NOT NULL DEFAULT FALSE,
       push_sent_at TIMESTAMPTZ,
@@ -66,6 +87,13 @@ async function ensureDroppingSchema() {
       ADD COLUMN IF NOT EXISTS push_last_attempt_at TIMESTAMPTZ;
     ALTER TABLE dropping_alerts
       ADD COLUMN IF NOT EXISTS push_last_error TEXT;
+    ALTER TABLE dropping_alerts ADD COLUMN IF NOT EXISTS country_code TEXT;
+    ALTER TABLE dropping_alerts ADD COLUMN IF NOT EXISTS country_name TEXT;
+    ALTER TABLE dropping_alerts ADD COLUMN IF NOT EXISTS odd_1 DOUBLE PRECISION;
+    ALTER TABLE dropping_alerts ADD COLUMN IF NOT EXISTS odd_x DOUBLE PRECISION;
+    ALTER TABLE dropping_alerts ADD COLUMN IF NOT EXISTS odd_2 DOUBLE PRECISION;
+    ALTER TABLE dropping_alerts ADD COLUMN IF NOT EXISTS best_bet_odd DOUBLE PRECISION;
+    ALTER TABLE dropping_alerts ADD COLUMN IF NOT EXISTS best_bet_bookmaker TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_dropping_alerts_id
       ON dropping_alerts(id DESC);
@@ -179,6 +207,28 @@ async function writeOne(client, row, prime = false) {
       prime ? row.currentOdd : null, prime
     ]
   );
+
+  await client.query(
+    `UPDATE dropping_state SET
+      country_code=$2,
+      country_name=$3,
+      odd_1=$4,
+      odd_x=$5,
+      odd_2=$6,
+      best_bet_odd=$7,
+      best_bet_bookmaker=$8
+     WHERE item_key=$1`,
+    [
+      keyOf(row),
+      row.countryCode ?? null,
+      row.country ?? null,
+      row.odd1 ?? null,
+      row.oddX ?? null,
+      row.odd2 ?? null,
+      row.bestBetOdd ?? null,
+      row.bestBetBookmaker ?? null
+    ]
+  );
 }
 
 async function upsertDroppingRows(rows) {
@@ -288,6 +338,30 @@ async function recordDroppingAlert(event, { pushEligible = true } = {}) {
       ]
     );
 
+    if (inserted.rows[0]) {
+      await client.query(
+        `UPDATE dropping_alerts SET
+          country_code=$2,
+          country_name=$3,
+          odd_1=$4,
+          odd_x=$5,
+          odd_2=$6,
+          best_bet_odd=$7,
+          best_bet_bookmaker=$8
+         WHERE id=$1`,
+        [
+          inserted.rows[0].id,
+          row.countryCode ?? null,
+          row.country ?? null,
+          row.odd1 ?? null,
+          row.oddX ?? null,
+          row.odd2 ?? null,
+          row.bestBetOdd ?? null,
+          row.bestBetBookmaker ?? null
+        ]
+      );
+    }
+
     await client.query(
       'UPDATE dropping_state SET last_notified_odd=$2 WHERE item_key=$1',
       [key, row.currentOdd]
@@ -329,7 +403,10 @@ async function listDroppingCurrent() {
     `SELECT
       item_key, match_id, outcome_id, match_name, selection, league,
       match_date, kickoff_time, old_odd, current_odd, drop_pct,
-      bookies_pct, bookies_down, bookies_total, first_seen_at, last_seen_at
+      bookies_pct, bookies_down, bookies_total,
+      country_code, country_name, odd_1, odd_x, odd_2,
+      best_bet_odd, best_bet_bookmaker,
+      first_seen_at, last_seen_at
     FROM dropping_state
     WHERE active=TRUE
     ORDER BY drop_pct DESC NULLS LAST, last_seen_at DESC`

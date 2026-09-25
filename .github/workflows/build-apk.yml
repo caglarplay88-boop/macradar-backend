@@ -197,42 +197,44 @@ jobs:
 
           with zipfile.ZipFile(apk) as z:
               names = z.namelist()
-              sound_entries = [n for n in names if 'dropping_alert' in n.lower()]
-              if not sound_entries:
-                  raise SystemExit('dropping_alert resource is missing from APK')
-
-              sound_entry = sound_entries[0]
-              sound = z.read(sound_entry)
-              if not sound.startswith(b'RIFF') or b'WAVE' not in sound[:16]:
-                  raise SystemExit('dropping_alert resource is not a valid WAV')
-
-              with wave.open(io.BytesIO(sound), 'rb') as wav:
-                  if wav.getnchannels() != 1:
-                      raise SystemExit('dropping_alert must be mono')
-                  if wav.getframerate() != 44100:
-                      raise SystemExit('dropping_alert must be 44100 Hz')
-                  seconds = wav.getnframes() / wav.getframerate()
-
               channel_found = False
               sound_ref_found = False
+              wav_matches = []
+
               for name in names:
                   try:
                       data = z.read(name)
                   except Exception:
                       continue
+
                   if channel in data:
                       channel_found = True
                   if sound_name in data:
                       sound_ref_found = True
-                  if channel_found and sound_ref_found:
-                      break
 
+                  if data.startswith(b'RIFF') and b'WAVE' in data[:16]:
+                      try:
+                          with wave.open(io.BytesIO(data), 'rb') as wav:
+                              channels = wav.getnchannels()
+                              rate = wav.getframerate()
+                              seconds = wav.getnframes() / rate
+                              print('APK_WAV entry=' + name + ' channels=' + str(channels) + ' rate=' + str(rate) + ' seconds=' + format(seconds, '.2f'))
+                              if channels == 1 and rate == 44100 and 1.25 <= seconds <= 1.40:
+                                  wav_matches.append((name, seconds))
+                      except wave.Error:
+                          pass
+
+              print('APK_CHANNEL_STRING=' + ('FOUND' if channel_found else 'MISSING'))
+              print('APK_SOUND_REF_STRING=' + ('FOUND' if sound_ref_found else 'MISSING'))
+
+              if not wav_matches:
+                  raise SystemExit('Dedicated Dropping WAV payload is missing from APK')
               if not channel_found:
                   raise SystemExit('Dropping notification channel id is missing from APK')
               if not sound_ref_found:
                   raise SystemExit('Dropping sound reference is missing from APK')
 
-              print('APK_DROPPING_SOUND=OK entry=' + sound_entry + ' seconds=' + format(seconds, '.2f'))
+              print('APK_DROPPING_SOUND=OK entry=' + wav_matches[0][0] + ' seconds=' + format(wav_matches[0][1], '.2f'))
               print('APK_DROPPING_CHANNEL=OK id=macradar_dropping_live_v2')
           PYVERIFY
 

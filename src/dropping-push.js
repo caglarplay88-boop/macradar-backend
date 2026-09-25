@@ -7,7 +7,8 @@ const {
   markDroppingPushDeviceResult,
   disableDroppingPushDevice,
   markDroppingPushAttempt,
-  markDroppingPushSent
+  markDroppingPushSent,
+  markDroppingPushIneligible
 } = require('./dropping-store');
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -352,6 +353,12 @@ async function flushDroppingPushes({
     if (deliveredDeviceIds.size > 0 && !transientFailure) {
       await markDroppingPushSent(alert.id);
       sentAlerts++;
+    } else if (
+      !transientFailure &&
+      devices.length > 0 &&
+      devices.every(device => disabledDeviceIds.has(String(device.id)))
+    ) {
+      await markDroppingPushIneligible(alert.id);
     }
   }
 

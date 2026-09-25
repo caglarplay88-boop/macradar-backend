@@ -372,6 +372,18 @@ async function markDroppingPushSent(alertId) {
   return result.rows[0] || null;
 }
 
+async function markDroppingPushIneligible(alertId) {
+  const result = await pool.query(
+    `UPDATE dropping_alerts
+     SET push_eligible=FALSE
+     WHERE id=$1
+     RETURNING id, push_eligible, push_sent_at, push_attempt_count,
+               push_last_attempt_at, push_last_error`,
+    [Number(alertId)]
+  );
+  return result.rows[0] || null;
+}
+
 async function listPendingDroppingPushes(limit = 50) {
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
   const result = await pool.query(
@@ -582,6 +594,7 @@ module.exports = {
   markDroppingPushDeviceResult,
   markDroppingPushAttempt,
   markDroppingPushSent,
+  markDroppingPushIneligible,
   getDroppingHealth,
   registerDroppingPushDevice,
   disableDroppingPushDevice,

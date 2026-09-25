@@ -61,6 +61,32 @@ function isPushConfigured() {
   );
 }
 
+async function getDroppingPushReadiness() {
+  let account = null;
+
+  try {
+    account = loadServiceAccount();
+  } catch (error) {
+    return {
+      configured: false,
+      devices: 0,
+      ready: false,
+      error: String(error.message || error)
+    };
+  }
+
+  if (!account) {
+    return { configured: false, devices: 0, ready: false };
+  }
+
+  const devices = await listEnabledDroppingPushDevices();
+  return {
+    configured: true,
+    devices: devices.length,
+    ready: devices.length > 0
+  };
+}
+
 async function getAccessToken(account) {
   const now = Math.floor(Date.now() / 1000);
 
@@ -277,6 +303,7 @@ async function flushDroppingPushes({ limit = 25 } = {}) {
 
 module.exports = {
   isPushConfigured,
+  getDroppingPushReadiness,
   loadServiceAccount,
   buildMessage,
   flushDroppingPushes

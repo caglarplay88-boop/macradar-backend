@@ -8,7 +8,7 @@ const {
   getDroppingSettings
 } = require('./dropping-store');
 const { pool } = require('./db');
-const { flushDroppingPushes, isPushConfigured } = require('./dropping-push');
+const { flushDroppingPushes, isPushConfigured, getDroppingPushReadiness } = require('./dropping-push');
 
 const DAYS_BY_MATCHES_FOR = {
   today: 1,
@@ -64,9 +64,18 @@ async function run() {
       await syncDroppingCurrent(rows, { prime: result.primed });
 
       let createdAlerts = 0;
+      let pushReadiness = {
+        configured: isPushConfigured(),
+        devices: 0,
+        ready: false
+      };
+
+      if (settings.notifications_enabled === true) {
+        pushReadiness = await getDroppingPushReadiness();
+      }
 
       for (const event of result.events) {
-        const alert = await recordDroppingAlert(event, { pushEligible: settings.notifications_enabled === true });
+        const alert = await recordDroppingAlert(event, { pushEligible: pushReadiness.ready === true });
         if (!alert) continue;
 
         createdAlerts++;
@@ -81,8 +90,8 @@ async function run() {
         );
       }
 
-      let pushResult = { configured: isPushConfigured(), sentAlerts: 0, sentDevices: 0, failedDevices: 0 };
-      if (settings.notifications_enabled === true) {
+      let pushResult = { configured: pushReadiness.configured, sentAlerts: 0, sentDevices: 0, failedDevices: 0 };
+      if (settings.notifications_enabled === true && pushReadiness.ready === true) {
         try {
           pushResult = await flushDroppingPushes({ limit: 25 });
         } catch (pushError) {
@@ -107,6 +116,8 @@ async function run() {
         ' bookies=' + options.bookies +
         ' interval=' + pollSeconds +
         ' notifications=' + (settings.notifications_enabled === true) +
+        ' pushReady=' + (pushReadiness.ready === true) +
+        ' pushDevices=' + Number(pushReadiness.devices || 0) +
         ' tracked=' + result.tracked +
         ' alerts=' + createdAlerts +
         ' push=' + (pushResult.configured ? (pushResult.sentAlerts + '/' + pushResult.sentDevices) : 'disabled') +

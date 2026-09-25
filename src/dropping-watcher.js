@@ -5,7 +5,8 @@ const {
   loadDroppingState,
   recordDroppingAlert,
   saveDroppingWorkerStatus,
-  getDroppingSettings
+  getDroppingSettings,
+  pruneDroppingHistory
 } = require('./dropping-store');
 const { pool } = require('./db');
 const { flushDroppingPushes, isPushConfigured, getDroppingPushReadiness } = require('./dropping-push');
@@ -98,6 +99,18 @@ async function run() {
           console.error('[dropping-push] flush error=' + (pushError.message || pushError));
           pushResult = { configured: isPushConfigured(), sentAlerts: 0, sentDevices: 0, failedDevices: 1 };
         }
+      }
+
+      try {
+        const pruned = await pruneDroppingHistory({ days: 7 });
+        if (pruned.alertsDeleted > 0 || pruned.stateDeleted > 0) {
+          console.log(
+            '[dropping] retention days=7 alerts=' + pruned.alertsDeleted +
+            ' state=' + pruned.stateDeleted
+          );
+        }
+      } catch (cleanupError) {
+        console.error('[dropping] retention error=' + (cleanupError.message || cleanupError));
       }
 
       await saveDroppingWorkerStatus({

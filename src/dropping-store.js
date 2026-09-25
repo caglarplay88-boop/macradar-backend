@@ -98,6 +98,9 @@ async function ensureDroppingSchema() {
     CREATE INDEX IF NOT EXISTS idx_dropping_alerts_id
       ON dropping_alerts(id DESC);
 
+    CREATE INDEX IF NOT EXISTS idx_dropping_alerts_created_at
+      ON dropping_alerts(created_at);
+
     CREATE INDEX IF NOT EXISTS idx_dropping_alerts_pending_push
       ON dropping_alerts(id ASC)
       WHERE push_eligible=TRUE AND push_sent_at IS NULL;
@@ -742,6 +745,44 @@ async function updateDroppingSettings(settings) {
   return result.rows[0] || null;
 }
 
+
+async function pruneDroppingHistory({ days = 7 } = {}) {
+  const keepDays = Number(days);
+  if (!Number.isInteger(keepDays) || keepDays < 1 || keepDays > 3650) {
+    throw new Error('Gecersiz dropping retention gunu: ' + days);
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const alerts = await client.query(
+      `DELETE FROM dropping_alerts
+       WHERE created_at < NOW() - ($1::int * INTERVAL '1 day')`,
+      [keepDays]
+    );
+
+    const state = await client.query(
+      `DELETE FROM dropping_state
+       WHERE active=FALSE
+         AND last_seen_at < NOW() - ($1::int * INTERVAL '1 day')`,
+      [keepDays]
+    );
+
+    await client.query('COMMIT');
+    return {
+      days: keepDays,
+      alertsDeleted: alerts.rowCount,
+      stateDeleted: state.rowCount
+    };
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch {}
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   ensureDroppingSchema,
   upsertDroppingRows,
@@ -766,5 +807,6 @@ module.exports = {
   listEnabledDroppingPushDevices,
   getDroppingSettings,
   updateDroppingSettings,
+  pruneDroppingHistory,
   keyOf
 };

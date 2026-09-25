@@ -633,20 +633,47 @@ async function getDroppingHealth() {
 }
 
 async function registerDroppingPushDevice({ token, platform = 'android', deviceId = null }) {
-  const result = await pool.query(
-    `INSERT INTO dropping_push_devices(
-      token, platform, device_id, enabled, created_at, updated_at, last_seen_at
-    ) VALUES($1,$2,$3,TRUE,NOW(),NOW(),NOW())
-    ON CONFLICT(token) DO UPDATE SET
-      platform=EXCLUDED.platform,
-      device_id=COALESCE(EXCLUDED.device_id, dropping_push_devices.device_id),
-      enabled=TRUE,
-      updated_at=NOW(),
-      last_seen_at=NOW()
-    RETURNING id, platform, device_id, enabled, created_at, updated_at, last_seen_at`,
-    [String(token), String(platform || 'android'), deviceId ? String(deviceId) : null]
-  );
-  return result.rows[0] || null;
+  const cleanToken = String(token);
+  const cleanPlatform = String(platform || 'android');
+  const cleanDeviceId = deviceId ? String(deviceId) : null;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    if (cleanDeviceId) {
+      await client.query(
+        `UPDATE dropping_push_devices
+         SET enabled=FALSE, updated_at=NOW()
+         WHERE device_id=$1
+           AND token<>$2
+           AND enabled=TRUE`,
+        [cleanDeviceId, cleanToken]
+      );
+    }
+
+    const result = await client.query(
+      `INSERT INTO dropping_push_devices(
+        token, platform, device_id, enabled, created_at, updated_at, last_seen_at
+      ) VALUES($1,$2,$3,TRUE,NOW(),NOW(),NOW())
+      ON CONFLICT(token) DO UPDATE SET
+        platform=EXCLUDED.platform,
+        device_id=COALESCE(EXCLUDED.device_id, dropping_push_devices.device_id),
+        enabled=TRUE,
+        updated_at=NOW(),
+        last_seen_at=NOW()
+      RETURNING id, platform, device_id, enabled, created_at, updated_at, last_seen_at`,
+      [cleanToken, cleanPlatform, cleanDeviceId]
+    );
+
+    await client.query('COMMIT');
+    return result.rows[0] || null;
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch {}
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function disableDroppingPushDevice(token) {

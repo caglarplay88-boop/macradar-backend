@@ -146,9 +146,24 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   } catch (_) {}
 }
 
+Future<String> _getOrCreateDroppingDeviceId() async {
+  final prefs = await SharedPreferences.getInstance();
+  final existing = (prefs.getString('dropping_device_id') ?? '').trim();
+  if (existing.isNotEmpty) return existing;
+
+  final random = math.Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  final id = 'android-' +
+      bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+  await prefs.setString('dropping_device_id', id);
+  return id;
+}
+
 Future<void> _registerFcmToken(String token) async {
   final clean = token.trim();
   if (clean.isEmpty) return;
+
+  final deviceId = await _getOrCreateDroppingDeviceId();
 
   final response = await http
       .post(
@@ -160,6 +175,7 @@ Future<void> _registerFcmToken(String token) async {
         body: jsonEncode({
           'token': clean,
           'platform': 'android',
+          'device_id': deviceId,
         }),
       )
       .timeout(const Duration(seconds: 20));

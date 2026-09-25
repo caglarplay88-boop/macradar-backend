@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +15,16 @@ const String mobileKey = '68427531';
 final Api api = Api();
 final FlutterLocalNotificationsPlugin localNotifications =
     FlutterLocalNotificationsPlugin();
+
+const AndroidNotificationChannel droppingFcmChannel = AndroidNotificationChannel(
+  'macradar_dropping_fcm',
+  'Oran Düşüşleri Canlı',
+  description: 'BetExplorer oran düşüşleri için yüksek öncelikli bildirimler.',
+  importance: Importance.max,
+  playSound: true,
+  enableVibration: true,
+  showBadge: true,
+);
 
 const String oddsAlertTask = 'macradarOddsAlertPoll';
 
@@ -28,11 +40,14 @@ Future<void> initLocalNotifications({bool requestPermission = false}) async {
   const settings = InitializationSettings(android: android);
   await localNotifications.initialize(settings: settings);
 
+  final androidPlugin = localNotifications
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+
+  await androidPlugin?.createNotificationChannel(droppingFcmChannel);
+
   if (requestPermission) {
-    await localNotifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    await androidPlugin?.requestNotificationsPermission();
   }
 }
 
@@ -124,6 +139,104 @@ Future<void> checkOddsAlerts({
 }
 
 @pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
+}
+
+Future<void> _registerFcmToken(String token) async {
+  final clean = token.trim();
+  if (clean.isEmpty) return;
+
+  final response = await http
+      .post(
+        Uri.parse(baseUrl + '/api/dropping/device-token'),
+        headers: const {
+          'content-type': 'application/json',
+          'x-api-key': mobileKey,
+        },
+        body: jsonEncode({
+          'token': clean,
+          'platform': 'android',
+        }),
+      )
+      .timeout(const Duration(seconds: 20));
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw Exception('FCM token kaydı ' + response.statusCode.toString());
+  }
+}
+
+Future<void> _showDroppingForegroundMessage(RemoteMessage message) async {
+  await initLocalNotifications();
+
+  final data = message.data;
+  final title = message.notification?.title ??
+      ('Oran Düşüşü • ' + (data['selection'] ?? '?'));
+  final body = message.notification?.body ??
+      ((data['match'] ?? 'Maç') +
+          ': ' +
+          (data['previous_odd'] ?? '?') +
+          ' → ' +
+          (data['current_odd'] ?? '?') +
+          ' (-' +
+          (data['drop_pct'] ?? '?') +
+          '%)');
+
+  const details = AndroidNotificationDetails(
+    'macradar_dropping_fcm',
+    'Oran Düşüşleri Canlı',
+    channelDescription:
+        'BetExplorer oran düşüşleri için yüksek öncelikli bildirimler.',
+    importance: Importance.max,
+    priority: Priority.max,
+    playSound: true,
+    enableVibration: true,
+    visibility: NotificationVisibility.public,
+  );
+
+  final rawId = int.tryParse(data['alert_id'] ?? '');
+  final notificationId =
+      rawId ?? DateTime.now().millisecondsSinceEpoch.remainder(2147483647);
+
+  await localNotifications.show(
+    notificationId,
+    title,
+    body,
+    const NotificationDetails(android: details),
+  );
+}
+
+Future<void> _initFirebaseMessaging() async {
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null && token.isNotEmpty) {
+      await _registerFcmToken(token);
+    }
+
+    FirebaseMessaging.instance.onTokenRefresh.listen((token) {
+      _registerFcmToken(token).catchError((_) {});
+    });
+
+    FirebaseMessaging.onMessage.listen((message) {
+      _showDroppingForegroundMessage(message).catchError((_) {});
+    });
+  } catch (_) {
+    // Firebase yapılandırması yoksa mevcut uygulama normal çalışır.
+  }
+}
+
+@pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     WidgetsFlutterBinding.ensureInitialized();
@@ -181,6 +294,7 @@ Future<void> main() async {
   runApp(const MacRadarApp());
 
   Future.microtask(_initBackgroundServices);
+  Future.microtask(_initFirebaseMessaging);
 }
 
 class Api {

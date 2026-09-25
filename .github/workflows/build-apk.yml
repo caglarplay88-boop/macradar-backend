@@ -31,7 +31,26 @@ jobs:
           flutter create --platforms=android --org com.macradar --project-name macradar mobile_build
           cp mobile/lib/main.dart mobile_build/lib/main.dart
           cd mobile_build
-          flutter pub add http shared_preferences flutter_local_notifications workmanager
+          flutter pub add http shared_preferences flutter_local_notifications workmanager firebase_core firebase_messaging
+
+      - name: Configure optional Firebase
+        env:
+          FIREBASE_GOOGLE_SERVICES_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICES_B64 }}
+        run: |
+          if [ -z "$FIREBASE_GOOGLE_SERVICES_B64" ]; then
+            echo "Firebase config not present; continuing without FCM."
+            exit 0
+          fi
+
+          cd mobile_build
+          printf '%s' "$FIREBASE_GOOGLE_SERVICES_B64" | base64 --decode > android/app/google-services.json
+
+          grep -q 'com.google.gms.google-services' android/settings.gradle.kts ||             sed -i '0,/plugins {/s//plugins {\n    id("com.google.gms.google-services") version "4.5.0" apply false/' android/settings.gradle.kts
+          grep -q 'com.google.gms.google-services' android/app/build.gradle.kts ||             sed -i '0,/plugins {/s//plugins {\n    id("com.google.gms.google-services")/' android/app/build.gradle.kts
+
+          test -s android/app/google-services.json
+          grep -q 'com.google.gms.google-services' android/settings.gradle.kts
+          grep -q 'com.google.gms.google-services' android/app/build.gradle.kts
 
       - name: Set app name and internet permission
         run: |

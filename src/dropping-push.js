@@ -190,7 +190,7 @@ function buildMessage(alert, deviceToken) {
         collapse_key: 'dropping_alert_' + stringValue(alert.id),
         notification: {
           tag: 'dropping_alert_' + stringValue(alert.id),
-          channel_id: 'macradar_dropping_live_v2',
+          channel_id: 'macradar_dropping_live_v3',
           sound: 'dropping_alert',
           default_vibrate_timings: true,
           visibility: 'PUBLIC',

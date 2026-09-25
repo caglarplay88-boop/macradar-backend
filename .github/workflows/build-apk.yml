@@ -107,15 +107,73 @@ jobs:
 
           manifest = Path('mobile_build/android/app/src/main/AndroidManifest.xml')
           text = manifest.read_text()
+          text = text.replace(
+              'android:name="${applicationName}"',
+              'android:name=".MacRadarApplication"',
+          )
+          if 'android:name=".MacRadarApplication"' not in text:
+              text = text.replace(
+                  '<application',
+                  '<application android:name=".MacRadarApplication"',
+                  1,
+              )
           marker = '</application>'
-          meta = '        <meta-data android:name="com.macradar.dropping_sound" android:resource="@raw/dropping_alert" />'
-          if 'com.macradar.dropping_sound' not in text:
+          meta = (
+              '        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" '
+              'android:value="macradar_dropping_live_v3" />\n'
+              '        <meta-data android:name="com.macradar.dropping_sound" '
+              'android:resource="@raw/dropping_alert" />'
+          )
+          if 'com.google.firebase.messaging.default_notification_channel_id' not in text:
               if marker not in text:
                   raise SystemExit('Android application closing tag not found')
               text = text.replace(marker, meta + marker, 1)
               manifest.write_text(text)
           PYKEEP
           grep -q '@raw/dropping_alert' mobile_build/android/app/src/main/AndroidManifest.xml
+          grep -q 'macradar_dropping_live_v3' mobile_build/android/app/src/main/AndroidManifest.xml
+          grep -q 'android:name=".MacRadarApplication"' mobile_build/android/app/src/main/AndroidManifest.xml
+
+          mkdir -p mobile_build/android/app/src/main/kotlin/com/macradar/macradar
+          cat > mobile_build/android/app/src/main/kotlin/com/macradar/macradar/MacRadarApplication.kt <<'KOTLIN'
+          package com.macradar.macradar
+
+          import android.app.Application
+          import android.app.Notification
+          import android.app.NotificationChannel
+          import android.app.NotificationManager
+          import android.content.Context
+          import android.media.AudioAttributes
+          import android.net.Uri
+          import android.os.Build
+
+          class MacRadarApplication : Application() {
+              override fun onCreate() {
+                  super.onCreate()
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                      val channel = NotificationChannel(
+                          "macradar_dropping_live_v3",
+                          "Oran Düşüşleri Canlı",
+                          NotificationManager.IMPORTANCE_HIGH
+                      )
+                      channel.description = "Oran düşüşleri için yüksek öncelikli sesli bildirimler."
+                      channel.enableVibration(true)
+                      channel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                      val sound = Uri.parse("android.resource://$packageName/${R.raw.dropping_alert}")
+                      val audio = AudioAttributes.Builder()
+                          .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                          .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                          .build()
+                      channel.setSound(sound, audio)
+                      manager.createNotificationChannel(channel)
+                  }
+              }
+          }
+          KOTLIN
+
+          grep -q 'macradar_dropping_live_v3' mobile_build/android/app/src/main/kotlin/com/macradar/macradar/MacRadarApplication.kt
+          grep -q 'dropping_alert' mobile_build/android/app/src/main/kotlin/com/macradar/macradar/MacRadarApplication.kt
           echo 'DROPPING_SOUND_SOURCE=OK'
 
           mkdir -p mobile_build/android/app/src/main/res/drawable
@@ -213,7 +271,7 @@ jobs:
           import zipfile
 
           apk = 'mobile_build/build/app/outputs/flutter-apk/app-release.apk'
-          channel_forms = [b'macradar_dropping_live_v2', 'macradar_dropping_live_v2'.encode('utf-16le')]
+          channel_forms = [b'macradar_dropping_live_v3', 'macradar_dropping_live_v3'.encode('utf-16le')]
           sound_forms = [b'dropping_alert', 'dropping_alert'.encode('utf-16le')]
 
           with zipfile.ZipFile(apk) as z:
@@ -261,7 +319,7 @@ jobs:
                   raise SystemExit(' | '.join(errors))
 
               print('APK_DROPPING_SOUND=OK entry=' + wav_matches[0][0] + ' seconds=' + format(wav_matches[0][1], '.2f'))
-              print('APK_DROPPING_CHANNEL=OK id=macradar_dropping_live_v2')
+              print('APK_DROPPING_CHANNEL=OK id=macradar_dropping_live_v3')
           PYVERIFY
 
       - name: Prepare APK

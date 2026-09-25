@@ -17,7 +17,7 @@ final FlutterLocalNotificationsPlugin localNotifications =
     FlutterLocalNotificationsPlugin();
 
 const AndroidNotificationChannel droppingFcmChannel = AndroidNotificationChannel(
-  'macradar_dropping_live_v2',
+  'macradar_dropping_live_v3',
   'Oran Düşüşleri Canlı',
   description: 'BetExplorer oran düşüşleri için yüksek öncelikli bildirimler.',
   importance: Importance.max,
@@ -186,7 +186,7 @@ Future<void> _showDroppingForegroundMessage(RemoteMessage message) async {
           '%)');
 
   const details = AndroidNotificationDetails(
-    'macradar_dropping_live_v2',
+    'macradar_dropping_live_v3',
     'Oran Düşüşleri Canlı',
     channelDescription:
         'BetExplorer oran düşüşleri için yüksek öncelikli bildirimler.',

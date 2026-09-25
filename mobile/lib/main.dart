@@ -195,6 +195,7 @@ Future<void> _showDroppingForegroundMessage(RemoteMessage message) async {
     playSound: true,
     sound: RawResourceAndroidNotificationSound('dropping_alert'),
     enableVibration: true,
+    onlyAlertOnce: true,
     visibility: NotificationVisibility.public,
   );
 

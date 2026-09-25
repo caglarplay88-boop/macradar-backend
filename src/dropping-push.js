@@ -4,6 +4,7 @@ const {
   listPendingDroppingPushes,
   listEnabledDroppingPushDevices,
   disableDroppingPushDevice,
+  markDroppingPushAttempt,
   markDroppingPushSent
 } = require('./dropping-store');
 
@@ -255,7 +256,16 @@ async function flushDroppingPushes({ limit = 25 } = {}) {
     };
   }
 
-  const accessToken = await getAccessToken(account);
+  let accessToken = null;
+  try {
+    accessToken = await getAccessToken(account);
+  } catch (error) {
+    const message = 'FCM auth: ' + String(error.message || error);
+    for (const alert of alerts) {
+      await markDroppingPushAttempt(alert.id, message);
+    }
+    throw error;
+  }
 
   let sentAlerts = 0;
   let sentDevices = 0;
@@ -264,6 +274,7 @@ async function flushDroppingPushes({ limit = 25 } = {}) {
   for (const alert of alerts) {
     let delivered = 0;
     let transientFailure = false;
+    const attemptErrors = [];
 
     for (const device of devices) {
       try {
@@ -273,18 +284,35 @@ async function flushDroppingPushes({ limit = 25 } = {}) {
       } catch (error) {
         if (error.unregistered) {
           await disableDroppingPushDevice(device.token);
+          attemptErrors.push(
+            'device=' + device.id + ' UNREGISTERED'
+          );
           continue;
         }
 
         transientFailure = true;
         failedDevices++;
+        const message = String(error.message || error);
+        attemptErrors.push(
+          'device=' + device.id + ' ' + message
+        );
         console.error(
           '[dropping-push] alert=' + alert.id +
           ' device=' + device.id +
-          ' error=' + (error.message || error)
+          ' error=' + message
         );
       }
     }
+
+    const attemptError =
+      transientFailure || delivered === 0
+        ? (
+            attemptErrors.join(' | ') ||
+            'No FCM device accepted the alert.'
+          )
+        : null;
+
+    await markDroppingPushAttempt(alert.id, attemptError);
 
     if (delivered > 0 && !transientFailure) {
       await markDroppingPushSent(alert.id);

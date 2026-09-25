@@ -52,11 +52,20 @@ async function ensureDroppingSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       push_eligible BOOLEAN NOT NULL DEFAULT FALSE,
       push_sent_at TIMESTAMPTZ,
+      push_attempt_count INTEGER NOT NULL DEFAULT 0,
+      push_last_attempt_at TIMESTAMPTZ,
+      push_last_error TEXT,
       UNIQUE(item_key, current_odd)
     );
 
     ALTER TABLE dropping_alerts
       ADD COLUMN IF NOT EXISTS push_eligible BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE dropping_alerts
+      ADD COLUMN IF NOT EXISTS push_attempt_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE dropping_alerts
+      ADD COLUMN IF NOT EXISTS push_last_attempt_at TIMESTAMPTZ;
+    ALTER TABLE dropping_alerts
+      ADD COLUMN IF NOT EXISTS push_last_error TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_dropping_alerts_id
       ON dropping_alerts(id DESC);
@@ -321,12 +330,30 @@ async function listDroppingAlerts({ afterId = 0, limit = 50 } = {}) {
   return result.rows;
 }
 
+async function markDroppingPushAttempt(alertId, error = null) {
+  const message = error === null || error === undefined
+    ? null
+    : String(error).slice(0, 1000);
+
+  const result = await pool.query(
+    `UPDATE dropping_alerts
+     SET push_attempt_count=COALESCE(push_attempt_count, 0) + 1,
+         push_last_attempt_at=NOW(),
+         push_last_error=$2
+     WHERE id=$1
+     RETURNING id, push_attempt_count, push_last_attempt_at, push_last_error`,
+    [Number(alertId), message]
+  );
+  return result.rows[0] || null;
+}
+
 async function markDroppingPushSent(alertId) {
   const result = await pool.query(
     `UPDATE dropping_alerts
-     SET push_sent_at=COALESCE(push_sent_at, NOW())
+     SET push_sent_at=COALESCE(push_sent_at, NOW()),
+         push_last_error=NULL
      WHERE id=$1
-     RETURNING id, push_sent_at`,
+     RETURNING id, push_sent_at, push_attempt_count, push_last_attempt_at, push_last_error`,
     [Number(alertId)]
   );
   return result.rows[0] || null;
@@ -463,6 +490,7 @@ module.exports = {
   listDroppingCurrent,
   listDroppingAlerts,
   listPendingDroppingPushes,
+  markDroppingPushAttempt,
   markDroppingPushSent,
   getDroppingHealth,
   registerDroppingPushDevice,

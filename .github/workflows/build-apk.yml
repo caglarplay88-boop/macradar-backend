@@ -137,7 +137,19 @@ jobs:
       - name: Build release APK
         run: |
           cd mobile_build
-          flutter build apk --release
+          set -o pipefail
+          if ! flutter build apk --release 2>&1 | tee /tmp/macradar-flutter-build.log; then
+            python3 - <<'PYLOG'
+            from pathlib import Path
+            text = Path('/tmp/macradar-flutter-build.log').read_text(errors='replace')
+            tail = '
+'.join(text.splitlines()[-80:])
+            tail = tail.replace('%', '%25').replace('', '%0D').replace('
+', '%0A')
+            print('::error::' + tail)
+            PYLOG
+            exit 1
+          fi
 
       - name: Prepare APK
         run: |

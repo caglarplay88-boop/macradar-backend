@@ -97,6 +97,24 @@ jobs:
               output.writeframes(b''.join(frames))
           PYSOUND
 
+          test -s mobile_build/android/app/src/main/res/raw/dropping_alert.wav
+          python3 - <<'PYKEEP'
+          from pathlib import Path
+
+          manifest = Path('mobile_build/android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text()
+          marker = '</application>'
+          meta = '        <meta-data android:name="com.macradar.dropping_sound" android:resource="@raw/dropping_alert" />
+'
+          if 'com.macradar.dropping_sound' not in text:
+              if marker not in text:
+                  raise SystemExit('Android application closing tag not found')
+              text = text.replace(marker, meta + marker, 1)
+              manifest.write_text(text)
+          PYKEEP
+          grep -q '@raw/dropping_alert' mobile_build/android/app/src/main/AndroidManifest.xml
+          echo 'DROPPING_SOUND_SOURCE=OK'
+
           mkdir -p mobile_build/android/app/src/main/res/drawable
           python3 - <<'PY'
           import struct, zlib, math

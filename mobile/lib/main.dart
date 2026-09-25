@@ -8596,7 +8596,6 @@ class _DroppingPageState extends State<DroppingPage> {
   String? error;
   int mode = 0;
   List<Map<String, dynamic>> live = [];
-  List<Map<String, dynamic>> history = [];
   Map<String, dynamic> status = {};
   Map<String, dynamic> settingsData = {};
   bool savingSettings = false;
@@ -8650,13 +8649,11 @@ class _DroppingPageState extends State<DroppingPage> {
     }
     try {
       final current = await api.get('/api/dropping/current');
-      final alerts = await api.get('/api/dropping/alerts?after_id=0&limit=200');
       final health = await api.get('/api/dropping/status');
       final fetchedSettings = await api.get('/api/dropping/settings');
       if (!mounted) return;
       setState(() {
         live = _mapList(current['items']);
-        history = _mapList(alerts['alerts']).reversed.toList();
         status = health;
         settingsData = fetchedSettings;
         settingHours = _num(fetchedSettings['drops_in_last_hours'])?.toInt() ?? 1;
@@ -9182,7 +9179,7 @@ class _DroppingPageState extends State<DroppingPage> {
   }
 
 
-  Future<void> _saveSettings() async {
+  Future<void> _saveSettings({bool showMessage = true}) async {
     if (savingSettings) return;
     setState(() => savingSettings = true);
     try {
@@ -9213,9 +9210,11 @@ class _DroppingPageState extends State<DroppingPage> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('D\u00fc\u015f\u00fc\u015f ayarlar\u0131 kaydedildi.')),
-      );
+      if (showMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('D\u00fc\u015f\u00fc\u015f ayarlar\u0131 kaydedildi.')),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -9228,6 +9227,92 @@ class _DroppingPageState extends State<DroppingPage> {
     } finally {
       if (mounted) setState(() => savingSettings = false);
     }
+  }
+
+  Future<void> _applyLiveFilter({
+    int? hours,
+    String? matches,
+    int? bookies,
+  }) async {
+    if (savingSettings) return;
+    setState(() {
+      if (hours != null) settingHours = hours;
+      if (matches != null) settingMatches = matches;
+      if (bookies != null) settingBookies = bookies;
+    });
+    await _saveSettings(showMessage: false);
+    if (mounted) await _load();
+  }
+
+  Widget _liveFiltersCard() {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          children: [
+            DropdownButtonFormField<int>(
+              value: settingHours,
+              decoration: const InputDecoration(
+                labelText: 'D\\u00fc\\u015f\\u00fc\\u015fler \\u00b7 son',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(value: 1, child: Text('1 saat')),
+                DropdownMenuItem(value: 2, child: Text('2 saat')),
+                DropdownMenuItem(value: 12, child: Text('12 saat')),
+                DropdownMenuItem(value: 24, child: Text('24 saat')),
+                DropdownMenuItem(value: 48, child: Text('48 saat')),
+              ],
+              onChanged: savingSettings ? null : (v) {
+                if (v != null) _applyLiveFilter(hours: v);
+              },
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: settingMatches,
+              decoration: const InputDecoration(
+                labelText: 'Ma\\u00e7lar',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(value: 'today', child: Text('Bug\\u00fcn')),
+                DropdownMenuItem(
+                  value: 'today_tomorrow',
+                  child: Text('Bug\\u00fcn + yar\\u0131n'),
+                ),
+                DropdownMenuItem(value: '7d', child: Text('Sonraki 7 g\\u00fcn')),
+                DropdownMenuItem(value: 'anytime', child: Text('T\\u00fcm\\u00fc')),
+              ],
+              onChanged: savingSettings ? null : (v) {
+                if (v != null) _applyLiveFilter(matches: v);
+              },
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<int>(
+              value: settingBookies,
+              decoration: const InputDecoration(
+                labelText: 'Dropping bookies',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(value: 30, child: Text('>%30')),
+                DropdownMenuItem(value: 40, child: Text('>%40')),
+                DropdownMenuItem(value: 50, child: Text('>%50')),
+                DropdownMenuItem(value: 60, child: Text('>%60')),
+                DropdownMenuItem(value: 70, child: Text('>%70')),
+              ],
+              onChanged: savingSettings ? null : (v) {
+                if (v != null) _applyLiveFilter(bookies: v);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _settingsCard() {
@@ -9252,68 +9337,6 @@ class _DroppingPageState extends State<DroppingPage> {
               ),
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<int>(
-              value: settingHours,
-              decoration: const InputDecoration(
-                labelText: 'D\u00fc\u015f\u00fc\u015fler \u00b7 son',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 1, child: Text('1 saat')),
-                DropdownMenuItem(value: 2, child: Text('2 saat')),
-                DropdownMenuItem(value: 12, child: Text('12 saat')),
-                DropdownMenuItem(value: 24, child: Text('24 saat')),
-                DropdownMenuItem(value: 48, child: Text('48 saat')),
-              ],
-              onChanged: savingSettings
-                  ? null
-                  : (v) {
-                      if (v != null) setState(() => settingHours = v);
-                    },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: settingMatches,
-              decoration: const InputDecoration(
-                labelText: 'Ma\u00e7lar',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'today', child: Text('Bug\u00fcn')),
-                DropdownMenuItem(
-                  value: 'today_tomorrow',
-                  child: Text('Bug\u00fcn + yar\u0131n'),
-                ),
-                DropdownMenuItem(value: '7d', child: Text('Sonraki 7 g\u00fcn')),
-                DropdownMenuItem(value: 'anytime', child: Text('T\u00fcm\u00fc')),
-              ],
-              onChanged: savingSettings
-                  ? null
-                  : (v) {
-                      if (v != null) setState(() => settingMatches = v);
-                    },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<int>(
-              value: settingBookies,
-              decoration: const InputDecoration(
-                labelText: 'Minimum bookmaker d\u00fc\u015f\u00fc\u015f\u00fc',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 30, child: Text('%30')),
-                DropdownMenuItem(value: 40, child: Text('%40')),
-                DropdownMenuItem(value: 50, child: Text('%50')),
-                DropdownMenuItem(value: 60, child: Text('%60')),
-                DropdownMenuItem(value: 70, child: Text('%70')),
-              ],
-              onChanged: savingSettings
-                  ? null
-                  : (v) {
-                      if (v != null) setState(() => settingBookies = v);
-                    },
-            ),
-            const SizedBox(height: 12),
             DropdownButtonFormField<int>(
               value: settingPoll,
               decoration: const InputDecoration(
@@ -9368,7 +9391,7 @@ class _DroppingPageState extends State<DroppingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final items = mode == 0 ? live : history;
+    final items = live;
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -9385,11 +9408,6 @@ class _DroppingPageState extends State<DroppingPage> {
                   label: Text('Canl\u0131'),
                 ),
                 ButtonSegment<int>(
-                  value: 1,
-                  icon: Icon(Icons.history_rounded),
-                  label: Text('Ge\u00e7mi\u015f'),
-                ),
-                ButtonSegment<int>(
                   value: 2,
                   icon: Icon(Icons.tune_rounded),
                   label: Text('Ayar'),
@@ -9399,6 +9417,7 @@ class _DroppingPageState extends State<DroppingPage> {
               onSelectionChanged: (values) => setState(() => mode = values.first),
             ),
           ),
+          if (mode == 0) _liveFiltersCard(),
           if (loading)
             const Padding(
               padding: EdgeInsets.all(32),
@@ -9422,13 +9441,9 @@ class _DroppingPageState extends State<DroppingPage> {
           else if (mode == 2)
             _settingsCard()
           else if (items.isEmpty)
-            _empty(mode == 0
-                ? 'Aktif oran d\u00fc\u015f\u00fc\u015f\u00fc yok.'
-                : 'Hen\u00fcz oran d\u00fc\u015f\u00fc\u015f\u00fc ge\u00e7mi\u015fi yok.')
+            _empty('Aktif oran d\u00fc\u015f\u00fc\u015f\u00fc yok.')
           else
-            ...items.map((item) => mode == 0
-                ? _liveDroppingCard(item)
-                : _rowCard(item, alert: true)),
+            ...items.map(_liveDroppingCard),
           const SizedBox(height: 16),
         ],
       ),

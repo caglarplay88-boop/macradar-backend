@@ -8663,7 +8663,19 @@ class _DroppingPageState extends State<DroppingPage> {
     final ok = lastError.isEmpty && status['last_ok_at'] != null;
     final active = _num(status['active_count'])?.toInt() ?? live.length;
     final interval = _num(status['interval_seconds'])?.toInt();
+    final pushConfigured = status['push_configured'] == true;
+    final pushReady = status['push_ready'] == true;
+    final pushDevices = _num(status['push_device_count'])?.toInt() ?? 0;
+    final pushPending = _num(status['push_pending_count'])?.toInt() ?? 0;
+    final pushFailed = _num(status['push_failed_pending_count'])?.toInt() ?? 0;
+    final pushLastError = status['push_last_error']?.toString() ?? '';
     final scheme = Theme.of(context).colorScheme;
+    final pushStateText = pushReady
+        ? 'Push haz\u0131r'
+        : (pushConfigured ? 'Telefon bekleniyor' : 'Firebase bekleniyor');
+    final pushStateColor = pushReady
+        ? Colors.greenAccent
+        : (pushConfigured ? Colors.orangeAccent : scheme.onSurfaceVariant);
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       child: Padding(
@@ -8700,6 +8712,48 @@ class _DroppingPageState extends State<DroppingPage> {
                   (interval == null ? '' : '  \u00b7  ' + interval.toString() + ' sn'),
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  pushReady
+                      ? Icons.notifications_active_rounded
+                      : Icons.notifications_none_rounded,
+                  size: 18,
+                  color: pushStateColor,
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    pushStateText,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: pushStateColor,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Cihaz ' + pushDevices.toString() +
+                      '  \u00b7  Bekleyen ' + pushPending.toString(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            if (pushFailed > 0 || pushLastError.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Push hata: ' +
+                    pushFailed.toString() +
+                    (pushLastError.isEmpty ? '' : '  \u00b7  ' + pushLastError),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: scheme.error),
+              ),
+            ],
             if (lastError.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(

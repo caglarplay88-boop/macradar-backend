@@ -374,7 +374,7 @@ async function listPendingDroppingPushes(limit = 50) {
 }
 
 async function getDroppingHealth() {
-  const [status, counts, latest] = await Promise.all([
+  const [status, counts, latest, push] = await Promise.all([
     pool.query('SELECT * FROM dropping_worker_status WHERE id=1'),
     pool.query(
       `SELECT
@@ -386,13 +386,47 @@ async function getDroppingHealth() {
       `SELECT COALESCE(MAX(id),0)::bigint AS latest_alert_id,
               COUNT(*)::int AS alert_count
        FROM dropping_alerts`
+    ),
+    pool.query(
+      `SELECT
+        (SELECT COUNT(*)::int
+           FROM dropping_push_devices
+          WHERE enabled=TRUE) AS push_device_count,
+        COUNT(*) FILTER (
+          WHERE push_eligible=TRUE
+            AND push_sent_at IS NULL
+        )::int AS push_pending_count,
+        COUNT(*) FILTER (
+          WHERE push_eligible=TRUE
+            AND push_sent_at IS NULL
+            AND push_last_error IS NOT NULL
+        )::int AS push_failed_pending_count,
+        MAX(push_last_attempt_at) AS push_last_attempt_at,
+        (
+          SELECT push_last_error
+          FROM dropping_alerts
+          WHERE push_last_error IS NOT NULL
+          ORDER BY push_last_attempt_at DESC NULLS LAST, id DESC
+          LIMIT 1
+        ) AS push_last_error
+       FROM dropping_alerts`
     )
   ]);
+
+  const pushRow = push.rows[0] || {};
+  const pushConfigured = Boolean(
+    process.env.FIREBASE_SERVICE_ACCOUNT_B64 ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS
+  );
+  const pushDevices = Number(pushRow.push_device_count || 0);
 
   return {
     ...(status.rows[0] || {}),
     ...(counts.rows[0] || {}),
-    ...(latest.rows[0] || {})
+    ...(latest.rows[0] || {}),
+    ...pushRow,
+    push_configured: pushConfigured,
+    push_ready: pushConfigured && pushDevices > 0
   };
 }
 

@@ -572,10 +572,11 @@ class _HomeState extends State<Home> {
 
   @override
   Widget build(BuildContext context) {
-    const names = ['Bülten', 'Takip', 'Sistem'];
+    const names = ['Bülten', 'Takip', 'Düşüş', 'Sistem'];
     const pages = [
       BulletinPage(),
       TrackedPage(),
+      DroppingPage(),
       SystemPage(),
     ];
 
@@ -604,6 +605,11 @@ class _HomeState extends State<Home> {
             icon: Icon(Icons.bookmark_border),
             selectedIcon: Icon(Icons.bookmark),
             label: 'Takip',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.trending_down_outlined),
+            selectedIcon: Icon(Icons.trending_down_rounded),
+            label: 'Düşüş',
           ),
           NavigationDestination(
             icon: Icon(Icons.monitor_heart_outlined),
@@ -8557,6 +8563,318 @@ class _OddsSelectionPainter extends CustomPainter {
     return oldDelegate.minTime != minTime ||
         oldDelegate.maxTime != maxTime ||
         oldDelegate.selectedTime != selectedTime;
+  }
+}
+
+class DroppingPage extends StatefulWidget {
+  const DroppingPage({super.key});
+  @override
+  State<DroppingPage> createState() => _DroppingPageState();
+}
+
+class _DroppingPageState extends State<DroppingPage> {
+  bool loading = true;
+  String? error;
+  int mode = 0;
+  List<Map<String, dynamic>> live = [];
+  List<Map<String, dynamic>> history = [];
+  Map<String, dynamic> status = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  List<Map<String, dynamic>> _mapList(dynamic raw) {
+    if (raw is! List) return [];
+    return raw.whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+  }
+
+  num? _num(dynamic value) {
+    if (value is num) return value;
+    return num.tryParse(value?.toString() ?? '');
+  }
+
+  String _odd(dynamic value) {
+    final n = _num(value);
+    return n == null ? '-' : n.toDouble().toStringAsFixed(2);
+  }
+
+  String _pct(dynamic value) {
+    final n = _num(value);
+    return n == null ? '-' : n.toString() + '%';
+  }
+
+  String _stamp(dynamic value) {
+    final raw = value?.toString() ?? '';
+    if (raw.isEmpty) return '-';
+    final dt = DateTime.tryParse(raw)?.toLocal();
+    if (dt == null) return raw;
+    String two(int v) => v.toString().padLeft(2, '0');
+    return two(dt.day) + '.' + two(dt.month) + ' ' + two(dt.hour) + ':' + two(dt.minute) + ':' + two(dt.second);
+  }
+
+  Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    }
+    try {
+      final current = await api.get('/api/dropping/current');
+      final alerts = await api.get('/api/dropping/alerts?after_id=0&limit=200');
+      final health = await api.get('/api/dropping/status');
+      if (!mounted) return;
+      setState(() {
+        live = _mapList(current['items']);
+        history = _mapList(alerts['alerts']).reversed.toList();
+        status = health;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        error = e.toString().replaceFirst('Exception: ', '');
+        loading = false;
+      });
+    }
+  }
+
+  Widget _statusCard() {
+    final lastError = status['last_error']?.toString() ?? '';
+    final ok = lastError.isEmpty && status['last_ok_at'] != null;
+    final active = _num(status['active_count'])?.toInt() ?? live.length;
+    final interval = _num(status['interval_seconds'])?.toInt();
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: ok ? Colors.greenAccent : scheme.error,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    ok ? 'Kaynak OK' : 'Kaynak kontrol edilmeli',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                ),
+                Text(
+                  active.toString() + ' canl\u0131',
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Son ba\u015far\u0131l\u0131 kontrol: ' + _stamp(status['last_ok_at']) +
+                  (interval == null ? '' : '  \u00b7  ' + interval.toString() + ' sn'),
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+            if (lastError.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                lastError,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: scheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _empty(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 44),
+      child: Center(
+        child: Column(
+          children: [
+            const Icon(Icons.trending_down_rounded, size: 42),
+            const SizedBox(height: 12),
+            Text(text),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _rowCard(Map<String, dynamic> item, {required bool alert}) {
+    final scheme = Theme.of(context).colorScheme;
+    final selection = item['selection']?.toString() ?? '?';
+    final match = item['match_name']?.toString() ?? item['match']?.toString() ?? 'Ma\u00e7';
+    final league = item['league']?.toString() ?? '';
+    final date = item['match_date']?.toString() ?? '';
+    final time = item['kickoff_time']?.toString() ?? '';
+    final oldOdd = _odd(item['previous_odd'] ?? item['old_odd']);
+    final currentOdd = _odd(item['current_odd']);
+    final drop = _pct(item['drop_pct']);
+    final bookies = _pct(item['bookies_pct']);
+    final down = _num(item['bookies_down'])?.toInt();
+    final total = _num(item['bookies_total'])?.toInt();
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 5, 12, 5),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  constraints: const BoxConstraints(minWidth: 38),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    selection,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: scheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    match,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withOpacity(0.13),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    '-' + drop,
+                    style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 11),
+            Row(
+              children: [
+                Text(
+                  oldOdd,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    decoration: TextDecoration.lineThrough,
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 7),
+                  child: Icon(Icons.arrow_forward_rounded, size: 17),
+                ),
+                Text(
+                  currentOdd,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                ),
+                const Spacer(),
+                Text(
+                  'B: ' + bookies +
+                      (down == null || total == null ? '' : ' (' + down.toString() + '/' + total.toString() + ')'),
+                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+            const SizedBox(height: 9),
+            Text(
+              [
+                if (league.isNotEmpty) league,
+                if (date.isNotEmpty || time.isNotEmpty) (date + ' ' + time).trim(),
+                if (alert) _stamp(item['created_at']),
+              ].join('  \u00b7  '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = mode == 0 ? live : history;
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          _statusCard(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+            child: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment<int>(
+                  value: 0,
+                  icon: Icon(Icons.bolt_rounded),
+                  label: Text('Canl\u0131'),
+                ),
+                ButtonSegment<int>(
+                  value: 1,
+                  icon: Icon(Icons.history_rounded),
+                  label: Text('Ge\u00e7mi\u015f'),
+                ),
+              ],
+              selected: {mode},
+              onSelectionChanged: (values) => setState(() => mode = values.first),
+            ),
+          ),
+          if (loading)
+            const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (error != null)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Text(error!, textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Tekrar dene'),
+                  ),
+                ],
+              ),
+            )
+          else if (items.isEmpty)
+            _empty(mode == 0
+                ? 'Aktif oran d\u00fc\u015f\u00fc\u015f\u00fc yok.'
+                : 'Hen\u00fcz oran d\u00fc\u015f\u00fc\u015f\u00fc ge\u00e7mi\u015fi yok.')
+          else
+            ...items.map((item) => _rowCard(item, alert: mode == 1)),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
   }
 }
 

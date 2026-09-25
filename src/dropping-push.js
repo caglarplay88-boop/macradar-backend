@@ -287,6 +287,7 @@ async function flushDroppingPushes({
   let sentAlerts = 0;
   let sentDevices = 0;
   let failedDevices = 0;
+  let stopForAuthRefresh = false;
   const disabledDeviceIds = new Set();
 
   for (const alert of alerts) {
@@ -344,6 +345,11 @@ async function flushDroppingPushes({
           ' device=' + device.id +
           ' error=' + message
         );
+
+        if (error.authRejected) {
+          stopForAuthRefresh = true;
+          break;
+        }
       }
     }
 
@@ -366,6 +372,10 @@ async function flushDroppingPushes({
       devices.every(device => disabledDeviceIds.has(String(device.id)))
     ) {
       await markDroppingPushIneligible(alert.id);
+    }
+
+    if (stopForAuthRefresh) {
+      break;
     }
   }
 

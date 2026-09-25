@@ -74,6 +74,11 @@ async function ensureDroppingSchema() {
       ON dropping_alerts(id ASC)
       WHERE push_eligible=TRUE AND push_sent_at IS NULL;
 
+
+    CREATE INDEX IF NOT EXISTS idx_dropping_alerts_pending_push_fair
+      ON dropping_alerts(push_last_attempt_at ASC NULLS FIRST, id ASC)
+      WHERE push_eligible=TRUE AND push_sent_at IS NULL;
+
     CREATE TABLE IF NOT EXISTS dropping_worker_status (
       id SMALLINT PRIMARY KEY CHECK (id = 1),
       last_poll_at TIMESTAMPTZ,
@@ -443,7 +448,7 @@ async function listPendingDroppingPushes(limit = 50) {
      FROM dropping_alerts
      WHERE push_eligible=TRUE
        AND push_sent_at IS NULL
-     ORDER BY id ASC
+     ORDER BY push_last_attempt_at ASC NULLS FIRST, id ASC
      LIMIT $1`,
     [safeLimit]
   );

@@ -1,0 +1,19 @@
+[Unit]
+Description=MacRadar Dropping Odds Watcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/macradar-src-test
+EnvironmentFile=/etc/macradar/macradar.env
+ExecStart=/usr/bin/node /home/ubuntu/macradar-src-test/src/dropping-watcher.js
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

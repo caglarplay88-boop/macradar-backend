@@ -384,6 +384,21 @@ async function markDroppingPushIneligible(alertId) {
   return result.rows[0] || null;
 }
 
+async function isDroppingPushAlertPending(alertId) {
+  const result = await pool.query(
+    `SELECT EXISTS(
+       SELECT 1
+       FROM dropping_alerts
+       WHERE id=$1
+         AND push_eligible=TRUE
+         AND push_sent_at IS NULL
+     ) AS pending`,
+    [alertId]
+  );
+
+  return result.rows[0]?.pending === true;
+}
+
 async function tryAcquireDroppingPushAlertLock(alertId) {
   const client = await pool.connect();
   const lockKeySql =
@@ -627,6 +642,7 @@ module.exports = {
   listDroppingCurrent,
   listDroppingAlerts,
   listPendingDroppingPushes,
+  isDroppingPushAlertPending,
   tryAcquireDroppingPushAlertLock,
   listDeliveredDroppingPushDeviceIds,
   markDroppingPushDeviceResult,

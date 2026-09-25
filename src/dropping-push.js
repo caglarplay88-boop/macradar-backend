@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const {
   listPendingDroppingPushes,
+  isDroppingPushAlertPending,
   tryAcquireDroppingPushAlertLock,
   listEnabledDroppingPushDevices,
   listDeliveredDroppingPushDeviceIds,
@@ -300,6 +301,10 @@ async function flushDroppingPushes({
     }
 
     try {
+    if (!await isDroppingPushAlertPending(alert.id)) {
+      continue;
+    }
+
     let delivered = 0;
     let transientFailure = false;
     const attemptErrors = [];

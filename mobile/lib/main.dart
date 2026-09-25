@@ -8889,6 +8889,283 @@ class _DroppingPageState extends State<DroppingPage> {
   }
 
 
+  String _droppingFlag(dynamic rawCode, dynamic rawCountry) {
+    final code = (rawCode?.toString() ?? '').trim().toLowerCase();
+    final country = (rawCountry?.toString() ?? '').trim().toLowerCase();
+
+    if (RegExp(r'^[a-z]{2}$').hasMatch(code)) {
+      return String.fromCharCodes(
+        code.toUpperCase().codeUnits.map((unit) => 127397 + unit),
+      );
+    }
+
+    const special = <String, String>{
+      'england': '🏴',
+      'scotland': '🏴',
+      'wales': '🏴',
+      'northern ireland': '🇬🇧',
+    };
+    return special[country] ?? '🌐';
+  }
+
+  Widget _liveDroppingCard(Map<String, dynamic> item) {
+    final scheme = Theme.of(context).colorScheme;
+    final selection = (item['selection']?.toString() ?? '?').toUpperCase();
+    final match = item['match_name']?.toString() ??
+        item['match']?.toString() ??
+        'Maç';
+    final league = item['league']?.toString() ?? '';
+    final country = item['country_name']?.toString() ?? '';
+    final flag = _droppingFlag(item['country_code'], country);
+    final date = item['match_date']?.toString() ?? '';
+    final time = item['kickoff_time']?.toString() ?? '';
+    final currentOdd = _num(item['current_odd']);
+    final oldOdd = _num(item['old_odd'] ?? item['previous_odd']);
+    final drop = _num(item['drop_pct']);
+    final bookiesPct = _num(item['bookies_pct']);
+    final down = _num(item['bookies_down'])?.toInt();
+    final total = _num(item['bookies_total'])?.toInt();
+
+    num? odd1 = _num(item['odd_1']);
+    num? oddX = _num(item['odd_x']);
+    num? odd2 = _num(item['odd_2']);
+    if (selection == '1' && odd1 == null) odd1 = currentOdd;
+    if (selection == 'X' && oddX == null) oddX = currentOdd;
+    if (selection == '2' && odd2 == null) odd2 = currentOdd;
+
+    final bestBetOdd = _num(item['best_bet_odd']);
+    final bookmaker = (item['best_bet_bookmaker']?.toString() ?? '').trim();
+
+    String oddText(num? value) =>
+        value == null ? '-' : value.toDouble().toStringAsFixed(2);
+
+    Widget oddCell(String label, num? value) {
+      final highlighted = selection == label;
+      return Expanded(
+        child: Container(
+          margin: EdgeInsets.only(
+            left: label == '1' ? 0 : 4,
+            right: label == '2' ? 0 : 4,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+          decoration: BoxDecoration(
+            color: highlighted
+                ? scheme.primary
+                : scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: highlighted
+                  ? scheme.primary
+                  : scheme.outlineVariant.withOpacity(0.55),
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: highlighted
+                      ? scheme.onPrimary
+                      : scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                oddText(value),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: highlighted ? scheme.onPrimary : scheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                highlighted ? 'DÜŞÜYOR' : ' ',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: highlighted
+                      ? scheme.onPrimary.withOpacity(0.82)
+                      : Colors.transparent,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final dropText =
+        drop == null ? '-' : '-' + drop.toString().replaceAll('.0', '') + '%';
+    final bookiesText = bookiesPct == null
+        ? ''
+        : 'Bookies ' +
+            bookiesPct.toString().replaceAll('.0', '') +
+            '%' +
+            (down == null || total == null
+                ? ''
+                : '  (' + down.toString() + '/' + total.toString() + ')');
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(13, 11, 11, 11),
+            color: scheme.surfaceContainerHighest.withOpacity(0.55),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(flag, style: const TextStyle(fontSize: 23)),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    league.isEmpty ? (country.isEmpty ? 'Lig' : country) : league,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: scheme.errorContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    dropText,
+                    style: TextStyle(
+                      color: scheme.onErrorContainer,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(13, 12, 13, 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        match,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    if (date.isNotEmpty || time.isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      Text(
+                        [date, time].where((x) => x.isNotEmpty).join('\n'),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.25,
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    oddCell('1', odd1),
+                    oddCell('X', oddX),
+                    oddCell('2', odd2),
+                  ],
+                ),
+                if (oldOdd != null && currentOdd != null) ...[
+                  const SizedBox(height: 9),
+                  Text(
+                    'Düşüş: ' +
+                        oddText(oldOdd) +
+                        '  →  ' +
+                        oddText(currentOdd),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 11),
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest.withOpacity(0.45),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.workspace_premium_outlined,
+                        size: 17,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        'Best bet',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        bestBetOdd == null
+                            ? (bookmaker.isEmpty ? '-' : bookmaker)
+                            : oddText(bestBetOdd) +
+                                (bookmaker.isEmpty ? '' : ' @ ' + bookmaker),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (bookiesText.isNotEmpty) ...[
+                  const SizedBox(height: 7),
+                  Text(
+                    bookiesText,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   Future<void> _saveSettings() async {
     if (savingSettings) return;
     setState(() => savingSettings = true);
@@ -9133,7 +9410,9 @@ class _DroppingPageState extends State<DroppingPage> {
                 ? 'Aktif oran d\u00fc\u015f\u00fc\u015f\u00fc yok.'
                 : 'Hen\u00fcz oran d\u00fc\u015f\u00fc\u015f\u00fc ge\u00e7mi\u015fi yok.')
           else
-            ...items.map((item) => _rowCard(item, alert: mode == 1)),
+            ...items.map((item) => mode == 0
+                ? _liveDroppingCard(item)
+                : _rowCard(item, alert: true)),
           const SizedBox(height: 16),
         ],
       ),

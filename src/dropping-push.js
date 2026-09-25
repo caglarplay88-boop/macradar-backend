@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const {
   listPendingDroppingPushes,
+  tryAcquireDroppingPushAlertLock,
   listEnabledDroppingPushDevices,
   listDeliveredDroppingPushDeviceIds,
   markDroppingPushDeviceResult,
@@ -293,6 +294,12 @@ async function flushDroppingPushes({
   const disabledDeviceIds = new Set();
 
   for (const alert of alerts) {
+    const alertLock = await tryAcquireDroppingPushAlertLock(alert.id);
+    if (!alertLock) {
+      continue;
+    }
+
+    try {
     let delivered = 0;
     let transientFailure = false;
     const attemptErrors = [];
@@ -378,6 +385,9 @@ async function flushDroppingPushes({
 
     if (stopForAuthRefresh) {
       break;
+    }
+    } finally {
+      await alertLock.release();
     }
   }
 

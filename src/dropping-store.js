@@ -384,6 +384,43 @@ async function markDroppingPushIneligible(alertId) {
   return result.rows[0] || null;
 }
 
+async function tryAcquireDroppingPushAlertLock(alertId) {
+  const client = await pool.connect();
+  const lockKeySql =
+    '(-7000000000000000000::bigint + $1::bigint)';
+
+  try {
+    const result = await client.query(
+      'SELECT pg_try_advisory_lock(' + lockKeySql + ') AS locked',
+      [String(alertId)]
+    );
+
+    if (result.rows[0]?.locked !== true) {
+      client.release();
+      return null;
+    }
+
+    let released = false;
+    return {
+      async release() {
+        if (released) return;
+        released = true;
+        try {
+          await client.query(
+            'SELECT pg_advisory_unlock(' + lockKeySql + ')',
+            [String(alertId)]
+          );
+        } finally {
+          client.release();
+        }
+      }
+    };
+  } catch (error) {
+    client.release();
+    throw error;
+  }
+}
+
 async function listPendingDroppingPushes(limit = 50) {
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
   const result = await pool.query(
@@ -590,6 +627,7 @@ module.exports = {
   listDroppingCurrent,
   listDroppingAlerts,
   listPendingDroppingPushes,
+  tryAcquireDroppingPushAlertLock,
   listDeliveredDroppingPushDeviceIds,
   markDroppingPushDeviceResult,
   markDroppingPushAttempt,

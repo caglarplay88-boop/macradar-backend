@@ -104,8 +104,7 @@ jobs:
           manifest = Path('mobile_build/android/app/src/main/AndroidManifest.xml')
           text = manifest.read_text()
           marker = '</application>'
-          meta = '        <meta-data android:name="com.macradar.dropping_sound" android:resource="@raw/dropping_alert" />
-'
+          meta = '        <meta-data android:name="com.macradar.dropping_sound" android:resource="@raw/dropping_alert" />'
           if 'com.macradar.dropping_sound' not in text:
               if marker not in text:
                   raise SystemExit('Android application closing tag not found')

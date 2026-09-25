@@ -45,6 +45,7 @@ async function run() {
   console.log('[dropping] started restored=' + saved.length + ' pushConfigured=' + isPushConfigured());
 
   let polls = 0;
+  let lastSourceKey = null;
 
   while (true) {
     const started = Date.now();
@@ -60,9 +61,15 @@ async function run() {
       }
 
       const options = sourceOptions(settings);
-      const { rows, result } = await watcher.poll(options);
+      const sourceKey = [options.hours, options.days, options.bookies].join('|');
+      const polled = await watcher.poll(options);
+      const filterChanged = lastSourceKey !== null && sourceKey !== lastSourceKey;
+      const baselineReset = lastSourceKey === null || filterChanged;
+      const rows = polled.rows;
+      const result = baselineReset ? watcher.prime(rows) : polled.result;
 
       await syncDroppingCurrent(rows, { prime: result.primed });
+      lastSourceKey = sourceKey;
 
       let createdAlerts = 0;
       let pushReadiness = {
@@ -129,6 +136,8 @@ async function run() {
         ' bookies=' + options.bookies +
         ' interval=' + pollSeconds +
         ' notifications=' + (settings.notifications_enabled === true) +
+        ' filterChanged=' + filterChanged +
+        ' baselineReset=' + baselineReset +
         ' pushReady=' + (pushReadiness.ready === true) +
         ' pushDevices=' + Number(pushReadiness.devices || 0) +
         ' tracked=' + result.tracked +

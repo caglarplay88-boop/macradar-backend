@@ -215,10 +215,17 @@ async function sendToDevice(account, accessToken, alert, device) {
   const text = await response.text();
 
   if (!response.ok) {
+    const authRejected = response.status === 401 || response.status === 403;
+    if (authRejected) {
+      cachedAccessToken = null;
+      cachedAccessTokenUntil = 0;
+    }
+
     const error = new Error(
       'FCM HTTP ' + response.status + ': ' + text.slice(0, 500)
     );
     error.unregistered = /UNREGISTERED/i.test(text);
+    error.authRejected = authRejected;
     throw error;
   }
 

@@ -2,6 +2,8 @@ name: Build MacRadar APK
 
 on:
   push:
+    branches:
+      - '**'
     tags:
       - 'v*'
     paths:

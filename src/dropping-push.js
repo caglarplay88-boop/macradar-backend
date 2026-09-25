@@ -3,6 +3,8 @@ const fs = require('fs');
 const {
   listPendingDroppingPushes,
   listEnabledDroppingPushDevices,
+  listDeliveredDroppingPushDeviceIds,
+  markDroppingPushDeviceResult,
   disableDroppingPushDevice,
   markDroppingPushAttempt,
   markDroppingPushSent
@@ -222,8 +224,13 @@ async function sendToDevice(account, accessToken, alert, device) {
   return text;
 }
 
-async function flushDroppingPushes({ limit = 25 } = {}) {
-  const account = loadServiceAccount();
+async function flushDroppingPushes({
+  limit = 25,
+  accountOverride = null,
+  accessTokenOverride = null,
+  sendImpl = sendToDevice
+} = {}) {
+  const account = accountOverride || loadServiceAccount();
 
   if (!account) {
     return {
@@ -256,9 +263,11 @@ async function flushDroppingPushes({ limit = 25 } = {}) {
     };
   }
 
-  let accessToken = null;
+  let accessToken = accessTokenOverride;
   try {
-    accessToken = await getAccessToken(account);
+    if (!accessToken) {
+      accessToken = await getAccessToken(account);
+    }
   } catch (error) {
     const message = 'FCM auth: ' + String(error.message || error);
     for (const alert of alerts) {
@@ -275,14 +284,32 @@ async function flushDroppingPushes({ limit = 25 } = {}) {
     let delivered = 0;
     let transientFailure = false;
     const attemptErrors = [];
+    const deliveredDeviceIds = new Set(
+      await listDeliveredDroppingPushDeviceIds(alert.id)
+    );
 
     for (const device of devices) {
+      if (deliveredDeviceIds.has(String(device.id))) {
+        continue;
+      }
+
       try {
-        await sendToDevice(account, accessToken, alert, device);
+        await sendImpl(account, accessToken, alert, device);
+        await markDroppingPushDeviceResult(
+          alert.id,
+          device.id,
+          { sent: true }
+        );
+        deliveredDeviceIds.add(String(device.id));
         delivered++;
         sentDevices++;
       } catch (error) {
         if (error.unregistered) {
+          await markDroppingPushDeviceResult(
+            alert.id,
+            device.id,
+            { error: 'UNREGISTERED' }
+          );
           await disableDroppingPushDevice(device.token);
           attemptErrors.push(
             'device=' + device.id + ' UNREGISTERED'
@@ -293,6 +320,11 @@ async function flushDroppingPushes({ limit = 25 } = {}) {
         transientFailure = true;
         failedDevices++;
         const message = String(error.message || error);
+        await markDroppingPushDeviceResult(
+          alert.id,
+          device.id,
+          { error: message }
+        );
         attemptErrors.push(
           'device=' + device.id + ' ' + message
         );
@@ -305,7 +337,7 @@ async function flushDroppingPushes({ limit = 25 } = {}) {
     }
 
     const attemptError =
-      transientFailure || delivered === 0
+      transientFailure || deliveredDeviceIds.size === 0
         ? (
             attemptErrors.join(' | ') ||
             'No FCM device accepted the alert.'
@@ -314,7 +346,7 @@ async function flushDroppingPushes({ limit = 25 } = {}) {
 
     await markDroppingPushAttempt(alert.id, attemptError);
 
-    if (delivered > 0 && !transientFailure) {
+    if (deliveredDeviceIds.size > 0 && !transientFailure) {
       await markDroppingPushSent(alert.id);
       sentAlerts++;
     }

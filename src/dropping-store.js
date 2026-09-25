@@ -117,6 +117,19 @@ async function ensureDroppingSchema() {
     CREATE INDEX IF NOT EXISTS idx_dropping_push_devices_enabled
       ON dropping_push_devices(enabled, updated_at DESC);
 
+    CREATE TABLE IF NOT EXISTS dropping_push_deliveries (
+      alert_id BIGINT NOT NULL REFERENCES dropping_alerts(id) ON DELETE CASCADE,
+      device_id BIGINT NOT NULL REFERENCES dropping_push_devices(id) ON DELETE CASCADE,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      last_attempt_at TIMESTAMPTZ,
+      sent_at TIMESTAMPTZ,
+      last_error TEXT,
+      PRIMARY KEY(alert_id, device_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_dropping_push_deliveries_alert
+      ON dropping_push_deliveries(alert_id, sent_at);
+
   `);
 }
 
@@ -373,6 +386,47 @@ async function listPendingDroppingPushes(limit = 50) {
   return result.rows;
 }
 
+async function listDeliveredDroppingPushDeviceIds(alertId) {
+  const result = await pool.query(
+    `SELECT device_id
+     FROM dropping_push_deliveries
+     WHERE alert_id=$1
+       AND sent_at IS NOT NULL`,
+    [Number(alertId)]
+  );
+  return result.rows.map(row => String(row.device_id));
+}
+
+async function markDroppingPushDeviceResult(
+  alertId,
+  deviceId,
+  { sent = false, error = null } = {}
+) {
+  const message = error === null || error === undefined
+    ? null
+    : String(error).slice(0, 1000);
+
+  const result = await pool.query(
+    `INSERT INTO dropping_push_deliveries(
+       alert_id, device_id, attempt_count, last_attempt_at, sent_at, last_error
+     ) VALUES($1,$2,1,NOW(),CASE WHEN $3::boolean THEN NOW() ELSE NULL END,$4)
+     ON CONFLICT(alert_id, device_id) DO UPDATE SET
+       attempt_count=dropping_push_deliveries.attempt_count + 1,
+       last_attempt_at=NOW(),
+       sent_at=CASE
+         WHEN $3::boolean THEN COALESCE(dropping_push_deliveries.sent_at, NOW())
+         ELSE dropping_push_deliveries.sent_at
+       END,
+       last_error=CASE
+         WHEN $3::boolean THEN NULL
+         ELSE $4
+       END
+     RETURNING alert_id, device_id, attempt_count, last_attempt_at, sent_at, last_error`,
+    [Number(alertId), Number(deviceId), sent === true, message]
+  );
+  return result.rows[0] || null;
+}
+
 async function getDroppingHealth() {
   const [status, counts, latest, push] = await Promise.all([
     pool.query('SELECT * FROM dropping_worker_status WHERE id=1'),
@@ -524,6 +578,8 @@ module.exports = {
   listDroppingCurrent,
   listDroppingAlerts,
   listPendingDroppingPushes,
+  listDeliveredDroppingPushDeviceIds,
+  markDroppingPushDeviceResult,
   markDroppingPushAttempt,
   markDroppingPushSent,
   getDroppingHealth,

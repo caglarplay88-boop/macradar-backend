@@ -201,10 +201,10 @@ Future<void> _showDroppingForegroundMessage(RemoteMessage message) async {
       rawId ?? DateTime.now().millisecondsSinceEpoch.remainder(2147483647);
 
   await localNotifications.show(
-    notificationId,
-    title,
-    body,
-    const NotificationDetails(android: details),
+    id: notificationId,
+    title: title,
+    body: body,
+    notificationDetails: const NotificationDetails(android: details),
   );
 }
 

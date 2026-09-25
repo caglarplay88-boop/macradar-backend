@@ -184,6 +184,58 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Dropping notification resources
+        run: |
+          python3 - <<'PYVERIFY'
+          import io
+          import wave
+          import zipfile
+
+          apk = 'mobile_build/build/app/outputs/flutter-apk/app-release.apk'
+          channel = b'macradar_dropping_live_v2'
+          sound_name = b'dropping_alert'
+
+          with zipfile.ZipFile(apk) as z:
+              names = z.namelist()
+              sound_entries = [n for n in names if 'dropping_alert' in n.lower()]
+              if not sound_entries:
+                  raise SystemExit('dropping_alert resource is missing from APK')
+
+              sound_entry = sound_entries[0]
+              sound = z.read(sound_entry)
+              if not sound.startswith(b'RIFF') or b'WAVE' not in sound[:16]:
+                  raise SystemExit('dropping_alert resource is not a valid WAV')
+
+              with wave.open(io.BytesIO(sound), 'rb') as wav:
+                  if wav.getnchannels() != 1:
+                      raise SystemExit('dropping_alert must be mono')
+                  if wav.getframerate() != 44100:
+                      raise SystemExit('dropping_alert must be 44100 Hz')
+                  seconds = wav.getnframes() / wav.getframerate()
+
+              channel_found = False
+              sound_ref_found = False
+              for name in names:
+                  try:
+                      data = z.read(name)
+                  except Exception:
+                      continue
+                  if channel in data:
+                      channel_found = True
+                  if sound_name in data:
+                      sound_ref_found = True
+                  if channel_found and sound_ref_found:
+                      break
+
+              if not channel_found:
+                  raise SystemExit('Dropping notification channel id is missing from APK')
+              if not sound_ref_found:
+                  raise SystemExit('Dropping sound reference is missing from APK')
+
+              print('APK_DROPPING_SOUND=OK entry=' + sound_entry + ' seconds=' + format(seconds, '.2f'))
+              print('APK_DROPPING_CHANNEL=OK id=macradar_dropping_live_v2')
+          PYVERIFY
+
       - name: Prepare APK
         run: |
           cp mobile_build/build/app/outputs/flutter-apk/app-release.apk MacRadar.apk

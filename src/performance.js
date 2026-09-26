@@ -2230,7 +2230,7 @@ async function buildFotMobPerformancePackage({ home, away }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 69,
+        engineVersion: 70,
       },
       cache: false
     };
@@ -2484,15 +2484,17 @@ function understatRows(resolved) {
     .filter(Boolean);
 }
 
-function buildUnderstatTeamPack(resolved, opponentName) {
+function buildUnderstatTeamPack(resolved, opponentName, referenceMs = Date.now()) {
   const allMatches = understatRows(resolved);
+  const cutoff = Number.isFinite(referenceMs) ? referenceMs : Date.now();
   const finished = allMatches
     .filter(m => m.isResult)
+    .filter(m => Number.isFinite(Date.parse(m.date)) && Date.parse(m.date) < cutoff)
     .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
     .slice(0, 10);
   const upcoming = allMatches
     .filter(m => !m.isResult && Number.isFinite(Date.parse(m.date)))
-    .filter(m => Date.parse(m.date) > Date.now())
+    .filter(m => Date.parse(m.date) > cutoff)
     .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))
     .slice(0, 5);
 
@@ -2554,7 +2556,7 @@ function buildUnderstatTeamPack(resolved, opponentName) {
   };
 }
 
-async function buildUnderstatPerformancePackage({ home, away }) {
+async function buildUnderstatPerformancePackage({ home, away, matchDate = null }) {
   if (!home?.name || !away?.name) {
     throw new Error('home/away team name required.');
   }
@@ -2592,8 +2594,10 @@ async function buildUnderstatPerformancePackage({ home, away }) {
     throw new Error('Understat team match not found.');
   }
 
-  const homePack = buildUnderstatTeamPack(homeResolved, awayResolved.name);
-  const awayPack = buildUnderstatTeamPack(awayResolved, homeResolved.name);
+  const parsedReference = Date.parse(matchDate || '');
+  const referenceMs = Number.isFinite(parsedReference) ? parsedReference : Date.now();
+  const homePack = buildUnderstatTeamPack(homeResolved, awayResolved.name, referenceMs);
+  const awayPack = buildUnderstatTeamPack(awayResolved, homeResolved.name, referenceMs);
 
   const candidates = homePack._allMatches
     .filter(m =>
@@ -2655,7 +2659,7 @@ async function buildUnderstatPerformancePackage({ home, away }) {
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 69,
+      engineVersion: 70,
     },
     cache: false,
   };
@@ -2896,7 +2900,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 69
+      engineVersion: 70
     },
     cache: false
   };
@@ -5209,6 +5213,40 @@ function compact365ScoresStyleSupplement(scores365) {
   };
 }
 
+function needsUnderstatXgSupplement(coverage) {
+  if (!coverage) return false;
+  return coverage.missing.includes('xg') ||
+    coverage.missing.includes('xga') ||
+    coverage.missing.includes('xg_differential');
+}
+
+function compactUnderstatXgSupplement(data) {
+  if (!hasUsablePerformance(data)) return null;
+  const compactTeam = team => ({
+    team: team?.takim ?? null,
+    son5: {
+      xGVerisi: team?.son5?.xGVerisi ?? 0,
+      xG: finiteNumber(team?.son5?.xG) ? team.son5.xG : null,
+      xGA: finiteNumber(team?.son5?.xGA) ? team.son5.xGA : null
+    },
+    son10: {
+      xGVerisi: team?.son10?.xGVerisi ?? 0,
+      xG: finiteNumber(team?.son10?.xG) ? team.son10.xG : null,
+      xGA: finiteNumber(team?.son10?.xGA) ? team.son10.xGA : null
+    }
+  });
+  return {
+    source: 'Understat',
+    home: compactTeam(data.evTakimi),
+    away: compactTeam(data.deplasmanTakimi),
+    provenance: {
+      policy: 'provider-separated-xg-only',
+      crossProviderAverage: false,
+      referenceDateSafe: true
+    }
+  };
+}
+
 function needs365ScoresSupplement(data, coverage) {
   if (!data || !coverage) return false;
   return coverage.missing.includes('shot_quality') ||
@@ -5251,6 +5289,32 @@ async function collectPerformanceSupplements(primaryProvider, input, data, cover
   }
 
   const needs365Coverage = needs365ScoresSupplement(data, coverage);
+
+  if (primaryProvider !== 'Understat' && needsUnderstatXgSupplement(coverage)) {
+    try {
+      const understat = await buildUnderstatPerformancePackage(input);
+      const xgOnly = compactUnderstatXgSupplement(understat);
+      if (
+        xgOnly &&
+        finiteNumber(xgOnly.home?.son5?.xG) &&
+        finiteNumber(xgOnly.home?.son5?.xGA) &&
+        finiteNumber(xgOnly.away?.son5?.xG) &&
+        finiteNumber(xgOnly.away?.son5?.xGA)
+      ) {
+        supplements.understatXg = xgOnly;
+        attempts.push({ provider: 'Understat', purpose: 'xg-only', status: 'ok' });
+      } else {
+        attempts.push({ provider: 'Understat', purpose: 'xg-only', status: 'empty' });
+      }
+    } catch (err) {
+      attempts.push({
+        provider: 'Understat',
+        purpose: 'xg-only',
+        status: 'failed',
+        error: String(err && err.message ? err.message : err).slice(0, 300)
+      });
+    }
+  }
 
   if (needsMackolikSupplement(coverage)) {
     try {
@@ -5841,12 +5905,27 @@ function supplementCoverageSources(supplements) {
   const sources = {};
   const scores365 = supplements?.scores365;
   const mackolik = supplements?.mackolik;
+  const understatXg = supplements?.understatXg;
   const home = scores365?.home?.son5;
   const away = scores365?.away?.son5;
 
   const both = key =>
     finiteNumber(home?.[key]) &&
     finiteNumber(away?.[key]);
+
+  const understatBoth = key =>
+    finiteNumber(understatXg?.home?.son5?.[key]) &&
+    finiteNumber(understatXg?.away?.son5?.[key]);
+
+  if (understatBoth('xG')) {
+    sources.xg = 'Understat';
+  }
+  if (understatBoth('xGA')) {
+    sources.xga = 'Understat';
+  }
+  if (understatBoth('xG') && understatBoth('xGA')) {
+    sources.xg_differential = 'Understat';
+  }
 
   if (both('shots') && both('shotsOnTarget')) {
     sources.shot_quality = '365Scores';

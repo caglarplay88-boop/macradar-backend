@@ -8822,8 +8822,9 @@ class _DroppingPageState extends State<DroppingPage> {
     final selection = item['selection']?.toString() ?? '?';
     final match = item['match_name']?.toString() ?? item['match']?.toString() ?? 'Ma\u00e7';
     final league = item['league']?.toString() ?? '';
-    final date = item['match_date']?.toString() ?? '';
-    final time = item['kickoff_time']?.toString() ?? '';
+    final localKickoff = _droppingLocalDateTime(item);
+    final date = localKickoff.key;
+    final time = localKickoff.value;
     final oldOdd = _odd(item['previous_odd'] ?? item['old_odd']);
     final currentOdd = _odd(item['current_odd']);
     final drop = _pct(item['drop_pct']);
@@ -8921,6 +8922,30 @@ class _DroppingPageState extends State<DroppingPage> {
   }
 
 
+  MapEntry<String, String> _droppingLocalDateTime(Map<String, dynamic> item) {
+    final rawDate = (item['match_date']?.toString() ?? '').trim();
+    final rawTime = (item['kickoff_time']?.toString() ?? '').trim();
+    final dateMatch = RegExp(r'^(\d{2})\.(\d{2})\.(\d{4})$').firstMatch(rawDate);
+    final timeMatch = RegExp(r'^(\d{2}):(\d{2})$').firstMatch(rawTime);
+    if (dateMatch == null || timeMatch == null) {
+      return MapEntry(rawDate, rawTime);
+    }
+
+    final sourceUtc = DateTime.utc(
+      int.parse(dateMatch.group(3)!),
+      int.parse(dateMatch.group(2)!),
+      int.parse(dateMatch.group(1)!),
+      int.parse(timeMatch.group(1)!),
+      int.parse(timeMatch.group(2)!),
+    ).subtract(const Duration(hours: 1));
+    final local = sourceUtc.toLocal();
+    final date =
+        '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}.${local.year.toString().padLeft(4, '0')}';
+    final time =
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    return MapEntry(date, time);
+  }
+
   String _droppingFlag(dynamic rawCode, dynamic rawCountry) {
     final code = (rawCode?.toString() ?? '').trim().toLowerCase();
     final country = (rawCountry?.toString() ?? '').trim().toLowerCase();
@@ -8949,8 +8974,9 @@ class _DroppingPageState extends State<DroppingPage> {
     final league = item['league']?.toString() ?? '';
     final country = item['country_name']?.toString() ?? '';
     final flag = _droppingFlag(item['country_code'], country);
-    final date = item['match_date']?.toString() ?? '';
-    final time = item['kickoff_time']?.toString() ?? '';
+    final localKickoff = _droppingLocalDateTime(item);
+    final date = localKickoff.key;
+    final time = localKickoff.value;
     final currentOdd = _num(item['current_odd']);
     final oldOdd = _num(item['old_odd'] ?? item['previous_odd']);
     final drop = _num(item['drop_pct']);

@@ -191,16 +191,15 @@ Future<void> _showDroppingForegroundMessage(RemoteMessage message) async {
 
   final data = message.data;
   final title = message.notification?.title ??
-      ('Oran Düşüşü • ' + (data['selection'] ?? '?'));
+      ('Oran düştü • ' + (data['selection'] ?? '?'));
   final body = message.notification?.body ??
       ((data['match'] ?? 'Maç') +
-          ': ' +
+          ' • ' +
           (data['previous_odd'] ?? '?') +
           ' → ' +
           (data['current_odd'] ?? '?') +
-          ' (-' +
-          (data['drop_pct'] ?? '?') +
-          '%)');
+          ' • -%' +
+          (data['drop_pct'] ?? '?'));
 
   const details = AndroidNotificationDetails(
     'macradar_dropping_live_v3',
@@ -216,9 +215,7 @@ Future<void> _showDroppingForegroundMessage(RemoteMessage message) async {
     visibility: NotificationVisibility.public,
   );
 
-  final rawId = int.tryParse(data['alert_id'] ?? '');
-  final notificationId =
-      rawId ?? DateTime.now().millisecondsSinceEpoch.remainder(2147483647);
+  const notificationId = 47001;
 
   await localNotifications.show(
     id: notificationId,

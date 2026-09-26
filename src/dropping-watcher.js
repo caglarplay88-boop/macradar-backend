@@ -138,10 +138,14 @@ async function run() {
         pushReadiness = await getDroppingPushReadiness();
       }
 
+      let pushClaimedThisPoll = false;
       for (const event of result.events) {
-        const alert = await recordDroppingAlert(event, { pushEligible: pushReadiness.ready === true });
+        const pushEligible =
+          pushReadiness.ready === true && pushClaimedThisPoll === false;
+        const alert = await recordDroppingAlert(event, { pushEligible });
         if (!alert) continue;
 
+        if (pushEligible) pushClaimedThisPoll = true;
         createdAlerts++;
         const row = event.after;
 
@@ -157,7 +161,7 @@ async function run() {
       let pushResult = { configured: pushReadiness.configured, sentAlerts: 0, sentDevices: 0, failedDevices: 0 };
       if (settings.notifications_enabled === true && pushReadiness.ready === true) {
         try {
-          pushResult = await flushDroppingPushes({ limit: 25 });
+          pushResult = await flushDroppingPushes({ limit: 1 });
         } catch (pushError) {
           console.error('[dropping-push] flush error=' + (pushError.message || pushError));
           pushResult = { configured: isPushConfigured(), sentAlerts: 0, sentDevices: 0, failedDevices: 1 };

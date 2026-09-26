@@ -154,21 +154,28 @@ function stringValue(value) {
   return value === null || value === undefined ? '' : String(value);
 }
 
+function oddValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(2) : '?';
+}
+
 function buildMessage(alert, deviceToken) {
   const before = alert.previous_odd;
   const current = alert.current_odd;
   const drop = alert.drop_pct;
+  const selection = stringValue(alert.selection || '?');
+  const match = stringValue(alert.match_name || 'Maç');
 
   return {
     message: {
       token: deviceToken,
       notification: {
-        title: 'Oran Dususu " ' + stringValue(alert.selection || '?'),
+        title: 'Oran düştü • ' + selection,
         body:
-          stringValue(alert.match_name) + ': ' +
-          stringValue(before) + ' -> ' +
-          stringValue(current) + ' (-' +
-          stringValue(drop) + '%)'
+          match + ' • ' +
+          oddValue(before) + ' → ' +
+          oddValue(current) + ' • -%' +
+          stringValue(drop)
       },
       data: {
         type: 'dropping_odds',
@@ -187,9 +194,9 @@ function buildMessage(alert, deviceToken) {
       android: {
         priority: 'HIGH',
         ttl: '300s',
-        collapse_key: 'dropping_alert_' + stringValue(alert.id),
+        collapse_key: 'macradar_dropping_live',
         notification: {
-          tag: 'dropping_alert_' + stringValue(alert.id),
+          tag: 'macradar_dropping_live',
           channel_id: 'macradar_dropping_live_v3',
           sound: 'dropping_alert',
           default_vibrate_timings: true,

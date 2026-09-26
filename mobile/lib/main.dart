@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -8603,11 +8604,27 @@ class _DroppingPageState extends State<DroppingPage> {
   String settingMatches = 'today';
   int settingBookies = 30;
   bool settingNotifications = true;
+  Timer? _autoRefreshTimer;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) {
+        if (mounted && !_refreshing && !savingSettings) {
+          _load(silent: true);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   List<Map<String, dynamic>> _mapList(dynamic raw) {
@@ -8639,8 +8656,10 @@ class _DroppingPageState extends State<DroppingPage> {
     return two(dt.day) + '.' + two(dt.month) + ' ' + two(dt.hour) + ':' + two(dt.minute) + ':' + two(dt.second);
   }
 
-  Future<void> _load() async {
-    if (mounted) {
+  Future<void> _load({bool silent = false}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+    if (mounted && !silent) {
       setState(() {
         loading = true;
         error = null;
@@ -8662,11 +8681,13 @@ class _DroppingPageState extends State<DroppingPage> {
         loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || silent) return;
       setState(() {
         error = e.toString().replaceFirst('Exception: ', '');
         loading = false;
       });
+    } finally {
+      _refreshing = false;
     }
   }
 

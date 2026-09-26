@@ -8595,7 +8595,6 @@ class DroppingPage extends StatefulWidget {
 class _DroppingPageState extends State<DroppingPage> {
   bool loading = true;
   String? error;
-  int mode = 0;
   List<Map<String, dynamic>> live = [];
   Map<String, dynamic> status = {};
   Map<String, dynamic> settingsData = {};
@@ -9298,7 +9297,7 @@ class _DroppingPageState extends State<DroppingPage> {
             DropdownButtonFormField<int>(
               value: settingHours,
               decoration: const InputDecoration(
-                labelText: 'D\\u00fc\\u015f\\u00fc\\u015fler \\u00b7 son',
+                labelText: 'Düşüşler · son',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -9317,18 +9316,18 @@ class _DroppingPageState extends State<DroppingPage> {
             DropdownButtonFormField<String>(
               value: settingMatches,
               decoration: const InputDecoration(
-                labelText: 'Ma\\u00e7lar',
+                labelText: 'Maçlar',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
               items: const [
-                DropdownMenuItem(value: 'today', child: Text('Bug\\u00fcn')),
+                DropdownMenuItem(value: 'today', child: Text('Bugün')),
                 DropdownMenuItem(
                   value: 'today_tomorrow',
-                  child: Text('Bug\\u00fcn + yar\\u0131n'),
+                  child: Text('Bugün + yarın'),
                 ),
-                DropdownMenuItem(value: '7d', child: Text('Sonraki 7 g\\u00fcn')),
-                DropdownMenuItem(value: 'anytime', child: Text('T\\u00fcm\\u00fc')),
+                DropdownMenuItem(value: '7d', child: Text('Sonraki 7 gün')),
+                DropdownMenuItem(value: 'anytime', child: Text('Tümü')),
               ],
               onChanged: savingSettings ? null : (v) {
                 if (v != null) _applyLiveFilter(matches: v);
@@ -9363,49 +9362,10 @@ class _DroppingPageState extends State<DroppingPage> {
               ),
               onChanged: savingSettings
                   ? null
-                  : (v) => setState(() => settingNotifications = v),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _settingsCard() {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 5, 12, 5),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Dropping ayarlar\u0131',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'BetExplorer kayna\u011f\u0131 ve kontrol s\u0131kl\u0131\u011f\u0131',
-              style: TextStyle(
-                fontSize: 12,
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: savingSettings ? null : _saveSettings,
-                icon: savingSettings
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_rounded),
-                label: Text(savingSettings ? 'Kaydediliyor...' : 'Ayarlar\u0131 kaydet'),
-              ),
+                  : (v) async {
+                      setState(() => settingNotifications = v);
+                      await _saveSettings(showMessage: false);
+                    },
             ),
           ],
         ),
@@ -9422,26 +9382,7 @@ class _DroppingPageState extends State<DroppingPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           _statusCard(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
-            child: SegmentedButton<int>(
-              segments: const [
-                ButtonSegment<int>(
-                  value: 0,
-                  icon: Icon(Icons.bolt_rounded),
-                  label: Text('Canl\u0131'),
-                ),
-                ButtonSegment<int>(
-                  value: 2,
-                  icon: Icon(Icons.tune_rounded),
-                  label: Text('Ayar'),
-                ),
-              ],
-              selected: {mode},
-              onSelectionChanged: (values) => setState(() => mode = values.first),
-            ),
-          ),
-          if (mode == 0) _liveFiltersCard(),
+          _liveFiltersCard(),
           if (loading)
             const Padding(
               padding: EdgeInsets.all(32),
@@ -9462,8 +9403,6 @@ class _DroppingPageState extends State<DroppingPage> {
                 ],
               ),
             )
-          else if (mode == 2)
-            _settingsCard()
           else if (items.isEmpty)
             _empty('Aktif oran d\u00fc\u015f\u00fc\u015f\u00fc yok.')
           else

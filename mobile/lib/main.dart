@@ -9258,6 +9258,7 @@ class _DroppingPageState extends State<DroppingPage> {
       if (bookies != null) settingBookies = bookies;
     });
     await _saveSettings(showMessage: false);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
     if (mounted) await _load();
   }
 

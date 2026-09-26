@@ -18,8 +18,63 @@ const DAYS_BY_MATCHES_FOR = {
   anytime: 0
 };
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+async function createSettingsWakeListener() {
+  const client = await pool.connect();
+  let pending = false;
+  let waiter = null;
+
+  const onNotification = message => {
+    if (message.channel !== 'dropping_settings_changed') return;
+    pending = true;
+    if (waiter) waiter();
+  };
+
+  const onError = error => {
+    console.error(
+      '[dropping] settings-listener ERROR=' + (error.message || error)
+    );
+  };
+
+  client.on('notification', onNotification);
+  client.on('error', onError);
+  await client.query('LISTEN dropping_settings_changed');
+
+  return {
+    wait(ms) {
+      if (pending) {
+        pending = false;
+        return Promise.resolve('notify');
+      }
+
+      return new Promise(resolve => {
+        let done = false;
+        let timer = null;
+
+        const finish = reason => {
+          if (done) return;
+          done = true;
+          if (timer) clearTimeout(timer);
+          waiter = null;
+          if (reason === 'notify') pending = false;
+          resolve(reason);
+        };
+
+        waiter = () => finish('notify');
+        timer = setTimeout(() => finish('timeout'), ms);
+      });
+    },
+
+    async close() {
+      waiter = null;
+      client.removeListener('notification', onNotification);
+      client.removeListener('error', onError);
+      try {
+        await client.query('UNLISTEN dropping_settings_changed');
+      } finally {
+        client.release();
+      }
+    }
+  };
 }
 
 function sourceOptions(settings) {
@@ -37,6 +92,7 @@ function sourceOptions(settings) {
 
 async function run() {
   await ensureDroppingSchema();
+  const settingsWake = await createSettingsWakeListener();
 
   const saved = await loadDroppingState();
   const watcher = new DroppingWatcher(saved);
@@ -178,10 +234,16 @@ async function run() {
         : 60;
 
     const elapsed = Date.now() - started;
-    await sleep(Math.max(1000, seconds * 1000 - elapsed));
+    const waitReason = await settingsWake.wait(
+      Math.max(1000, seconds * 1000 - elapsed)
+    );
+    if (waitReason === 'notify') {
+      console.log('[dropping] settings changed; waking early');
+    }
   }
 
   console.log('[dropping] stopped polls=' + polls);
+  await settingsWake.close();
   await pool.end();
 }
 

@@ -742,6 +742,10 @@ async function updateDroppingSettings(settings) {
     ]
   );
 
+  if (result.rows[0]) {
+    await pool.query("SELECT pg_notify('dropping_settings_changed', '1')");
+  }
+
   return result.rows[0] || null;
 }
 

@@ -103,9 +103,64 @@ function buildMlReadyRows(rows) {
   };
 }
 
+function selectStableFeatureNames(dataset, {
+  minPresenceRatio = 0.5,
+  minUniqueValues = 2
+} = {}) {
+  if (!dataset || !Array.isArray(dataset.rows) || !Array.isArray(dataset.feature_names)) {
+    throw new Error('Geçerli ML-ready dataset gerekli.');
+  }
+
+  const ratio = Number(minPresenceRatio);
+  const uniqueFloor = Number(minUniqueValues);
+
+  if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
+    throw new Error('minPresenceRatio 0 ile 1 arasında olmalı.');
+  }
+  if (!Number.isInteger(uniqueFloor) || uniqueFloor < 1) {
+    throw new Error('minUniqueValues pozitif tam sayı olmalı.');
+  }
+
+  const rowCount = dataset.rows.length;
+  if (rowCount === 0) return [];
+
+  return dataset.feature_names.filter(name => {
+    let present = 0;
+    const unique = new Set();
+
+    for (const row of dataset.rows) {
+      const value = row?.features?.[name];
+      if (value === null || value === undefined) continue;
+      present++;
+      unique.add(String(value));
+    }
+
+    return (present / rowCount) >= ratio && unique.size >= uniqueFloor;
+  });
+}
+
+function buildSelectedMlReadyRows(rows, options = {}) {
+  const dataset = buildMlReadyRows(rows);
+  const selected = selectStableFeatureNames(dataset, options);
+
+  return {
+    feature_names: selected,
+    rows: dataset.rows.map(row => ({
+      event_id: row.event_id,
+      engine_version: row.engine_version,
+      label_1x2: row.label_1x2,
+      features: Object.fromEntries(
+        selected.map(name => [name, row.features[name]])
+      )
+    }))
+  };
+}
+
 module.exports = {
   flattenStableScalars,
   extractBacktestFeatureMap,
-  buildMlReadyRows
+  buildMlReadyRows,
+  selectStableFeatureNames,
+  buildSelectedMlReadyRows
 };
 

@@ -1,4 +1,10 @@
-const { pool } = require('./db');
+const {
+  pool,
+  getPerformanceCache,
+  savePerformanceCache,
+  failPerformanceCache
+} = require('./db');
+const { buildPerformancePackage } = require('./performance');
 const { buildBacktestDatasetRow } = require('./backtest');
 const {
   ensureForwardValidationTable,
@@ -11,6 +17,8 @@ const {
 const MODEL_NAME = 'two_core_dynamic_delta';
 const ENGINE_VERSION = 83;
 const DEFAULT_LIMIT = 10;
+const DEFAULT_FEED_LIMIT = 1;
+const PREPARING_FRESH_MS = 15 * 60 * 1000;
 
 function kickoffAtMs(match) {
   if (!match?.match_date || !match?.kickoff_time) return null;
@@ -46,6 +54,21 @@ function finishedLabel(match) {
   if (home > away) return 'HOME';
   if (home < away) return 'AWAY';
   return 'DRAW';
+}
+
+function teamNamesFromMatch(match) {
+  const display = String(match?.display_name || '').trim();
+
+  for (const sep of [' - ', ' – ', ' — ', ' vs ', ' VS ']) {
+    const p = display.indexOf(sep);
+    if (p > 0) {
+      const home = display.slice(0, p).trim();
+      const away = display.slice(p + sep.length).trim();
+      if (home && away) return { home, away };
+    }
+  }
+
+  throw new Error('Maç takım adları bulunamadı.');
 }
 
 async function loadTrainingRows(db = pool) {
@@ -93,6 +116,137 @@ async function settleFinishedPredictions(db = pool) {
   }
 
   return settled;
+}
+
+async function listV83FeedCandidates(db = pool, {
+  limit = DEFAULT_FEED_LIMIT,
+  now = new Date()
+} = {}) {
+  const q = await db.query(`
+    SELECT
+      m.*,
+      pc.status AS cache_status,
+      pc.updated_at AS cache_updated_at,
+      pc.payload->'meta'->>'engineVersion' AS cache_engine_version
+    FROM matches m
+    LEFT JOIN performance_cache pc ON pc.event_id = m.event_id
+    WHERE m.active = TRUE
+      AND LOWER(COALESCE(m.result_status,'')) <> 'finished'
+    ORDER BY m.match_date,m.kickoff_time,m.event_id
+  `);
+
+  const nowMs = now.getTime();
+  const candidates = [];
+
+  for (const row of q.rows) {
+    const kickoff = kickoffAtMs(row);
+    if (!Number.isFinite(kickoff) || nowMs >= kickoff) continue;
+
+    const cacheVersion = Number(row.cache_engine_version || 0);
+    if (row.cache_status === 'ready' && cacheVersion >= ENGINE_VERSION) {
+      continue;
+    }
+
+    const cacheUpdatedMs = row.cache_updated_at
+      ? new Date(row.cache_updated_at).getTime()
+      : null;
+    if (
+      row.cache_status === 'preparing' &&
+      Number.isFinite(cacheUpdatedMs) &&
+      nowMs - cacheUpdatedMs < PREPARING_FRESH_MS
+    ) {
+      continue;
+    }
+
+    candidates.push(row);
+    if (candidates.length >= Number(limit)) break;
+  }
+
+  return candidates;
+}
+
+async function buildMissingV83Performance(db = pool, {
+  limit = DEFAULT_FEED_LIMIT,
+  now = new Date(),
+  buildPerformance = buildPerformancePackage,
+  saveCache = savePerformanceCache,
+  failCache = failPerformanceCache
+} = {}) {
+  const candidates = await listV83FeedCandidates(db, { limit, now });
+  let built = 0;
+  let failed = 0;
+  let expired = 0;
+  const results = [];
+
+  for (const match of candidates) {
+    try {
+      const names = teamNamesFromMatch(match);
+      const performance = await buildPerformance({
+        home: { name: names.home },
+        away: { name: names.away },
+        matchUrl: match.url || null,
+        matchDate: match.match_date || null
+      });
+
+      const engineVersion = Number(performance?.meta?.engineVersion || 0);
+      if (engineVersion !== ENGINE_VERSION) {
+        throw new Error(
+          `Beklenen engineVersion ${ENGINE_VERSION}, gelen ${engineVersion || 'yok'}`
+        );
+      }
+
+      const kickoff = kickoffAtMs(match);
+      if (!Number.isFinite(kickoff) || Date.now() >= kickoff) {
+        expired++;
+        results.push({
+          event_id: match.event_id,
+          status: 'expired-before-save'
+        });
+        continue;
+      }
+
+      const payload = {
+        event_id: match.event_id,
+        display_name: match.display_name,
+        ...performance
+      };
+
+      await saveCache(match.event_id, payload);
+      built++;
+
+      results.push({
+        event_id: match.event_id,
+        status: 'ready',
+        engine_version: engineVersion
+      });
+    } catch (error) {
+      failed++;
+      await failCache(
+        match.event_id,
+        error?.message || String(error)
+      ).catch(() => {});
+
+      results.push({
+        event_id: match.event_id,
+        status: 'failed',
+        error: error?.message || String(error)
+      });
+
+      console.error(
+        '[forward-validation] v83 performance build failed:',
+        match.event_id,
+        error?.message || error
+      );
+    }
+  }
+
+  return {
+    candidates: candidates.length,
+    built,
+    failed,
+    expired,
+    results
+  };
 }
 
 async function listPredictionCandidates(db = pool, {
@@ -195,14 +349,19 @@ async function createPendingPredictions(db = pool, {
 async function runForwardValidationOnce({
   db = pool,
   limit = DEFAULT_LIMIT,
+  feedLimit = DEFAULT_FEED_LIMIT,
   now = new Date()
 } = {}) {
   await ensureForwardValidationTable(db);
 
   const settled = await settleFinishedPredictions(db);
+  const performanceFeed = await buildMissingV83Performance(db, {
+    limit: feedLimit,
+    now
+  });
   const predictionRun = await createPendingPredictions(db, {
     limit,
-    now
+    now: new Date()
   });
   const summary = await readForwardValidationSummary(db, {
     modelName: MODEL_NAME
@@ -212,6 +371,7 @@ async function runForwardValidationOnce({
     model: MODEL_NAME,
     engine_version: ENGINE_VERSION,
     settled_now: settled,
+    performance_feed: performanceFeed,
     ...predictionRun,
     summary
   };
@@ -219,8 +379,11 @@ async function runForwardValidationOnce({
 
 if (require.main === module) {
   const limit = Number(process.env.FORWARD_VALIDATION_LIMIT || DEFAULT_LIMIT);
+  const feedLimit = Number(
+    process.env.FORWARD_VALIDATION_FEED_LIMIT || DEFAULT_FEED_LIMIT
+  );
 
-  runForwardValidationOnce({ limit })
+  runForwardValidationOnce({ limit, feedLimit })
     .then(result => {
       console.log('[forward-validation]', JSON.stringify(result));
     })
@@ -243,8 +406,11 @@ module.exports = {
   ENGINE_VERSION,
   kickoffAtMs,
   finishedLabel,
+  teamNamesFromMatch,
   loadTrainingRows,
   settleFinishedPredictions,
+  listV83FeedCandidates,
+  buildMissingV83Performance,
   listPredictionCandidates,
   createPendingPredictions,
   runForwardValidationOnce

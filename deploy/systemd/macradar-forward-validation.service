@@ -1,0 +1,13 @@
+[Unit]
+Description=MacRadar Experimental Forward Validation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/macradar-src-test
+EnvironmentFile=/etc/macradar/macradar.env
+ExecStart=/usr/bin/node /home/ubuntu/macradar-src-test/src/run-forward-validation.js
+NoNewPrivileges=true
+

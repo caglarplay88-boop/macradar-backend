@@ -415,7 +415,8 @@ class Api {
   }
 }
 
-const String performanceCachePrefix = 'macradar_performance_v2_';
+const int performanceEngineVersion = 83;
+const String performanceCachePrefix = 'macradar_performance_v3_';
 final Map<String, Future<Map<String, dynamic>>> performanceInFlight = {};
 
 Future<Map<String, dynamic>?> readLocalPerformance(String eventId) async {
@@ -446,7 +447,15 @@ Future<void> saveLocalPerformance(
 }
 
 bool _hasPerformanceData(Map<String, dynamic> d) {
-  return d['evTakimi'] is Map && d['deplasmanTakimi'] is Map;
+  final meta = d['meta'];
+  final engineVersion = meta is Map
+      ? int.tryParse(meta['engineVersion']?.toString() ?? '')
+      : null;
+
+  return engineVersion != null &&
+      engineVersion >= performanceEngineVersion &&
+      d['evTakimi'] is Map &&
+      d['deplasmanTakimi'] is Map;
 }
 
 String _friendlyPerformanceError(Object e) {

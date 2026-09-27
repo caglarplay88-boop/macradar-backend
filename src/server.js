@@ -40,7 +40,7 @@ function queueOpeningFetch(url, eventId) {
   }, 100);
 }
 
-const PERFORMANCE_ENGINE_VERSION = 79;
+const PERFORMANCE_ENGINE_VERSION = 80;
 
 function performanceCacheEnvelope(row) {
   return {

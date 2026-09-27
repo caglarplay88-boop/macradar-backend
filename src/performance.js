@@ -2305,7 +2305,7 @@ async function buildFotMobPerformancePackage({ home, away, matchDate = null }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 79,
+        engineVersion: 80,
       },
       cache: false
     };
@@ -2735,7 +2735,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 79,
+      engineVersion: 80,
     },
     cache: false,
   };
@@ -3016,7 +3016,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 79
+      engineVersion: 80
     },
     cache: false
   };
@@ -5448,17 +5448,19 @@ async function build365ScoresSupplement(input) {
 
   let targetGame = null;
   let targetTimeline = null;
-  try {
-    targetGame = await fetch365ScoresTargetGame(
-      home.competitorId,
-      away.competitorId,
-      competitionId,
-      referenceMs
-    );
-    if (targetGame?.id) {
-      targetTimeline = await fetch365ScoresGameTimeline(targetGame.id);
-    }
-  } catch {}
+  if (currentStandingsSafe) {
+    try {
+      targetGame = await fetch365ScoresTargetGame(
+        home.competitorId,
+        away.competitorId,
+        competitionId,
+        referenceMs
+      );
+      if (targetGame?.id) {
+        targetTimeline = await fetch365ScoresGameTimeline(targetGame.id);
+      }
+    } catch {}
+  }
 
   const weatherPitchContext = build365ScoresWeatherPitchContext(
     targetGame,
@@ -5468,7 +5470,10 @@ async function build365ScoresSupplement(input) {
   const refereeContext = {
     source: '365Scores',
     basis: 'target-match-details',
-    status: 'not-provided-by-source',
+    status: currentStandingsSafe
+      ? 'not-provided-by-source'
+      : 'historical-target-snapshot-blocked',
+    referenceDateSafe: currentStandingsSafe,
     gameId: targetGame?.id ?? null,
     referee: null,
     history: null

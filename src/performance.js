@@ -2326,7 +2326,7 @@ async function buildFotMobPerformancePackage({ home, away, matchDate = null }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 82,
+        engineVersion: 83,
       },
       cache: false
     };
@@ -2765,7 +2765,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 82,
+      engineVersion: 83,
     },
     cache: false,
   };
@@ -2828,9 +2828,25 @@ function betExplorerTeamLinkScore(candidate, teamName) {
   if (u.includes(b)) return 950;
   if (a.length > 0 && teamNameMatches(candidate.name, teamName)) return 900;
   if (a.includes(b) || b.includes(a)) return 700;
-  const parts = b.split(' ').filter(x => x.length > 2);
-  const hits = parts.filter(x => a.includes(x)).length;
-  return hits ? 300 + hits * 50 : 0;
+
+  const candidateParts = a.split(' ').filter(x => x.length > 2);
+  const targetParts = b.split(' ').filter(x => x.length > 2);
+  const tokenMatches = targetParts.filter(target =>
+    candidateParts.some(candidate =>
+      candidate === target ||
+      (
+        target.length >= 3 &&
+        candidate.length >= 4 &&
+        candidate.startsWith(target)
+      )
+    )
+  ).length;
+
+  if (targetParts.length > 0 && tokenMatches === targetParts.length) {
+    return 650;
+  }
+
+  return tokenMatches ? 300 + tokenMatches * 50 : 0;
 }
 
 function selectBetExplorerTeamLink(html, teamName) {
@@ -3046,7 +3062,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 82
+      engineVersion: 83
     },
     cache: false
   };

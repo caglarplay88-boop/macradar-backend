@@ -35,7 +35,7 @@ function historicalReferenceAt(match) {
 
 async function listHistoricalBacktestCandidates({
   limit = 25,
-  engineVersion = 82,
+  engineVersion = 83,
   db = pool
 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 500);
@@ -80,7 +80,7 @@ async function listHistoricalBacktestCandidates({
 
 async function runHistoricalBacktest({
   limit = 25,
-  engineVersion = 82,
+  engineVersion = 83,
   dryRun = false,
   db = pool,
   buildAndSave = buildAndSaveBacktestDataset

@@ -2230,7 +2230,7 @@ async function buildFotMobPerformancePackage({ home, away }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 71,
+        engineVersion: 72,
       },
       cache: false
     };
@@ -2659,7 +2659,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 71,
+      engineVersion: 72,
     },
     cache: false,
   };
@@ -2900,7 +2900,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 71
+      engineVersion: 72
     },
     cache: false
   };
@@ -2971,6 +2971,20 @@ function hasFixtureCongestion(team) {
 
 function hasMatchHistory(team) {
   return Array.isArray(team?.maclar) && team.maclar.length >= 3;
+}
+
+function hasUsableDefensiveStructure(team) {
+  const context = team?.defensiveStructureContext;
+  if (context?.source !== 'FotMob') return false;
+
+  const hasWindow = window => [
+    window?.tackles,
+    window?.interceptions,
+    window?.shotBlocks,
+    window?.clearances
+  ].some(finiteNumber);
+
+  return hasWindow(context?.son5) || hasWindow(context?.son10);
 }
 
 function hasUsableProgressionSources(team) {
@@ -3044,7 +3058,8 @@ function evaluatePerformanceCoverage(data) {
       objectHasAny(team, ['transitions', 'counterAttacks', 'kontralar'])
     ),
     defensive_structure: bothTeams(data, team =>
-      objectHasAny(team, ['defensiveStructure', 'savunmaYapisi'])
+      objectHasAny(team, ['defensiveStructure', 'savunmaYapisi']) ||
+      hasUsableDefensiveStructure(team)
     ),
     set_pieces: bothTeams(data, team =>
       objectHasAny(team?.standartIstatistik?.son5, ['corners']) ||

@@ -2326,7 +2326,7 @@ async function buildFotMobPerformancePackage({ home, away, matchDate = null }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 81,
+        engineVersion: 82,
       },
       cache: false
     };
@@ -2695,6 +2695,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
   const homePack = buildUnderstatTeamPack(homeResolved, awayResolved.name, referenceMs);
   const awayPack = buildUnderstatTeamPack(awayResolved, homeResolved.name, referenceMs);
 
+  const strictReference = Number.isFinite(parsedReference);
   const candidates = homePack._allMatches
     .filter(m =>
       (teamNameMatches(m.home, homeResolved.name) &&
@@ -2702,6 +2703,14 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
       (teamNameMatches(m.home, awayResolved.name) &&
        teamNameMatches(m.away, homeResolved.name))
     )
+    .filter(m => {
+      const time = Date.parse(m.date);
+      return (
+        Number.isFinite(time) &&
+        (!strictReference ||
+          Math.abs(time - referenceMs) <= 36 * 60 * 60 * 1000)
+      );
+    })
     .sort((a, b) => {
       const af = a.isResult ? 1 : 0;
       const bf = b.isResult ? 1 : 0;
@@ -2756,7 +2765,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 81,
+      engineVersion: 82,
     },
     cache: false,
   };
@@ -3037,7 +3046,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 81
+      engineVersion: 82
     },
     cache: false
   };

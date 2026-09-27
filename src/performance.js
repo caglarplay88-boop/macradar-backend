@@ -1087,7 +1087,8 @@ function upcomingFrom(matches, referenceMs = Date.now()) {
     .slice(0,5);
 }
 
-function h2hFrom(matches, a, b) {
+function h2hFrom(matches, a, b, referenceMs = Date.now()) {
+  const cutoff = Number.isFinite(referenceMs) ? referenceMs : Date.now();
   return matches
     .filter(m => {
       return (
@@ -1098,7 +1099,11 @@ function h2hFrom(matches, a, b) {
         teamNameMatches(m.away, a)
       );
     })
-    .filter(isFinished)
+    .filter(m =>
+      Number.isFinite(Date.parse(m.date)) &&
+      Date.parse(m.date) < cutoff &&
+      isFinished(m, cutoff)
+    )
     .sort((x,y) => Date.parse(y.date) - Date.parse(x.date))
     .slice(0,4);
 }
@@ -1781,7 +1786,7 @@ async function buildTeam(browser, info, opponentName, referenceMs = Date.now()) 
       url: m.url,
       id: m.id
     })),
-    h2h: h2hFrom(matches, info.name, opponentName).map(m => ({
+    h2h: h2hFrom(matches, info.name, opponentName, cutoff).map(m => ({
       tarih: m.date,
       ev: m.home,
       deplasman: m.away,
@@ -1804,7 +1809,13 @@ async function buildTeam(browser, info, opponentName, referenceMs = Date.now()) 
   };
 }
 
-function matchBetweenUpcoming(matches, a, b, referenceMs = Date.now()) {
+function matchBetweenUpcoming(
+  matches,
+  a,
+  b,
+  referenceMs = Date.now(),
+  strictReference = false
+) {
   const cutoff = Number.isFinite(referenceMs) ? referenceMs : Date.now();
   return matches
     .filter(m => {
@@ -1816,7 +1827,14 @@ function matchBetweenUpcoming(matches, a, b, referenceMs = Date.now()) {
         teamNameMatches(m.away, a)
       );
     })
-    .filter(m => Number.isFinite(Date.parse(m.date)) && Date.parse(m.date) > cutoff - 4 * 60 * 60 * 1000)
+    .filter(m => {
+      const time = Date.parse(m.date);
+      return (
+        Number.isFinite(time) &&
+        time > cutoff - 4 * 60 * 60 * 1000 &&
+        (!strictReference || Math.abs(time - cutoff) <= 36 * 60 * 60 * 1000)
+      );
+    })
     .sort((x,y) => Math.abs(Date.parse(x.date) - cutoff) - Math.abs(Date.parse(y.date) - cutoff))[0] || null;
 }
 
@@ -2103,7 +2121,10 @@ async function fetchMatchupData(
   awayName,
   homeId,
   awayId,
+  referenceMs = Date.now(),
+  strictReference = false,
 ) {
+  const cutoff = Number.isFinite(referenceMs) ? referenceMs : Date.now();
   try {
     const data = await fotmobSearch(homeName + ' ' + awayName);
     const rows = matchupRowsFromSearch(
@@ -2121,20 +2142,31 @@ async function fetchMatchupData(
           /^(?:FT|AET|PEN)$/i.test(
             String(m.status?.reason?.short || '')
           );
-        return done && m.homeScore != null && m.awayScore != null;
+        const time = Date.parse(m.date);
+        return (
+          done &&
+          m.homeScore != null &&
+          m.awayScore != null &&
+          Number.isFinite(time) &&
+          time < cutoff
+        );
       })
       .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
       .slice(0, 4);
 
     const target = rows
-      .filter(m =>
-        Number.isFinite(Date.parse(m.date)) &&
-        Date.parse(m.date) > Date.now() - 4 * 60 * 60 * 1000
-      )
+      .filter(m => {
+        const time = Date.parse(m.date);
+        return (
+          Number.isFinite(time) &&
+          time > cutoff - 4 * 60 * 60 * 1000 &&
+          (!strictReference || Math.abs(time - cutoff) <= 36 * 60 * 60 * 1000)
+        );
+      })
       .sort(
         (a, b) =>
-          Math.abs(Date.parse(a.date) - Date.now()) -
-          Math.abs(Date.parse(b.date) - Date.now())
+          Math.abs(Date.parse(a.date) - cutoff) -
+          Math.abs(Date.parse(b.date) - cutoff)
       )[0] || null;
 
     return { finished, target };
@@ -2202,17 +2234,33 @@ async function buildFotMobPerformancePackage({ home, away, matchDate = null }) {
       awayInfo.name,
       homeId,
       awayId,
+      referenceMs,
+      Number.isFinite(parsedReference),
     );
 
     const homePack = await buildTeam(browser, homeInfo, awayInfo.name, referenceMs);
     const awayPack = await buildTeam(browser, awayInfo, homeInfo.name, referenceMs);
 
     const targetMatch =
-      matchBetweenUpcoming(homePack._allMatches, homeInfo.name, awayInfo.name, referenceMs) ||
-      matchBetweenUpcoming(awayPack._allMatches, homeInfo.name, awayInfo.name, referenceMs) ||
+      matchBetweenUpcoming(
+        homePack._allMatches,
+        homeInfo.name,
+        awayInfo.name,
+        referenceMs,
+        Number.isFinite(parsedReference)
+      ) ||
+      matchBetweenUpcoming(
+        awayPack._allMatches,
+        homeInfo.name,
+        awayInfo.name,
+        referenceMs,
+        Number.isFinite(parsedReference)
+      ) ||
       matchup.target;
 
-    const unavailable = await getUnavailable(browser, targetMatch?.url, targetMatch?.id);
+    const unavailable = targetMatch
+      ? await getUnavailable(browser, targetMatch.url, targetMatch.id)
+      : { home: [], away: [], available: false };
 
     const homeIsMatchHome = targetMatch
       ? teamNameMatches(targetMatch.home, homeInfo.name)
@@ -2257,7 +2305,7 @@ async function buildFotMobPerformancePackage({ home, away, matchDate = null }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 77,
+        engineVersion: 79,
       },
       cache: false
     };
@@ -2554,7 +2602,7 @@ function buildUnderstatTeamPack(resolved, opponentName, referenceMs = Date.now()
       url: m.url,
       id: m.id,
     })),
-    h2h: h2hFrom(allMatches, resolved.name, opponentName).map(m => ({
+    h2h: h2hFrom(allMatches, resolved.name, opponentName, cutoff).map(m => ({
       tarih: m.date,
       ev: m.home,
       deplasman: m.away,
@@ -2645,7 +2693,8 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
   const h2h = h2hFrom(
     homePack._allMatches,
     homeResolved.name,
-    awayResolved.name
+    awayResolved.name,
+    referenceMs
   ).map(m => ({
     tarih: m.date,
     ev: m.home,
@@ -2686,7 +2735,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 77,
+      engineVersion: 79,
     },
     cache: false,
   };
@@ -2808,8 +2857,20 @@ function betExplorerRowsFromTeamPage(html, teamName) {
   return out.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 }
 
-function buildBetExplorerTeamPack(teamName, matches, opponentName) {
-  const finished = matches.slice(0, 10);
+function buildBetExplorerTeamPack(
+  teamName,
+  matches,
+  opponentName,
+  referenceMs = Date.now(),
+  strictReferenceDay = false
+) {
+  const reference = Number.isFinite(referenceMs) ? referenceMs : Date.now();
+  const cutoff = strictReferenceDay
+    ? Date.parse(new Date(reference).toISOString().slice(0, 10) + 'T00:00:00.000Z')
+    : reference;
+  const finished = matches
+    .filter(m => Number.isFinite(Date.parse(m.date)) && Date.parse(m.date) < cutoff)
+    .slice(0, 10);
   const last5 = finished.slice(0, 5);
 
   return {
@@ -2837,7 +2898,7 @@ function buildBetExplorerTeamPack(teamName, matches, opponentName) {
       url: m.url,
       id: m.id
     })),
-    h2h: h2hFrom(matches, teamName, opponentName).map(m => ({
+    h2h: h2hFrom(matches, teamName, opponentName, cutoff).map(m => ({
       tarih: m.date,
       ev: m.home,
       deplasman: m.away,
@@ -2879,19 +2940,47 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
     fetchBetExplorerHtml(awayLink.url)
   ]);
 
+  const parsedReference = Date.parse(matchDate || '');
+  const referenceMs = Number.isFinite(parsedReference)
+    ? parsedReference
+    : Date.now();
+  const strictReferenceDay = Number.isFinite(parsedReference);
+  const betExplorerCutoff = strictReferenceDay
+    ? Date.parse(
+        new Date(referenceMs).toISOString().slice(0, 10) +
+        'T00:00:00.000Z'
+      )
+    : referenceMs;
+
   const homeRows = betExplorerRowsFromTeamPage(homeHtml, home.name);
   const awayRows = betExplorerRowsFromTeamPage(awayHtml, away.name);
   if (!homeRows.length || !awayRows.length) {
     throw new Error('BetExplorer team form not found.');
   }
 
-  const homePack = buildBetExplorerTeamPack(home.name, homeRows, away.name);
-  const awayPack = buildBetExplorerTeamPack(away.name, awayRows, home.name);
+  const homePack = buildBetExplorerTeamPack(
+    home.name,
+    homeRows,
+    away.name,
+    referenceMs,
+    strictReferenceDay
+  );
+  const awayPack = buildBetExplorerTeamPack(
+    away.name,
+    awayRows,
+    home.name,
+    referenceMs,
+    strictReferenceDay
+  );
 
   const h2hRows = [...homeRows, ...awayRows]
     .filter(m =>
-      (teamNameMatches(m.home, home.name) && teamNameMatches(m.away, away.name)) ||
-      (teamNameMatches(m.home, away.name) && teamNameMatches(m.away, home.name))
+      Number.isFinite(Date.parse(m.date)) &&
+      Date.parse(m.date) < betExplorerCutoff &&
+      (
+        (teamNameMatches(m.home, home.name) && teamNameMatches(m.away, away.name)) ||
+        (teamNameMatches(m.home, away.name) && teamNameMatches(m.away, home.name))
+      )
     );
   const h2hMap = new Map();
   for (const m of h2hRows) {
@@ -2927,7 +3016,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 77
+      engineVersion: 79
     },
     cache: false
   };

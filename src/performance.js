@@ -1426,7 +1426,13 @@ function buildCoachSystemChanges(lineupRows) {
   };
 }
 
-async function buildTeam(browser, info, opponentName, referenceMs = Date.now()) {
+async function buildTeam(
+  browser,
+  info,
+  opponentName,
+  referenceMs = Date.now(),
+  allowCurrentLeagueSnapshot = true
+) {
   const { matches, jsons, source } = await collectTeamDataSmart(browser, info);
   const cutoff = Number.isFinite(referenceMs) ? referenceMs : Date.now();
   const finished = matches
@@ -1803,7 +1809,9 @@ async function buildTeam(browser, info, opponentName, referenceMs = Date.now()) 
       sonraki7Gun: upcoming.filter(m => Date.parse(m.date) <= cutoff + 7 * 86400000).length,
       sonraki14Gun: upcoming.filter(m => Date.parse(m.date) <= cutoff + 14 * 86400000).length
     },
-    ligDurumu: leagueFromJsons(jsons, info.name),
+    ligDurumu: allowCurrentLeagueSnapshot
+      ? leagueFromJsons(jsons, info.name)
+      : null,
     veriKaynagi: source,
     _allMatches: matches
   };
@@ -2238,8 +2246,21 @@ async function buildFotMobPerformancePackage({ home, away, matchDate = null }) {
       Number.isFinite(parsedReference),
     );
 
-    const homePack = await buildTeam(browser, homeInfo, awayInfo.name, referenceMs);
-    const awayPack = await buildTeam(browser, awayInfo, homeInfo.name, referenceMs);
+    const allowCurrentLeagueSnapshot = !Number.isFinite(parsedReference);
+    const homePack = await buildTeam(
+      browser,
+      homeInfo,
+      awayInfo.name,
+      referenceMs,
+      allowCurrentLeagueSnapshot
+    );
+    const awayPack = await buildTeam(
+      browser,
+      awayInfo,
+      homeInfo.name,
+      referenceMs,
+      allowCurrentLeagueSnapshot
+    );
 
     const targetMatch =
       matchBetweenUpcoming(
@@ -2305,7 +2326,7 @@ async function buildFotMobPerformancePackage({ home, away, matchDate = null }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 80,
+        engineVersion: 81,
       },
       cache: false
     };
@@ -2735,7 +2756,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 80,
+      engineVersion: 81,
     },
     cache: false,
   };
@@ -3016,7 +3037,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 80
+      engineVersion: 81
     },
     cache: false
   };

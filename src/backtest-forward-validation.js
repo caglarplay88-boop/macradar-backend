@@ -11,6 +11,8 @@ const FORWARD_QUALITY_POLICY = Object.freeze({
   min_accuracy: 0.4375,
   min_balanced_accuracy: 1 / 3,
   min_draw_recall: 0.20,
+  min_distinct_leagues: 8,
+  min_actual_per_class: 3,
   auto_promotion: false
 });
 
@@ -151,7 +153,9 @@ function evaluateForwardProductionGate(predictions, {
   minSettled = FORWARD_QUALITY_POLICY.min_settled,
   minAccuracy = FORWARD_QUALITY_POLICY.min_accuracy,
   minBalancedAccuracy = FORWARD_QUALITY_POLICY.min_balanced_accuracy,
-  minDrawRecall = FORWARD_QUALITY_POLICY.min_draw_recall
+  minDrawRecall = FORWARD_QUALITY_POLICY.min_draw_recall,
+  minDistinctLeagues = FORWARD_QUALITY_POLICY.min_distinct_leagues,
+  minActualPerClass = FORWARD_QUALITY_POLICY.min_actual_per_class
 } = {}) {
   const rows = Array.isArray(predictions)
     ? predictions.filter(row =>
@@ -165,23 +169,50 @@ function evaluateForwardProductionGate(predictions, {
     min_accuracy: minAccuracy,
     min_balanced_accuracy: minBalancedAccuracy,
     min_draw_recall: minDrawRecall,
+    min_distinct_leagues: minDistinctLeagues,
+    min_actual_per_class: minActualPerClass,
     auto_promotion: false
   };
+
+  const leagueSet = new Set(
+    rows.map(row => String(row.league || '').trim()).filter(Boolean)
+  );
+  const actualCounts = {
+    HOME: rows.filter(row => row.actual === 'HOME').length,
+    DRAW: rows.filter(row => row.actual === 'DRAW').length,
+    AWAY: rows.filter(row => row.actual === 'AWAY').length
+  };
+
+  const diversity = {
+    distinct_leagues: leagueSet.size,
+    actual_class_counts: actualCounts
+  };
+
+  const reasons = [];
+  if (rows.length < minSettled) {
+    reasons.push('insufficient-settled-sample');
+  }
+  if (leagueSet.size < minDistinctLeagues) {
+    reasons.push('insufficient-league-diversity');
+  }
+  if (Object.values(actualCounts).some(count => count < minActualPerClass)) {
+    reasons.push('insufficient-actual-class-coverage');
+  }
 
   if (rows.length < minSettled) {
     return {
       status: 'collecting',
       production_review_eligible: false,
-      reasons: ['insufficient-settled-sample'],
+      reasons,
       settled: rows.length,
       remaining_to_minimum: Math.max(0, minSettled - rows.length),
       policy,
+      diversity,
       metrics: null
     };
   }
 
   const metrics = classificationMetrics(rows);
-  const reasons = [];
 
   if (metrics.accuracy < minAccuracy) {
     reasons.push('accuracy-below-minimum');
@@ -200,6 +231,7 @@ function evaluateForwardProductionGate(predictions, {
     settled: rows.length,
     remaining_to_minimum: 0,
     policy,
+    diversity,
     metrics: {
       accuracy: metrics.accuracy,
       balanced_accuracy: metrics.balanced_accuracy,
@@ -226,14 +258,16 @@ async function readForwardValidationSummary(pool, {
 
   const settledRows = await pool.query(`
     SELECT
-      event_id,
-      prediction AS predicted,
-      actual,
-      target_reference_at AS reference_at
-    FROM ${TABLE}
-    WHERE model_name = $1
-      AND actual IS NOT NULL
-    ORDER BY settled_at,event_id
+      f.event_id,
+      f.prediction AS predicted,
+      f.actual,
+      f.target_reference_at AS reference_at,
+      m.league
+    FROM ${TABLE} f
+    JOIN matches m ON m.event_id = f.event_id
+    WHERE f.model_name = $1
+      AND f.actual IS NOT NULL
+    ORDER BY f.settled_at,f.event_id
   `, [modelName]);
 
   const row = q.rows[0];

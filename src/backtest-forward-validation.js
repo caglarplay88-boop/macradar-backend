@@ -2,8 +2,17 @@ const { buildMlReadyRows } = require('./backtest-features');
 const { trainNearestCentroid, predictNearestCentroid } = require('./backtest-model');
 const { selectTwoCorePlusDynamicThird } = require('./backtest-delta-two-core');
 const { buildDeltaRows } = require('./backtest-cross-league-delta');
+const { classificationMetrics } = require('./backtest-final-evaluation');
 
 const TABLE = 'candidate_forward_validation';
+
+const FORWARD_QUALITY_POLICY = Object.freeze({
+  min_settled: 30,
+  min_accuracy: 0.4375,
+  min_balanced_accuracy: 1 / 3,
+  min_draw_recall: 0.20,
+  auto_promotion: false
+});
 
 async function ensureForwardValidationTable(pool) {
   await pool.query(`
@@ -138,6 +147,70 @@ async function settlePrediction(pool, {
   return q.rows;
 }
 
+function evaluateForwardProductionGate(predictions, {
+  minSettled = FORWARD_QUALITY_POLICY.min_settled,
+  minAccuracy = FORWARD_QUALITY_POLICY.min_accuracy,
+  minBalancedAccuracy = FORWARD_QUALITY_POLICY.min_balanced_accuracy,
+  minDrawRecall = FORWARD_QUALITY_POLICY.min_draw_recall
+} = {}) {
+  const rows = Array.isArray(predictions)
+    ? predictions.filter(row =>
+      ['HOME','DRAW','AWAY'].includes(row?.actual) &&
+      ['HOME','DRAW','AWAY'].includes(row?.predicted)
+    )
+    : [];
+
+  const policy = {
+    min_settled: minSettled,
+    min_accuracy: minAccuracy,
+    min_balanced_accuracy: minBalancedAccuracy,
+    min_draw_recall: minDrawRecall,
+    auto_promotion: false
+  };
+
+  if (rows.length < minSettled) {
+    return {
+      status: 'collecting',
+      production_review_eligible: false,
+      reasons: ['insufficient-settled-sample'],
+      settled: rows.length,
+      remaining_to_minimum: Math.max(0, minSettled - rows.length),
+      policy,
+      metrics: null
+    };
+  }
+
+  const metrics = classificationMetrics(rows);
+  const reasons = [];
+
+  if (metrics.accuracy < minAccuracy) {
+    reasons.push('accuracy-below-minimum');
+  }
+  if (metrics.balanced_accuracy < minBalancedAccuracy) {
+    reasons.push('balanced-accuracy-below-minimum');
+  }
+  if ((metrics?.per_class?.DRAW?.recall ?? 0) < minDrawRecall) {
+    reasons.push('draw-recall-below-minimum');
+  }
+
+  return {
+    status: reasons.length ? 'quality-gate-failed' : 'eligible-for-production-review',
+    production_review_eligible: reasons.length === 0,
+    reasons,
+    settled: rows.length,
+    remaining_to_minimum: 0,
+    policy,
+    metrics: {
+      accuracy: metrics.accuracy,
+      balanced_accuracy: metrics.balanced_accuracy,
+      macro_f1: metrics.macro_f1,
+      draw_recall: metrics.per_class.DRAW.recall,
+      per_class: metrics.per_class,
+      confusion: metrics.confusion
+    }
+  };
+}
+
 async function readForwardValidationSummary(pool, {
   modelName = 'two_core_dynamic_delta'
 } = {}) {
@@ -151,10 +224,23 @@ async function readForwardValidationSummary(pool, {
     WHERE model_name = $1
   `, [modelName]);
 
+  const settledRows = await pool.query(`
+    SELECT
+      event_id,
+      prediction AS predicted,
+      actual,
+      target_reference_at AS reference_at
+    FROM ${TABLE}
+    WHERE model_name = $1
+      AND actual IS NOT NULL
+    ORDER BY settled_at,event_id
+  `, [modelName]);
+
   const row = q.rows[0];
   return {
     ...row,
-    settled_accuracy: row.settled > 0 ? row.correct / row.settled : null
+    settled_accuracy: row.settled > 0 ? row.correct / row.settled : null,
+    quality_gate: evaluateForwardProductionGate(settledRows.rows)
   };
 }
 
@@ -164,6 +250,8 @@ module.exports = {
   buildCandidatePredictionSnapshot,
   savePrediction,
   settlePrediction,
+  FORWARD_QUALITY_POLICY,
+  evaluateForwardProductionGate,
   readForwardValidationSummary
 };
 

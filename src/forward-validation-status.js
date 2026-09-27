@@ -3,6 +3,7 @@ const {
   TABLE,
   readForwardValidationSummary
 } = require('./backtest-forward-validation');
+const { classificationMetrics } = require('./backtest-final-evaluation');
 
 const MODEL_NAME = 'two_core_dynamic_delta';
 
@@ -30,6 +31,22 @@ async function buildForwardValidationStatus(db = pool, {
     LIMIT $2
   `, [modelName, Number(recentLimit)]);
 
+  const settled = await db.query(`
+    SELECT
+      event_id,
+      prediction AS predicted,
+      actual,
+      target_reference_at AS reference_at
+    FROM ${TABLE}
+    WHERE model_name = $1
+      AND actual IS NOT NULL
+    ORDER BY settled_at,event_id
+  `, [modelName]);
+
+  const settledMetrics = settled.rowCount
+    ? classificationMetrics(settled.rows)
+    : null;
+
   return {
     model: modelName,
     total: summary.total_predictions,
@@ -37,6 +54,7 @@ async function buildForwardValidationStatus(db = pool, {
     settled: summary.settled,
     correct: summary.correct,
     accuracy: summary.settled_accuracy,
+    settled_metrics: settledMetrics,
     quality_gate: summary.quality_gate,
     recent: recent.rows
   };
@@ -66,12 +84,40 @@ function formatForwardValidationStatus(status) {
     lines.push('Minimum settled remaining: ' + gate.remaining_to_minimum);
   }
 
-  if (gate.metrics) {
+  const classMetrics = status.settled_metrics;
+  if (classMetrics) {
     lines.push(
-      'Balanced accuracy: ' + formatPercent(gate.metrics.balanced_accuracy) +
-      ' | DRAW recall: ' + formatPercent(gate.metrics.draw_recall) +
-      ' | Macro-F1: ' + formatPercent(gate.metrics.macro_f1)
+      'Balanced accuracy: ' + formatPercent(classMetrics.balanced_accuracy) +
+      ' | Macro-F1: ' + formatPercent(classMetrics.macro_f1)
     );
+
+    for (const label of ['HOME','DRAW','AWAY']) {
+      const m = classMetrics.per_class[label];
+      lines.push(
+        label + ': support=' + m.support +
+        ' | precision=' + formatPercent(m.precision) +
+        ' | recall=' + formatPercent(m.recall) +
+        ' | F1=' + formatPercent(m.f1)
+      );
+    }
+
+    lines.push(
+      'Confusion: ' +
+      'HOME[' +
+        classMetrics.confusion.HOME.HOME + ',' +
+        classMetrics.confusion.HOME.DRAW + ',' +
+        classMetrics.confusion.HOME.AWAY + '] ' +
+      'DRAW[' +
+        classMetrics.confusion.DRAW.HOME + ',' +
+        classMetrics.confusion.DRAW.DRAW + ',' +
+        classMetrics.confusion.DRAW.AWAY + '] ' +
+      'AWAY[' +
+        classMetrics.confusion.AWAY.HOME + ',' +
+        classMetrics.confusion.AWAY.DRAW + ',' +
+        classMetrics.confusion.AWAY.AWAY + ']'
+    );
+  } else {
+    lines.push('Class metrics: waiting for settled predictions');
   }
 
   if (Array.isArray(gate.reasons) && gate.reasons.length) {

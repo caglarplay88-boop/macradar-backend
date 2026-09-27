@@ -187,6 +187,36 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_performance_cache_status
       ON performance_cache(status, updated_at DESC);
 
+    CREATE TABLE IF NOT EXISTS backtest_dataset (
+      id BIGSERIAL PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      reference_at TIMESTAMPTZ NOT NULL,
+      match_date DATE NOT NULL,
+      kickoff_time TEXT,
+      home_team TEXT NOT NULL,
+      away_team TEXT NOT NULL,
+      engine_version INTEGER NOT NULL,
+      provider TEXT,
+      features JSONB NOT NULL,
+      coverage JSONB,
+      provenance JSONB,
+      home_score INTEGER,
+      away_score INTEGER,
+      result_status TEXT,
+      label_1x2 TEXT CHECK (
+        label_1x2 IS NULL OR label_1x2 IN ('HOME','DRAW','AWAY')
+      ),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(event_id, reference_at, engine_version)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_backtest_dataset_match_date
+      ON backtest_dataset(match_date DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_backtest_dataset_engine
+      ON backtest_dataset(engine_version, match_date DESC);
+
     INSERT INTO app_settings(key,value)
     VALUES('refresh_minutes','60')
     ON CONFLICT(key) DO NOTHING;
@@ -1072,6 +1102,102 @@ async function failPerformanceCache(eventId, error) {
 
 
 
+function normalizeBacktestLabel(value) {
+  if (value == null || value === '') return null;
+  const label = String(value).toUpperCase();
+  if (!['HOME', 'DRAW', 'AWAY'].includes(label)) {
+    throw new Error('Geçersiz backtest label_1x2.');
+  }
+  return label;
+}
+
+async function saveBacktestDataset(row, db = pool) {
+  if (!row || typeof row !== 'object') throw new Error('Backtest satırı gerekli.');
+
+  const eventId = String(row.event_id || '').trim();
+  const referenceAt = row.reference_at;
+  const matchDate = row.match_date;
+  const homeTeam = String(row.home_team || '').trim();
+  const awayTeam = String(row.away_team || '').trim();
+  const engineVersion = Number(row.engine_version);
+
+  if (!eventId || !referenceAt || !matchDate || !homeTeam || !awayTeam ||
+      !Number.isInteger(engineVersion) || engineVersion <= 0 ||
+      !row.features || typeof row.features !== 'object') {
+    throw new Error('Eksik/geçersiz backtest dataset alanı.');
+  }
+
+  const label = normalizeBacktestLabel(row.label_1x2);
+  const r = await db.query(`
+    INSERT INTO backtest_dataset(
+      event_id, reference_at, match_date, kickoff_time,
+      home_team, away_team, engine_version, provider,
+      features, coverage, provenance,
+      home_score, away_score, result_status, label_1x2,
+      created_at, updated_at
+    )
+    VALUES(
+      $1,$2,$3,$4,$5,$6,$7,$8,
+      $9::jsonb,$10::jsonb,$11::jsonb,
+      $12,$13,$14,$15,NOW(),NOW()
+    )
+    ON CONFLICT(event_id, reference_at, engine_version) DO UPDATE SET
+      match_date=EXCLUDED.match_date,
+      kickoff_time=EXCLUDED.kickoff_time,
+      home_team=EXCLUDED.home_team,
+      away_team=EXCLUDED.away_team,
+      provider=EXCLUDED.provider,
+      features=EXCLUDED.features,
+      coverage=EXCLUDED.coverage,
+      provenance=EXCLUDED.provenance,
+      home_score=EXCLUDED.home_score,
+      away_score=EXCLUDED.away_score,
+      result_status=EXCLUDED.result_status,
+      label_1x2=EXCLUDED.label_1x2,
+      updated_at=NOW()
+    RETURNING *
+  `, [
+    eventId, referenceAt, matchDate, row.kickoff_time || null,
+    homeTeam, awayTeam, engineVersion, row.provider || null,
+    JSON.stringify(row.features),
+    row.coverage == null ? null : JSON.stringify(row.coverage),
+    row.provenance == null ? null : JSON.stringify(row.provenance),
+    Number.isInteger(row.home_score) ? row.home_score : null,
+    Number.isInteger(row.away_score) ? row.away_score : null,
+    row.result_status || null, label
+  ]);
+
+  return r.rows[0];
+}
+
+async function getBacktestDataset(eventId, referenceAt, engineVersion, db = pool) {
+  const r = await db.query(`
+    SELECT * FROM backtest_dataset
+    WHERE event_id=$1 AND reference_at=$2 AND engine_version=$3
+    LIMIT 1
+  `, [eventId, referenceAt, engineVersion]);
+  return r.rows[0] || null;
+}
+
+async function listBacktestDataset({ engineVersion = null, limit = 100 } = {}, db = pool) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 1000);
+  const values = [];
+  let where = '';
+  if (Number.isInteger(Number(engineVersion))) {
+    values.push(Number(engineVersion));
+    where = 'WHERE engine_version=$1';
+  }
+  values.push(safeLimit);
+  const limitParam = '$' + values.length;
+  const r = await db.query(`
+    SELECT * FROM backtest_dataset
+    ${where}
+    ORDER BY match_date DESC, reference_at DESC, id DESC
+    LIMIT ${limitParam}
+  `, values);
+  return r.rows;
+}
+
 async function saveOpeningOdds(eventId, rows) {
   if (!Array.isArray(rows) || !rows.length) return 0;
 
@@ -1213,6 +1339,9 @@ module.exports = {
   markPerformancePreparing,
   savePerformanceCache,
   failPerformanceCache,
+  saveBacktestDataset,
+  getBacktestDataset,
+  listBacktestDataset,
   saveOpeningOdds,
   getOpeningOdds,
   countOpeningOdds,

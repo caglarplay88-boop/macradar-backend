@@ -2230,7 +2230,7 @@ async function buildFotMobPerformancePackage({ home, away }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 70,
+        engineVersion: 71,
       },
       cache: false
     };
@@ -2659,7 +2659,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 70,
+      engineVersion: 71,
     },
     cache: false,
   };
@@ -2900,7 +2900,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 70
+      engineVersion: 71
     },
     cache: false
   };
@@ -2973,6 +2973,37 @@ function hasMatchHistory(team) {
   return Array.isArray(team?.maclar) && team.maclar.length >= 3;
 }
 
+function hasUsableProgressionSources(team) {
+  const sources = team?.progressionSources;
+  if (!sources || typeof sources !== 'object') return false;
+
+  const fotMob = sources.FotMob;
+  const fotMobUsable = Boolean(
+    (
+      (fotMob?.availability?.son5?.completeMatches || 0) > 0 &&
+      finiteNumber(fotMob?.summary?.son5?.passesIntoFinalThirdTeamTotalAvg)
+    ) ||
+    (
+      (fotMob?.availability?.son10?.completeMatches || 0) > 0 &&
+      finiteNumber(fotMob?.summary?.son10?.passesIntoFinalThirdTeamTotalAvg)
+    )
+  );
+
+  const scores365 = sources['365Scores'];
+  const scores365Usable = Boolean(
+    (
+      (scores365?.availability?.son5?.dataMatches || 0) > 0 &&
+      finiteNumber(scores365?.son5?.passesIntoFinalThird)
+    ) ||
+    (
+      (scores365?.availability?.son10?.dataMatches || 0) > 0 &&
+      finiteNumber(scores365?.son10?.passesIntoFinalThird)
+    )
+  );
+
+  return fotMobUsable || scores365Usable;
+}
+
 function evaluatePerformanceCoverage(data) {
   const checks = {
     general_strength: bothTeams(data, hasLeague),
@@ -2999,7 +3030,8 @@ function evaluatePerformanceCoverage(data) {
       objectHasAny(team, ['boxEntries', 'boxTouches', 'cezaSahasi'])
     ),
     progression: bothTeams(data, team =>
-      objectHasAny(team, ['progression', 'progressivePasses', 'xT', 'epv'])
+      objectHasAny(team, ['progression', 'progressivePasses', 'xT', 'epv']) ||
+      hasUsableProgressionSources(team)
     ),
     possession_quality: bothTeams(data, team =>
       objectHasAny(team?.standartIstatistik?.son5, ['possession']) ||
@@ -6050,12 +6082,14 @@ async function buildPerformancePackage(input) {
         coverage
       );
       const supplementNames = Object.keys(supplementResult.supplements);
-      const combinedCoverage = mergeSupplementCoverage(
-        coverage,
-        supplementResult.supplements
-      );
       const dataWithStyleSources = attachStyleSources(
         data,
+        supplementResult.supplements
+      );
+      const coverageWithAttachedSources =
+        evaluatePerformanceCoverage(dataWithStyleSources);
+      const combinedCoverage = mergeSupplementCoverage(
+        coverageWithAttachedSources,
         supplementResult.supplements
       );
 

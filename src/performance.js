@@ -2230,7 +2230,7 @@ async function buildFotMobPerformancePackage({ home, away }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 73,
+        engineVersion: 75,
       },
       cache: false
     };
@@ -2659,7 +2659,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 73,
+      engineVersion: 75,
     },
     cache: false,
   };
@@ -2900,7 +2900,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 73
+      engineVersion: 75
     },
     cache: false
   };
@@ -3115,6 +3115,53 @@ function hasUsableResultVsUnderlying(team) {
   });
 }
 
+function hasUsablePlayingStyle(team) {
+  const sources = team?.styleSources;
+  if (!sources || typeof sources !== 'object') return false;
+
+  const fotMob = sources.FotMob;
+  const fotMobUsable = Boolean(
+    (
+      (fotMob?.coverage?.son5?.dataMatches?.accurateLongBalls || 0) > 0 &&
+      finiteNumber(fotMob?.son5?.accurateLongBalls)
+    ) ||
+    (
+      (fotMob?.coverage?.son5?.dataMatches?.accurateCrosses || 0) > 0 &&
+      finiteNumber(fotMob?.son5?.accurateCrosses)
+    ) ||
+    (
+      (fotMob?.coverage?.son10?.dataMatches?.accurateLongBalls || 0) > 0 &&
+      finiteNumber(fotMob?.son10?.accurateLongBalls)
+    ) ||
+    (
+      (fotMob?.coverage?.son10?.dataMatches?.accurateCrosses || 0) > 0 &&
+      finiteNumber(fotMob?.son10?.accurateCrosses)
+    )
+  );
+
+  const scores365 = sources['365Scores'];
+  const styleKeys = [
+    'backwardPasses',
+    'passesIntoFinalThird',
+    'passesOppositionHalf',
+    'passesOwnHalf',
+    'longPassesCompleted',
+    'longPassesAttempted',
+    'crossesCompleted',
+    'crossesAttempted',
+    'keyPasses',
+    'totalPasses',
+    'passesCompleted'
+  ];
+  const scores365Usable = Boolean(
+    [scores365?.son5, scores365?.son10].some(section =>
+      styleKeys.some(key => finiteNumber(section?.[key]))
+    )
+  );
+
+  return fotMobUsable || scores365Usable;
+}
+
 function evaluatePerformanceCoverage(data) {
   const checks = {
     general_strength: bothTeams(data, hasLeague),
@@ -3175,6 +3222,7 @@ function evaluatePerformanceCoverage(data) {
       Array.isArray(team?.oyuncuFormu?.players) &&
       team.oyuncuFormu.players.some(player => player.ratingMatches > 0)
     ),
+    playing_style: bothTeams(data, hasUsablePlayingStyle),
     tactical_matchup: bothTeams(data, team =>
       objectHasAny(team, ['tactics', 'formation', 'taktik'])
     ),
@@ -3189,6 +3237,11 @@ function evaluatePerformanceCoverage(data) {
       data?.matchContext ||
       data?.mac?.importance ||
       data?.mac?.context
+    ),
+    table_season_stage: Boolean(
+      data?.tableSeasonStage ||
+      data?.seasonStage ||
+      data?.ligAsamasi
     ),
     weather_pitch: Boolean(data?.weather || data?.pitch || data?.hava),
     referee: Boolean(data?.referee || data?.hakem),
@@ -6138,6 +6191,17 @@ function supplementCoverageSources(supplements) {
     scores365?.matchContext?.away?.position != null
   ) {
     sources.match_context = '365Scores';
+  }
+
+  if (
+    scores365?.matchContext?.competitionId &&
+    finiteNumber(scores365?.matchContext?.stageNum) &&
+    finiteNumber(scores365?.matchContext?.tableSize) &&
+    scores365.matchContext.tableSize > 0 &&
+    finiteNumber(scores365?.matchContext?.home?.position) &&
+    finiteNumber(scores365?.matchContext?.away?.position)
+  ) {
+    sources.table_season_stage = '365Scores';
   }
 
   if (

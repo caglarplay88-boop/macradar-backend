@@ -6,6 +6,8 @@ const {
 } = require('./db');
 const { buildPerformancePackage } = require('./performance');
 const { buildBacktestDatasetRow } = require('./backtest');
+const { getBulletin } = require('./bulletin');
+const { parseBetExplorerUrl, currentIsoTurkey } = require('./util');
 const {
   ensureForwardValidationTable,
   buildCandidatePredictionSnapshot,
@@ -18,6 +20,7 @@ const MODEL_NAME = 'two_core_dynamic_delta';
 const ENGINE_VERSION = 83;
 const DEFAULT_LIMIT = 10;
 const DEFAULT_FEED_LIMIT = 1;
+const DEFAULT_DISCOVERY_LIMIT = 5;
 const PREPARING_FRESH_MS = 15 * 60 * 1000;
 
 function kickoffAtMs(match) {
@@ -37,6 +40,13 @@ function kickoffAtMs(match) {
   const ms = new Date(`${date}T${hh}:${mm}:00+03:00`).getTime();
 
   return Number.isFinite(ms) ? ms : null;
+}
+
+function addIsoDays(iso, days) {
+  const d = new Date(iso + 'T00:00:00Z');
+  return new Date(d.getTime() + Number(days) * 86400000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 function finishedLabel(match) {
@@ -73,14 +83,113 @@ function teamNamesFromMatch(match) {
 
 async function loadTrainingRows(db = pool) {
   const q = await db.query(`
-    SELECT event_id,reference_at,label_1x2,engine_version,features,coverage
-    FROM backtest_dataset
-    WHERE engine_version = $1
-      AND label_1x2 IN ('HOME','DRAW','AWAY')
-    ORDER BY reference_at,event_id
+    SELECT b.event_id,b.reference_at,b.label_1x2,b.engine_version,b.features,b.coverage,m.league
+    FROM backtest_dataset b
+    JOIN matches m ON m.event_id = b.event_id
+    WHERE b.engine_version = $1
+      AND b.label_1x2 IN ('HOME','DRAW','AWAY')
+    ORDER BY b.reference_at,b.event_id
   `, [ENGINE_VERSION]);
 
   return q.rows;
+}
+
+async function discoverUpcomingBulletinMatches(db = pool, {
+  limit = DEFAULT_DISCOVERY_LIMIT,
+  now = new Date()
+} = {}) {
+  const today = currentIsoTurkey();
+  const sourceDates = [today, addIsoDays(today, 1)];
+  const found = [];
+  const seen = new Set();
+  const nowMs = now.getTime();
+
+  for (const sourceDate of sourceDates) {
+    const bulletin = await getBulletin(sourceDate);
+
+    for (const match of bulletin.matches || []) {
+      if (String(match?.status || '').toLowerCase() === 'finished') continue;
+      if (!/^\d{1,2}:\d{2}$/.test(String(match?.time || ''))) continue;
+
+      let parsed;
+      try {
+        parsed = parseBetExplorerUrl(String(match.url || ''));
+      } catch {
+        continue;
+      }
+
+      if (seen.has(parsed.eventId)) continue;
+
+      const candidate = {
+        event_id: parsed.eventId,
+        url: parsed.url,
+        match_slug: parsed.slug,
+        display_name: match.name || null,
+        league: match.league || null,
+        match_date: match.date || sourceDate,
+        kickoff_time: match.time || null
+      };
+
+      const kickoff = kickoffAtMs(candidate);
+      if (!Number.isFinite(kickoff) || kickoff <= nowMs) continue;
+
+      seen.add(parsed.eventId);
+      found.push(candidate);
+    }
+  }
+
+  found.sort((a, b) =>
+    kickoffAtMs(a) - kickoffAtMs(b) ||
+    String(a.event_id).localeCompare(String(b.event_id))
+  );
+
+  const selected = found.slice(0, Math.max(0, Number(limit)));
+  let inserted = 0;
+  let refreshed = 0;
+
+  for (const match of selected) {
+    const q = await db.query(`
+      INSERT INTO matches(
+        event_id,url,match_slug,active,created_at,updated_at,
+        display_name,league,match_date,kickoff_time
+      )
+      VALUES($1,$2,$3,FALSE,NOW(),NOW(),$4,$5,$6,$7)
+      ON CONFLICT(event_id) DO UPDATE SET
+        url = EXCLUDED.url,
+        match_slug = EXCLUDED.match_slug,
+        display_name = COALESCE(EXCLUDED.display_name,matches.display_name),
+        league = COALESCE(EXCLUDED.league,matches.league),
+        match_date = COALESCE(EXCLUDED.match_date,matches.match_date),
+        kickoff_time = COALESCE(EXCLUDED.kickoff_time,matches.kickoff_time),
+        updated_at = NOW()
+      RETURNING (xmax = 0) AS inserted
+    `, [
+      match.event_id,
+      match.url,
+      match.match_slug,
+      match.display_name,
+      match.league,
+      match.match_date,
+      match.kickoff_time
+    ]);
+
+    if (q.rows[0]?.inserted === true) inserted++;
+    else refreshed++;
+  }
+
+  return {
+    source_dates: sourceDates,
+    discovered_future: found.length,
+    selected: selected.length,
+    inserted_inactive: inserted,
+    refreshed_existing: refreshed,
+    events: selected.map(m => ({
+      event_id: m.event_id,
+      name: m.display_name,
+      date: m.match_date,
+      time: m.kickoff_time
+    }))
+  };
 }
 
 async function settleFinishedPredictions(db = pool) {
@@ -130,8 +239,7 @@ async function listV83FeedCandidates(db = pool, {
       pc.payload->'meta'->>'engineVersion' AS cache_engine_version
     FROM matches m
     LEFT JOIN performance_cache pc ON pc.event_id = m.event_id
-    WHERE m.active = TRUE
-      AND LOWER(COALESCE(m.result_status,'')) <> 'finished'
+    WHERE LOWER(COALESCE(m.result_status,'')) <> 'finished'
     ORDER BY m.match_date,m.kickoff_time,m.event_id
   `);
 
@@ -150,6 +258,7 @@ async function listV83FeedCandidates(db = pool, {
     const cacheUpdatedMs = row.cache_updated_at
       ? new Date(row.cache_updated_at).getTime()
       : null;
+
     if (
       row.cache_status === 'preparing' &&
       Number.isFinite(cacheUpdatedMs) &&
@@ -350,14 +459,19 @@ async function runForwardValidationOnce({
   db = pool,
   limit = DEFAULT_LIMIT,
   feedLimit = DEFAULT_FEED_LIMIT,
+  discoveryLimit = DEFAULT_DISCOVERY_LIMIT,
   now = new Date()
 } = {}) {
   await ensureForwardValidationTable(db);
 
   const settled = await settleFinishedPredictions(db);
+  const discovery = await discoverUpcomingBulletinMatches(db, {
+    limit: discoveryLimit,
+    now
+  });
   const performanceFeed = await buildMissingV83Performance(db, {
     limit: feedLimit,
-    now
+    now: new Date()
   });
   const predictionRun = await createPendingPredictions(db, {
     limit,
@@ -371,6 +485,7 @@ async function runForwardValidationOnce({
     model: MODEL_NAME,
     engine_version: ENGINE_VERSION,
     settled_now: settled,
+    discovery,
     performance_feed: performanceFeed,
     ...predictionRun,
     summary
@@ -382,8 +497,11 @@ if (require.main === module) {
   const feedLimit = Number(
     process.env.FORWARD_VALIDATION_FEED_LIMIT || DEFAULT_FEED_LIMIT
   );
+  const discoveryLimit = Number(
+    process.env.FORWARD_VALIDATION_DISCOVERY_LIMIT || DEFAULT_DISCOVERY_LIMIT
+  );
 
-  runForwardValidationOnce({ limit, feedLimit })
+  runForwardValidationOnce({ limit, feedLimit, discoveryLimit })
     .then(result => {
       console.log('[forward-validation]', JSON.stringify(result));
     })
@@ -405,9 +523,11 @@ module.exports = {
   MODEL_NAME,
   ENGINE_VERSION,
   kickoffAtMs,
+  addIsoDays,
   finishedLabel,
   teamNamesFromMatch,
   loadTrainingRows,
+  discoverUpcomingBulletinMatches,
   settleFinishedPredictions,
   listV83FeedCandidates,
   buildMissingV83Performance,

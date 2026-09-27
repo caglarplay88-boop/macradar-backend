@@ -17,7 +17,10 @@ function teamNamesFromHistoricalMatch(match) {
 }
 
 function historicalReferenceAt(match) {
-  const date = String(match?.match_date || '').match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  const rawDate = match?.match_date;
+  const date = rawDate instanceof Date && Number.isFinite(rawDate.getTime())
+    ? rawDate.toISOString().slice(0, 10)
+    : String(rawDate || '').match(/\d{4}-\d{2}-\d{2}/)?.[0];
   if (!date) throw new Error('Historical match_date gerekli.');
 
   const time = String(match?.kickoff_time || '').match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/)?.[0];

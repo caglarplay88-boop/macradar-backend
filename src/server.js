@@ -470,6 +470,21 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
+      const cachedVersion = Number(
+        cached?.payload?.meta?.engineVersion || 0
+      );
+
+      if (
+        cached?.payload &&
+        cachedVersion < PERFORMANCE_ENGINE_VERSION
+      ) {
+        return json(res, 409, {
+          status: 'stale',
+          error: 'Performance cache is stale. Rebuild required.',
+          performance_cache: performanceCacheEnvelope(cached)
+        });
+      }
+
       if (cached?.payload) {
         return json(res, 200, {
           ...cached.payload,

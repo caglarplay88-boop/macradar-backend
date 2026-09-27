@@ -59,9 +59,91 @@ function evaluateMajorityBaseline(split) {
   };
 }
 
+function evaluateWalkForwardMajority(rows, {
+  minTrainSize = 10
+} = {}) {
+  if (!Array.isArray(rows)) {
+    throw new Error('Walk-forward rows dizisi gerekli.');
+  }
+
+  const safeMinTrain = Number(minTrainSize);
+  if (!Number.isInteger(safeMinTrain) || safeMinTrain < 1) {
+    throw new Error('minTrainSize pozitif tam sayı olmalı.');
+  }
+  if (rows.length <= safeMinTrain) {
+    throw new Error('Walk-forward baseline için yeterli satır gerekli.');
+  }
+
+  const sorted = rows.slice().sort((a, b) => {
+    const ams = Date.parse(a?.reference_at);
+    const bms = Date.parse(b?.reference_at);
+    if (!Number.isFinite(ams) || !Number.isFinite(bms)) {
+      throw new Error('Walk-forward için geçerli reference_at gerekli.');
+    }
+    return ams - bms || String(a.event_id || '').localeCompare(String(b.event_id || ''));
+  });
+
+  const predictions = [];
+  let index = safeMinTrain;
+
+  while (index < sorted.length) {
+    const testMs = Date.parse(sorted[index].reference_at);
+
+    let groupStart = index;
+    while (
+      groupStart > 0 &&
+      Date.parse(sorted[groupStart - 1].reference_at) === testMs
+    ) {
+      groupStart--;
+    }
+
+    const train = sorted.filter((row, i) =>
+      i < groupStart && Date.parse(row.reference_at) < testMs
+    );
+
+    if (!train.length) {
+      index++;
+      continue;
+    }
+
+    const prediction = majorityLabel(train);
+    let end = index;
+    while (
+      end < sorted.length &&
+      Date.parse(sorted[end].reference_at) === testMs
+    ) {
+      const row = sorted[end];
+      predictions.push({
+        event_id: row.event_id,
+        reference_at: row.reference_at,
+        actual: row.label_1x2,
+        predicted: prediction,
+        correct: row.label_1x2 === prediction,
+        train_size: train.length
+      });
+      end++;
+    }
+
+    index = end;
+  }
+
+  const correct = predictions.filter(x => x.correct).length;
+  const total = predictions.length;
+
+  return {
+    baseline: 'walk-forward-train-majority-class',
+    min_train_size: safeMinTrain,
+    total,
+    correct,
+    accuracy: total ? correct / total : null,
+    predictions
+  };
+}
+
 module.exports = {
   summarizeLabelCounts,
   majorityLabel,
-  evaluateMajorityBaseline
+  evaluateMajorityBaseline,
+  evaluateWalkForwardMajority
 };
 

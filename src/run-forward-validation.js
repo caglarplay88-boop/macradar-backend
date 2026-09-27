@@ -2,7 +2,8 @@ const {
   pool,
   getPerformanceCache,
   savePerformanceCache,
-  failPerformanceCache
+  failPerformanceCache,
+  finishMatch
 } = require('./db');
 const { buildPerformancePackage } = require('./performance');
 const { buildBacktestDatasetRow } = require('./backtest');
@@ -189,6 +190,110 @@ async function discoverUpcomingBulletinMatches(db = pool, {
       date: m.match_date,
       time: m.kickoff_time
     }))
+  };
+}
+
+async function refreshPendingForwardResults(db = pool, {
+  now = new Date()
+} = {}) {
+  const q = await db.query(`
+    SELECT
+      f.event_id,
+      m.url,
+      m.match_date,
+      m.kickoff_time,
+      m.result_status
+    FROM candidate_forward_validation f
+    JOIN matches m ON m.event_id = f.event_id
+    WHERE f.model_name = $1
+      AND f.actual IS NULL
+    ORDER BY m.match_date,m.kickoff_time,f.event_id
+  `, [MODEL_NAME]);
+
+  const nowMs = now.getTime();
+  const byDate = new Map();
+
+  for (const row of q.rows) {
+    if (String(row.result_status || '').toLowerCase() === 'finished') continue;
+
+    const kickoff = kickoffAtMs(row);
+    if (!Number.isFinite(kickoff) || nowMs < kickoff) continue;
+
+    const iso = row.match_date instanceof Date
+      ? row.match_date.toISOString().slice(0, 10)
+      : (String(row.match_date || '').match(/\d{4}-\d{2}-\d{2}/)?.[0] || '');
+
+    if (!iso) continue;
+    if (!byDate.has(iso)) byDate.set(iso, []);
+    byDate.get(iso).push(row);
+  }
+
+  let checked = 0;
+  let finished = 0;
+  let missing = 0;
+  const results = [];
+
+  for (const [date, pendingRows] of byDate) {
+    const bulletin = await getBulletin(date, { force: true });
+    const eventMap = new Map();
+
+    for (const match of bulletin.matches || []) {
+      try {
+        const parsed = parseBetExplorerUrl(String(match.url || ''));
+        eventMap.set(parsed.eventId, match);
+      } catch {}
+    }
+
+    for (const row of pendingRows) {
+      checked++;
+      const match = eventMap.get(row.event_id);
+
+      if (!match) {
+        missing++;
+        results.push({
+          event_id: row.event_id,
+          status: 'not-found-in-bulletin'
+        });
+        continue;
+      }
+
+      if (String(match.status || '').toLowerCase() !== 'finished') {
+        results.push({
+          event_id: row.event_id,
+          status: 'not-finished'
+        });
+        continue;
+      }
+
+      const homeScore = Number(match.homeScore);
+      const awayScore = Number(match.awayScore);
+
+      if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore)) {
+        results.push({
+          event_id: row.event_id,
+          status: 'finished-without-valid-score'
+        });
+        continue;
+      }
+
+      await finishMatch(row.event_id, homeScore, awayScore);
+      finished++;
+
+      results.push({
+        event_id: row.event_id,
+        status: 'finished',
+        home_score: homeScore,
+        away_score: awayScore
+      });
+    }
+  }
+
+  return {
+    pending_rows: q.rows.length,
+    post_kickoff_checked: checked,
+    finished,
+    missing,
+    results
   };
 }
 
@@ -464,6 +569,7 @@ async function runForwardValidationOnce({
 } = {}) {
   await ensureForwardValidationTable(db);
 
+  const resultRefresh = await refreshPendingForwardResults(db, { now });
   const settled = await settleFinishedPredictions(db);
   const discovery = await discoverUpcomingBulletinMatches(db, {
     limit: discoveryLimit,
@@ -484,6 +590,7 @@ async function runForwardValidationOnce({
   return {
     model: MODEL_NAME,
     engine_version: ENGINE_VERSION,
+    result_refresh: resultRefresh,
     settled_now: settled,
     discovery,
     performance_feed: performanceFeed,
@@ -528,6 +635,7 @@ module.exports = {
   teamNamesFromMatch,
   loadTrainingRows,
   discoverUpcomingBulletinMatches,
+  refreshPendingForwardResults,
   settleFinishedPredictions,
   listV83FeedCandidates,
   buildMissingV83Performance,

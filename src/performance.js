@@ -169,9 +169,12 @@ function dedupeMatches(rows) {
 
 function isFinished(m, now = Date.now()) {
   const s = String(m.status || '').toLowerCase();
-  if (/\b(ft|aet|pen|finished|true)\b/.test(s)) return true;
+  const homeScore = num(m.homeScore);
+  const awayScore = num(m.awayScore);
+  const hasValidScore = Number.isInteger(homeScore) && homeScore >= 0 && Number.isInteger(awayScore) && awayScore >= 0;
+  if (/\b(ft|aet|pen|finished|true)\b/.test(s)) return hasValidScore;
   const t = Date.parse(m.date);
-  return Number.isFinite(t) && t < now - 3 * 60 * 60 * 1000 && m.homeScore != null && m.awayScore != null;
+  return Number.isFinite(t) && t < now - 3 * 60 * 60 * 1000 && hasValidScore;
 }
 
 function collectJsonScripts() {
@@ -875,7 +878,7 @@ function teamPerspective(match, teamName, pair) {
 
 function resultSummary(matches, teamName) {
   const out = {
-    mac: matches.length,
+    mac: 0,
     galibiyet: 0,
     beraberlik: 0,
     maglubiyet: 0,
@@ -886,9 +889,10 @@ function resultSummary(matches, teamName) {
   };
   for (const m of matches) {
     const isHome = teamNameMatches(m.home, teamName);
-    const gf = Number(isHome ? m.homeScore : m.awayScore);
-    const ga = Number(isHome ? m.awayScore : m.homeScore);
-    if (!Number.isFinite(gf) || !Number.isFinite(ga)) continue;
+    const gf = num(isHome ? m.homeScore : m.awayScore);
+    const ga = num(isHome ? m.awayScore : m.homeScore);
+    if (!Number.isInteger(gf) || gf < 0 || !Number.isInteger(ga) || ga < 0) continue;
+    out.mac++;
     const loc = isHome ? out.ev : out.deplasman;
     loc.mac++;
     loc.attigi += gf;

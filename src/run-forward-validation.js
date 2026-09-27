@@ -60,15 +60,25 @@ function kickoffBucket(kickoffTime) {
 }
 
 
+function integerScore(value) {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    return null;
+  }
+
+  const score = Number(value);
+  return Number.isInteger(score) && score >= 0 ? score : null;
+}
+
+
 function finishedLabel(match) {
   if (String(match?.result_status || '').toLowerCase() !== 'finished') {
     return null;
   }
 
-  const home = Number(match?.home_score);
-  const away = Number(match?.away_score);
+  const home = integerScore(match?.home_score);
+  const away = integerScore(match?.away_score);
 
-  if (!Number.isInteger(home) || !Number.isInteger(away)) {
+  if (home === null || away === null) {
     return null;
   }
 
@@ -309,10 +319,10 @@ async function refreshPendingForwardResults(db = pool, {
         continue;
       }
 
-      const homeScore = Number(match.homeScore);
-      const awayScore = Number(match.awayScore);
+      const homeScore = integerScore(match.homeScore);
+      const awayScore = integerScore(match.awayScore);
 
-      if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore)) {
+      if (homeScore === null || awayScore === null) {
         results.push({
           event_id: row.event_id,
           status: 'finished-without-valid-score'

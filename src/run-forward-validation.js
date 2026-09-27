@@ -50,6 +50,16 @@ function addIsoDays(iso, days) {
     .slice(0, 10);
 }
 
+function kickoffBucket(kickoffTime) {
+  const m = String(kickoffTime || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return 'unknown';
+  const hour = Number(m[1]);
+  const start = Math.floor(hour / 3) * 3;
+  return String(start).padStart(2, '0') + '-' +
+    String(start + 2).padStart(2, '0');
+}
+
+
 function finishedLabel(match) {
   if (String(match?.result_status || '').toLowerCase() !== 'finished') {
     return null;
@@ -152,6 +162,39 @@ async function discoverUpcomingBulletinMatches(db = pool, {
   const existing = new Set(existingRows.rows.map(row => row.event_id));
 
   const unseen = found.filter(match => !existing.has(match.event_id));
+
+  const sampleRows = await db.query(`
+    SELECT
+      COALESCE(m.league, '') AS league,
+      m.kickoff_time
+    FROM candidate_forward_validation f
+    JOIN matches m ON m.event_id = f.event_id
+    WHERE f.model_name = $1
+  `, [MODEL_NAME]);
+
+  const leagueCounts = new Map();
+  const bucketCounts = new Map();
+
+  for (const row of sampleRows.rows) {
+    const league = String(row.league || '');
+    const bucket = kickoffBucket(row.kickoff_time);
+    leagueCounts.set(league, (leagueCounts.get(league) || 0) + 1);
+    bucketCounts.set(bucket, (bucketCounts.get(bucket) || 0) + 1);
+  }
+
+  unseen.sort((a, b) => {
+    const aLeague = leagueCounts.get(String(a.league || '')) || 0;
+    const bLeague = leagueCounts.get(String(b.league || '')) || 0;
+    if (aLeague !== bLeague) return aLeague - bLeague;
+
+    const aBucket = bucketCounts.get(kickoffBucket(a.kickoff_time)) || 0;
+    const bBucket = bucketCounts.get(kickoffBucket(b.kickoff_time)) || 0;
+    if (aBucket !== bBucket) return aBucket - bBucket;
+
+    return kickoffAtMs(a) - kickoffAtMs(b) ||
+      String(a.event_id).localeCompare(String(b.event_id));
+  });
+
   const selected = unseen.slice(0, Math.max(0, Number(limit)));
   let inserted = 0;
 
@@ -181,6 +224,7 @@ async function discoverUpcomingBulletinMatches(db = pool, {
     source_dates: sourceDates,
     discovered_future: found.length,
     unseen_future: unseen.length,
+    diversity_policy: 'least-seen-league-then-time-bucket',
     selected: selected.length,
     inserted_inactive: inserted,
     refreshed_existing: 0,
@@ -631,6 +675,7 @@ module.exports = {
   ENGINE_VERSION,
   kickoffAtMs,
   addIsoDays,
+  kickoffBucket,
   finishedLabel,
   teamNamesFromMatch,
   loadTrainingRows,

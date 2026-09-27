@@ -13,6 +13,32 @@ function finishedLabel(homeScore, awayScore, resultStatus) {
   return 'DRAW';
 }
 
+const VOLATILE_FEATURE_KEYS = new Set([
+  'collected_at',
+  'collectedAt',
+  'generated_at',
+  'generatedAt',
+  'fetched_at',
+  'fetchedAt'
+]);
+
+function sanitizeBacktestFeatures(value) {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeBacktestFeatures);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const clean = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (VOLATILE_FEATURE_KEYS.has(key)) continue;
+    clean[key] = sanitizeBacktestFeatures(item);
+  }
+  return clean;
+}
+
 function buildBacktestDatasetRow({
   eventId,
   referenceAt,
@@ -53,7 +79,9 @@ function buildBacktestDatasetRow({
     evTakimi: performance.evTakimi || null,
     deplasmanTakimi: performance.deplasmanTakimi || null,
     h2h: performance.h2h || null,
-    source_supplements: performance.source_supplements || {},
+    source_supplements: sanitizeBacktestFeatures(
+      performance.source_supplements || {}
+    ),
     primary_data_confidence: performance.primary_data_confidence ?? null,
     data_confidence: performance.data_confidence ?? null
   };
@@ -125,6 +153,7 @@ async function buildAndSaveBacktestDataset({
 }
 
 module.exports = {
+  sanitizeBacktestFeatures,
   buildBacktestDatasetRow,
   buildAndSaveBacktestDataset
 };

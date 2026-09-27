@@ -35,34 +35,61 @@ function historicalReferenceAt(match) {
 
 async function listHistoricalBacktestCandidates({
   limit = 25,
+  engineVersion = 82,
   db = pool
 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 500);
+  const safeEngineVersion = Number(engineVersion);
+  if (!Number.isInteger(safeEngineVersion) || safeEngineVersion <= 0) {
+    throw new Error('Geçerli backtest engineVersion gerekli.');
+  }
+
   const r = await db.query(`
     SELECT
-      event_id, url, display_name, match_slug,
-      match_date, kickoff_time,
-      home_score, away_score, result_status, lifecycle
-    FROM matches
-    WHERE lifecycle='finished'
-      AND result_status='finished'
-      AND home_score IS NOT NULL
-      AND away_score IS NOT NULL
-      AND match_date IS NOT NULL
-      AND display_name IS NOT NULL
-    ORDER BY match_date ASC, kickoff_time ASC NULLS LAST, event_id ASC
+      m.event_id, m.url, m.display_name, m.match_slug,
+      m.match_date, m.kickoff_time,
+      m.home_score, m.away_score, m.result_status, m.lifecycle
+    FROM matches m
+    WHERE m.lifecycle='finished'
+      AND m.result_status='finished'
+      AND m.home_score IS NOT NULL
+      AND m.away_score IS NOT NULL
+      AND m.match_date IS NOT NULL
+      AND m.display_name IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM backtest_dataset b
+        WHERE b.event_id = m.event_id
+          AND b.engine_version = $2
+          AND b.reference_at = (
+            (
+              m.match_date::date +
+              CASE
+                WHEN m.kickoff_time ~ '^(?:[01]?[0-9]|2[0-3]):[0-5][0-9]$'
+                  THEN m.kickoff_time::time
+                ELSE TIME '00:00'
+              END
+            ) AT TIME ZONE 'Europe/Istanbul'
+          )
+      )
+    ORDER BY m.match_date ASC, m.kickoff_time ASC NULLS LAST, m.event_id ASC
     LIMIT $1
-  `, [safeLimit]);
+  `, [safeLimit, safeEngineVersion]);
   return r.rows;
 }
 
 async function runHistoricalBacktest({
   limit = 25,
+  engineVersion = 82,
   dryRun = false,
   db = pool,
   buildAndSave = buildAndSaveBacktestDataset
 } = {}) {
-  const matches = await listHistoricalBacktestCandidates({ limit, db });
+  const matches = await listHistoricalBacktestCandidates({
+    limit,
+    engineVersion,
+    db
+  });
   const results = [];
 
   for (const match of matches) {

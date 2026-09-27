@@ -48,10 +48,27 @@ function buildTemporalBacktestSplit(rows, {
     return ams - bms || String(a.event_id || '').localeCompare(String(b.event_id || ''));
   });
 
-  const splitIndex = Math.min(
+  let splitIndex = Math.min(
     sorted.length - 1,
     Math.max(1, Math.floor(sorted.length * ratio))
   );
+
+  const boundaryMs = Date.parse(sorted[splitIndex - 1].reference_at);
+  while (
+    splitIndex < sorted.length - 1 &&
+    Date.parse(sorted[splitIndex].reference_at) === boundaryMs
+  ) {
+    splitIndex++;
+  }
+
+  if (Date.parse(sorted[splitIndex].reference_at) === boundaryMs) {
+    while (
+      splitIndex > 1 &&
+      Date.parse(sorted[splitIndex - 1].reference_at) === boundaryMs
+    ) {
+      splitIndex--;
+    }
+  }
 
   const fullDataset = buildMlReadyRows(sorted);
   const trainRows = fullDataset.rows.slice(0, splitIndex);

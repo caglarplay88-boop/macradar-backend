@@ -21,7 +21,7 @@ const MODEL_NAME = 'two_core_dynamic_delta';
 const ENGINE_VERSION = 83;
 const DEFAULT_LIMIT = 10;
 const DEFAULT_FEED_LIMIT = 1;
-const DEFAULT_DISCOVERY_LIMIT = 5;
+const DEFAULT_DISCOVERY_LIMIT = 1;
 const PREPARING_FRESH_MS = 15 * 60 * 1000;
 
 function kickoffAtMs(match) {
@@ -144,9 +144,16 @@ async function discoverUpcomingBulletinMatches(db = pool, {
     String(a.event_id).localeCompare(String(b.event_id))
   );
 
-  const selected = found.slice(0, Math.max(0, Number(limit)));
+  const existingRows = await db.query(`
+    SELECT event_id
+    FROM matches
+    WHERE match_date >= $1::date
+  `, [today]);
+  const existing = new Set(existingRows.rows.map(row => row.event_id));
+
+  const unseen = found.filter(match => !existing.has(match.event_id));
+  const selected = unseen.slice(0, Math.max(0, Number(limit)));
   let inserted = 0;
-  let refreshed = 0;
 
   for (const match of selected) {
     const q = await db.query(`
@@ -155,15 +162,8 @@ async function discoverUpcomingBulletinMatches(db = pool, {
         display_name,league,match_date,kickoff_time
       )
       VALUES($1,$2,$3,FALSE,NOW(),NOW(),$4,$5,$6,$7)
-      ON CONFLICT(event_id) DO UPDATE SET
-        url = EXCLUDED.url,
-        match_slug = EXCLUDED.match_slug,
-        display_name = COALESCE(EXCLUDED.display_name,matches.display_name),
-        league = COALESCE(EXCLUDED.league,matches.league),
-        match_date = COALESCE(EXCLUDED.match_date,matches.match_date),
-        kickoff_time = COALESCE(EXCLUDED.kickoff_time,matches.kickoff_time),
-        updated_at = NOW()
-      RETURNING (xmax = 0) AS inserted
+      ON CONFLICT(event_id) DO NOTHING
+      RETURNING event_id
     `, [
       match.event_id,
       match.url,
@@ -174,16 +174,16 @@ async function discoverUpcomingBulletinMatches(db = pool, {
       match.kickoff_time
     ]);
 
-    if (q.rows[0]?.inserted === true) inserted++;
-    else refreshed++;
+    inserted += q.rowCount;
   }
 
   return {
     source_dates: sourceDates,
     discovered_future: found.length,
+    unseen_future: unseen.length,
     selected: selected.length,
     inserted_inactive: inserted,
-    refreshed_existing: refreshed,
+    refreshed_existing: 0,
     events: selected.map(m => ({
       event_id: m.event_id,
       name: m.display_name,

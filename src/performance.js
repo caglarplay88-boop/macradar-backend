@@ -171,7 +171,12 @@ function isFinished(m, now = Date.now()) {
   const s = String(m.status || '').toLowerCase();
   const homeScore = num(m.homeScore);
   const awayScore = num(m.awayScore);
-  const hasValidScore = Number.isInteger(homeScore) && homeScore >= 0 && Number.isInteger(awayScore) && awayScore >= 0;
+  const hasValidScore =
+    Number.isInteger(homeScore) && homeScore >= 0 &&
+    Number.isInteger(awayScore) && awayScore >= 0;
+  if (/postpon|cancel|abandon|suspend|interrupt|not started|scheduled|fixture|tbd/.test(s)) {
+    return false;
+  }
   if (/\b(ft|aet|pen|finished|true)\b/.test(s)) return hasValidScore;
   const t = Date.parse(m.date);
   return Number.isFinite(t) && t < now - 3 * 60 * 60 * 1000 && hasValidScore;
@@ -889,6 +894,8 @@ function resultSummary(matches, teamName) {
   };
   for (const m of matches) {
     const isHome = teamNameMatches(m.home, teamName);
+    const isAway = teamNameMatches(m.away, teamName);
+    if (!isHome && !isAway) continue;
     const gf = num(isHome ? m.homeScore : m.awayScore);
     const ga = num(isHome ? m.awayScore : m.homeScore);
     if (!Number.isInteger(gf) || gf < 0 || !Number.isInteger(ga) || ga < 0) continue;

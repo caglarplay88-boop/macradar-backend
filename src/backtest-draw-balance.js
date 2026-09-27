@@ -127,6 +127,90 @@ function predictHomeAway(model, row) {
   return home <= away ? 'HOME' : 'AWAY';
 }
 
+
+function binaryBalancedAccuracy(rows, threshold) {
+  let tp = 0;
+  let fn = 0;
+  let tn = 0;
+  let fp = 0;
+
+  for (const row of rows) {
+    const actualDraw = row.actual_draw === 1;
+    const predictedDraw = row.draw_probability >= threshold;
+
+    if (actualDraw && predictedDraw) tp++;
+    else if (actualDraw) fn++;
+    else if (predictedDraw) fp++;
+    else tn++;
+  }
+
+  const tpr = tp + fn ? tp / (tp + fn) : 0;
+  const tnr = tn + fp ? tn / (tn + fp) : 0;
+  return {
+    score: (tpr + tnr) / 2,
+    tpr,
+    tnr,
+    tp,
+    fn,
+    tn,
+    fp
+  };
+}
+
+function calibrateDrawThresholdTrainOnly(trainRows, featureNames, {
+  calibrationRatio = 0.25,
+  thresholds = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85]
+} = {}) {
+  if (!Array.isArray(trainRows) || trainRows.length < 8) {
+    return { threshold: 0.5, reason: 'insufficient-train', score: null };
+  }
+
+  const splitIndex = Math.max(5, Math.floor(trainRows.length * (1 - calibrationRatio)));
+  const fitRows = trainRows.slice(0, splitIndex);
+  const calibrationRows = trainRows.slice(splitIndex);
+
+  const fitDraw = fitRows.filter(r => r.label_1x2 === 'DRAW').length;
+  const fitNonDraw = fitRows.length - fitDraw;
+  const calDraw = calibrationRows.filter(r => r.label_1x2 === 'DRAW').length;
+  const calNonDraw = calibrationRows.length - calDraw;
+
+  if (!fitDraw || !fitNonDraw || !calDraw || !calNonDraw) {
+    return { threshold: 0.5, reason: 'insufficient-class-coverage', score: null };
+  }
+
+  const model = trainBinaryDrawLogistic(fitRows, featureNames);
+  const calibration = calibrationRows.map(row => ({
+    actual_draw: row.label_1x2 === 'DRAW' ? 1 : 0,
+    draw_probability: predictDrawProbability(model, row)
+  }));
+
+  const candidates = thresholds
+    .map(Number)
+    .filter(v => Number.isFinite(v) && v > 0 && v < 1);
+
+  if (!candidates.length) {
+    return { threshold: 0.5, reason: 'no-valid-thresholds', score: null };
+  }
+
+  const ranked = candidates.map(threshold => ({
+    threshold,
+    ...binaryBalancedAccuracy(calibration, threshold)
+  })).sort((a, b) =>
+    b.score - a.score ||
+    b.tnr - a.tnr ||
+    b.threshold - a.threshold
+  );
+
+  return {
+    threshold: ranked[0].threshold,
+    reason: 'calibrated',
+    score: ranked[0].score,
+    calibration_count: calibration.length,
+    calibration_draw_count: calDraw,
+    calibration_non_draw_count: calNonDraw
+  };
+}
+
 function evaluateWalkForwardDrawBalance(rows, {
   minTrainSize = 15,
   stableTopK = 50,
@@ -136,7 +220,8 @@ function evaluateWalkForwardDrawBalance(rows, {
   minUniqueValues = 2,
   majorityRatio = 0.6,
   balanceTopK = 20,
-  drawThreshold = 0.5
+  drawThreshold = 0.5,
+  calibrateThreshold = false
 } = {}) {
   if (!Array.isArray(rows) || rows.length <= minTrainSize) {
     throw new Error('DRAW balance walk-forward için yeterli satır gerekli.');
@@ -194,12 +279,17 @@ function evaluateWalkForwardDrawBalance(rows, {
       continue;
     }
 
+    const thresholdInfo = calibrateThreshold
+      ? calibrateDrawThresholdTrainOnly(trainBalance, balanceNames)
+      : { threshold: drawThreshold, reason: 'fixed', score: null };
+
+    const activeThreshold = thresholdInfo.threshold;
     const drawModel = trainBinaryDrawLogistic(trainBalance, balanceNames);
     const homeAwayModel = trainHomeAwayCentroid(trainDataset.rows, homeAwayNames);
 
     for (let i = 0; i < rawTest.length; i++) {
       const drawProbability = predictDrawProbability(drawModel, testBalance[i]);
-      const predicted = drawProbability >= drawThreshold
+      const predicted = drawProbability >= activeThreshold
         ? 'DRAW'
         : predictHomeAway(homeAwayModel, testDataset.rows[i]);
 
@@ -210,6 +300,9 @@ function evaluateWalkForwardDrawBalance(rows, {
         predicted,
         correct: predicted === testDataset.rows[i].label_1x2,
         draw_probability: drawProbability,
+        draw_threshold: activeThreshold,
+        threshold_reason: thresholdInfo.reason,
+        threshold_score: thresholdInfo.score,
         balance_feature_count: balanceNames.length,
         home_away_feature_count: homeAwayNames.length
       });
@@ -233,6 +326,8 @@ module.exports = {
   buildBalanceRows,
   binarySeparationScore,
   selectBalanceFeatures,
+  binaryBalancedAccuracy,
+  calibrateDrawThresholdTrainOnly,
   evaluateWalkForwardDrawBalance
 };
 

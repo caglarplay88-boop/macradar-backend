@@ -1078,8 +1078,8 @@ async function getUnavailable(browser, matchUrl, matchId) {
   };
 }
 
-function upcomingFrom(matches) {
-  const now = Date.now();
+function upcomingFrom(matches, referenceMs = Date.now()) {
+  const now = Number.isFinite(referenceMs) ? referenceMs : Date.now();
   return matches
     .filter(m => Number.isFinite(Date.parse(m.date)) && Date.parse(m.date) > now)
     .sort((a,b) => Date.parse(a.date) - Date.parse(b.date))
@@ -1421,10 +1421,18 @@ function buildCoachSystemChanges(lineupRows) {
   };
 }
 
-async function buildTeam(browser, info, opponentName) {
+async function buildTeam(browser, info, opponentName, referenceMs = Date.now()) {
   const { matches, jsons, source } = await collectTeamDataSmart(browser, info);
-  const finished = matches.filter(isFinished).sort((a,b) => Date.parse(b.date) - Date.parse(a.date)).slice(0,10);
-  const upcoming = upcomingFrom(matches);
+  const cutoff = Number.isFinite(referenceMs) ? referenceMs : Date.now();
+  const finished = matches
+    .filter(m =>
+      Number.isFinite(Date.parse(m.date)) &&
+      Date.parse(m.date) < cutoff &&
+      isFinished(m, cutoff)
+    )
+    .sort((a,b) => Date.parse(b.date) - Date.parse(a.date))
+    .slice(0,10);
+  const upcoming = upcomingFrom(matches, cutoff);
 
   const rows = await mapLimit(finished, 4, async m => {
     const details = await fetchFotMobMatchDetails(m.id);
@@ -1787,8 +1795,8 @@ async function buildTeam(browser, info, opponentName) {
       url: m.url
     })),
     fiksturYogunlugu: {
-      sonraki7Gun: upcoming.filter(m => Date.parse(m.date) <= Date.now() + 7 * 86400000).length,
-      sonraki14Gun: upcoming.filter(m => Date.parse(m.date) <= Date.now() + 14 * 86400000).length
+      sonraki7Gun: upcoming.filter(m => Date.parse(m.date) <= cutoff + 7 * 86400000).length,
+      sonraki14Gun: upcoming.filter(m => Date.parse(m.date) <= cutoff + 14 * 86400000).length
     },
     ligDurumu: leagueFromJsons(jsons, info.name),
     veriKaynagi: source,
@@ -1796,7 +1804,8 @@ async function buildTeam(browser, info, opponentName) {
   };
 }
 
-function matchBetweenUpcoming(matches, a, b) {
+function matchBetweenUpcoming(matches, a, b, referenceMs = Date.now()) {
+  const cutoff = Number.isFinite(referenceMs) ? referenceMs : Date.now();
   return matches
     .filter(m => {
       return (
@@ -1807,8 +1816,8 @@ function matchBetweenUpcoming(matches, a, b) {
         teamNameMatches(m.away, a)
       );
     })
-    .filter(m => Number.isFinite(Date.parse(m.date)) && Date.parse(m.date) > Date.now() - 4 * 60 * 60 * 1000)
-    .sort((x,y) => Math.abs(Date.parse(x.date) - Date.now()) - Math.abs(Date.parse(y.date) - Date.now()))[0] || null;
+    .filter(m => Number.isFinite(Date.parse(m.date)) && Date.parse(m.date) > cutoff - 4 * 60 * 60 * 1000)
+    .sort((x,y) => Math.abs(Date.parse(x.date) - cutoff) - Math.abs(Date.parse(y.date) - cutoff))[0] || null;
 }
 
 
@@ -2134,12 +2143,24 @@ async function fetchMatchupData(
   }
 }
 
-async function buildFotMobPerformancePackage({ home, away }) {
+async function buildFotMobPerformancePackage({ home, away, matchDate = null }) {
   if (!home?.name || !away?.name) {
     throw new Error('home/away takım adı gerekli.');
   }
 
-  const cacheKey = JSON.stringify([home.name, home.url || '', away.name, away.url || '']);
+  const parsedReference = Date.parse(matchDate || '');
+  const referenceMs = Number.isFinite(parsedReference) ? parsedReference : Date.now();
+  const referenceKey = Number.isFinite(parsedReference)
+    ? new Date(parsedReference).toISOString()
+    : 'current';
+
+  const cacheKey = JSON.stringify([
+    home.name,
+    home.url || '',
+    away.name,
+    away.url || '',
+    referenceKey
+  ]);
   const hit = performanceCacheGet(cacheKey);
   if (hit) return { ...hit.data, cache: true };
 
@@ -2161,7 +2182,13 @@ async function buildFotMobPerformancePackage({ home, away }) {
       }
     }
 
-    const resolvedCacheKey = JSON.stringify([homeInfo.name, homeInfo.url, awayInfo.name, awayInfo.url]);
+    const resolvedCacheKey = JSON.stringify([
+      homeInfo.name,
+      homeInfo.url,
+      awayInfo.name,
+      awayInfo.url,
+      referenceKey
+    ]);
     const resolvedHit = performanceCacheGet(resolvedCacheKey);
     if (resolvedHit) {
       return { ...resolvedHit.data, cache: true };
@@ -2177,12 +2204,12 @@ async function buildFotMobPerformancePackage({ home, away }) {
       awayId,
     );
 
-    const homePack = await buildTeam(browser, homeInfo, awayInfo.name);
-    const awayPack = await buildTeam(browser, awayInfo, homeInfo.name);
+    const homePack = await buildTeam(browser, homeInfo, awayInfo.name, referenceMs);
+    const awayPack = await buildTeam(browser, awayInfo, homeInfo.name, referenceMs);
 
     const targetMatch =
-      matchBetweenUpcoming(homePack._allMatches, homeInfo.name, awayInfo.name) ||
-      matchBetweenUpcoming(awayPack._allMatches, homeInfo.name, awayInfo.name) ||
+      matchBetweenUpcoming(homePack._allMatches, homeInfo.name, awayInfo.name, referenceMs) ||
+      matchBetweenUpcoming(awayPack._allMatches, homeInfo.name, awayInfo.name, referenceMs) ||
       matchup.target;
 
     const unavailable = await getUnavailable(browser, targetMatch?.url, targetMatch?.id);
@@ -2230,7 +2257,7 @@ async function buildFotMobPerformancePackage({ home, away }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 75,
+        engineVersion: 77,
       },
       cache: false
     };
@@ -2542,10 +2569,10 @@ function buildUnderstatTeamPack(resolved, opponentName, referenceMs = Date.now()
     })),
     fiksturYogunlugu: {
       sonraki7Gun: upcoming.filter(
-        m => Date.parse(m.date) <= Date.now() + 7 * 86400000
+        m => Date.parse(m.date) <= cutoff + 7 * 86400000
       ).length,
       sonraki14Gun: upcoming.filter(
-        m => Date.parse(m.date) <= Date.now() + 14 * 86400000
+        m => Date.parse(m.date) <= cutoff + 14 * 86400000
       ).length,
     },
     ligDurumu: null,
@@ -2610,8 +2637,8 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
       const af = a.isResult ? 1 : 0;
       const bf = b.isResult ? 1 : 0;
       if (af !== bf) return af - bf;
-      return Math.abs(Date.parse(a.date) - Date.now()) -
-        Math.abs(Date.parse(b.date) - Date.now());
+      return Math.abs(Date.parse(a.date) - referenceMs) -
+        Math.abs(Date.parse(b.date) - referenceMs);
     });
 
   const targetMatch = candidates[0] || null;
@@ -2659,7 +2686,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 75,
+      engineVersion: 77,
     },
     cache: false,
   };
@@ -2900,7 +2927,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 75
+      engineVersion: 77
     },
     cache: false
   };
@@ -4947,7 +4974,11 @@ function build365ScoresUnderlyingConsistency(trend) {
   };
 }
 
-async function build365ScoresTeamSupplement(teamName, referenceMs) {
+async function build365ScoresTeamSupplement(
+  teamName,
+  referenceMs,
+  currentStandingsSafe = true
+) {
   const team = await resolve365ScoresTeam(teamName);
   const allHistory = await fetch365ScoresResults(team.id, referenceMs);
   const games = allHistory.slice(0, 10);
@@ -4956,7 +4987,9 @@ async function build365ScoresTeamSupplement(teamName, referenceMs) {
     team.id,
     referenceMs
   );
-  const standings = await fetch365ScoresStandings(team.mainCompetitionId);
+  const standings = currentStandingsSafe
+    ? await fetch365ScoresStandings(team.mainCompetitionId)
+    : new Map();
 
   const matches = await mapLimit(games, 3, async game => {
     const [statsResult, timelineResult] = await Promise.allSettled([
@@ -5263,6 +5296,10 @@ async function build365ScoresTeamSupplement(teamName, referenceMs) {
       source: '365Scores',
       basis: 'current-standings-snapshot',
       competitionId: team.mainCompetitionId,
+      referenceDateSafe: currentStandingsSafe,
+      status: currentStandingsSafe
+        ? 'current-snapshot-allowed'
+        : 'historical-current-snapshot-blocked',
       dataMatches: opponentRows.length,
       matches: opponentRows
     },
@@ -5279,10 +5316,21 @@ async function build365ScoresSupplement(input) {
   const referenceMs = Number.isFinite(parsedReference)
     ? parsedReference
     : Date.now();
+  const currentStandingsSafe =
+    !Number.isFinite(parsedReference) ||
+    parsedReference >= Date.now();
 
   const [home, away] = await Promise.all([
-    build365ScoresTeamSupplement(input.home.name, referenceMs),
-    build365ScoresTeamSupplement(input.away.name, referenceMs)
+    build365ScoresTeamSupplement(
+      input.home.name,
+      referenceMs,
+      currentStandingsSafe
+    ),
+    build365ScoresTeamSupplement(
+      input.away.name,
+      referenceMs,
+      currentStandingsSafe
+    )
   ]);
 
   if (!home.dataMatches && !away.dataMatches) {
@@ -5293,15 +5341,18 @@ async function build365ScoresSupplement(input) {
     home?.opponentQuality?.competitionId ||
     away?.opponentQuality?.competitionId ||
     null;
-  const competitionContext = competitionId
-    ? await fetch365ScoresCompetitionContext(competitionId)
-    : null;
-  const cachedStandings = competitionId
-    ? scores365StandingsCache.get(String(competitionId))?.rows
-    : null;
+  const competitionContext =
+    currentStandingsSafe && competitionId
+      ? await fetch365ScoresCompetitionContext(competitionId)
+      : null;
+  const cachedStandings =
+    currentStandingsSafe && competitionId
+      ? scores365StandingsCache.get(String(competitionId))?.rows
+      : null;
 
   const matchContext = competitionContext ? {
     ...competitionContext,
+    referenceDateSafe: true,
     home: cachedStandings?.get(Number(home.competitorId)) || null,
     away: cachedStandings?.get(Number(away.competitorId)) || null
   } : null;

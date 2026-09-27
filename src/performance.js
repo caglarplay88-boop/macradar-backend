@@ -2230,7 +2230,7 @@ async function buildFotMobPerformancePackage({ home, away }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 72,
+        engineVersion: 73,
       },
       cache: false
     };
@@ -2659,7 +2659,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 72,
+      engineVersion: 73,
     },
     cache: false,
   };
@@ -2900,7 +2900,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 72
+      engineVersion: 73
     },
     cache: false
   };
@@ -3018,6 +3018,103 @@ function hasUsableProgressionSources(team) {
   return fotMobUsable || scores365Usable;
 }
 
+function buildXgResultVsUnderlyingContext(team, sourceOverride = null) {
+  const rows = (Array.isArray(team?.maclar) ? team.maclar : [])
+    .slice(0, 5)
+    .filter(row => {
+      if (!finiteNumber(row?.xG)) return false;
+      const isHome = teamNameMatches(row?.ev, team?.takim);
+      const isAway = teamNameMatches(row?.deplasman, team?.takim);
+      if (!isHome && !isAway) return false;
+      const goals = isHome ? row?.evGol : row?.deplasmanGol;
+      return finiteNumber(goals);
+    });
+
+  if (!rows.length) return null;
+
+  const goals = rows.map(row =>
+    teamNameMatches(row.ev, team.takim) ? row.evGol : row.deplasmanGol
+  );
+  const xg = rows.map(row => row.xG);
+  const goalsPerMatch = Number(
+    (goals.reduce((sum, value) => sum + value, 0) / rows.length).toFixed(2)
+  );
+  const xGPerMatch = Number(
+    (xg.reduce((sum, value) => sum + value, 0) / rows.length).toFixed(2)
+  );
+
+  return {
+    source: sourceOverride || team?.veriKaynagi || 'primary',
+    basis: 'goals-vs-xg',
+    dataMatches: rows.length,
+    goalsPerMatch,
+    xGPerMatch,
+    goalsMinusXg: Number((goalsPerMatch - xGPerMatch).toFixed(2)),
+    interpretationStatus: 'descriptive-result-vs-xg-no-weighting'
+  };
+}
+
+function build365ResultVsUnderlyingContext(team) {
+  const context = team?.underlyingConsistency;
+  if (!context || typeof context !== 'object') return null;
+  const usable = Object.values(context.indicators || {}).some(
+    indicator => indicator?.relation && indicator.relation !== 'unavailable'
+  );
+  if (!usable || !context.goalsFor) return null;
+
+  return {
+    source: '365Scores',
+    basis: 'goals-vs-shot-trend-support',
+    comparison: context.comparison ?? null,
+    goalsFor: context.goalsFor,
+    indicators: context.indicators,
+    interpretationStatus: 'shot-trend-support-not-xg'
+  };
+}
+
+function buildTeamResultVsUnderlyingSources(primaryTeam, scores365Team, understatTeam, primarySource = null) {
+  const sources = {};
+
+  const primary = buildXgResultVsUnderlyingContext(primaryTeam, primarySource);
+  if (primary) {
+    sources[primary.source] = primary;
+  }
+
+  if (understatTeam?.resultVsUnderlying) {
+    sources.Understat = understatTeam.resultVsUnderlying;
+  }
+
+  const scores365 = build365ResultVsUnderlyingContext(scores365Team);
+  if (scores365) {
+    sources['365Scores'] = scores365;
+  }
+
+  return sources;
+}
+
+function hasUsableResultVsUnderlying(team) {
+  const sources = team?.resultVsUnderlyingSources;
+  if (!sources || typeof sources !== 'object') return false;
+
+  return Object.values(sources).some(context => {
+    if (!context || typeof context !== 'object') return false;
+    if (
+      context.basis === 'goals-vs-xg' &&
+      (context.dataMatches || 0) > 0 &&
+      finiteNumber(context.goalsPerMatch) &&
+      finiteNumber(context.xGPerMatch)
+    ) {
+      return true;
+    }
+    if (context.source === '365Scores') {
+      return Object.values(context.indicators || {}).some(
+        indicator => indicator?.relation && indicator.relation !== 'unavailable'
+      );
+    }
+    return false;
+  });
+}
+
 function evaluatePerformanceCoverage(data) {
   const checks = {
     general_strength: bothTeams(data, hasLeague),
@@ -3103,6 +3200,7 @@ function evaluatePerformanceCoverage(data) {
       objectHasAny(team?.standartIstatistik?.son5, ['redCards']) ||
       objectHasAny(team, ['redCardContext', 'kirmiziKart'])
     ),
+    result_vs_underlying: bothTeams(data, hasUsableResultVsUnderlying),
     match_history: bothTeams(data, hasMatchHistory),
     match_identity: Boolean(data?.mac?.ev && data?.mac?.deplasman),
     source_provenance: Boolean(
@@ -5280,7 +5378,8 @@ function compactUnderstatXgSupplement(data) {
       xGVerisi: team?.son10?.xGVerisi ?? 0,
       xG: finiteNumber(team?.son10?.xG) ? team.son10.xG : null,
       xGA: finiteNumber(team?.son10?.xGA) ? team.son10.xGA : null
-    }
+    },
+    resultVsUnderlying: buildXgResultVsUnderlyingContext(team, 'Understat')
   });
   return {
     source: 'Understat',
@@ -5298,7 +5397,8 @@ function needs365ScoresSupplement(data, coverage) {
   if (!data || !coverage) return false;
   return coverage.missing.includes('shot_quality') ||
     coverage.missing.includes('set_pieces') ||
-    coverage.missing.includes('possession_quality');
+    coverage.missing.includes('possession_quality') ||
+    coverage.missing.includes('result_vs_underlying');
 }
 
 function needsMackolikSupplement(coverage) {
@@ -5906,6 +6006,7 @@ function attachStyleSources(data, supplements) {
     supplements?.scores365Style ||
     supplements?.scores365 ||
     null;
+  const understatXg = supplements?.understatXg || null;
 
   return {
     ...data,
@@ -5925,6 +6026,12 @@ function attachStyleSources(data, supplements) {
       pressingSources: buildTeamPressingSources(
         data.evTakimi,
         scores365?.home
+      ),
+      resultVsUnderlyingSources: buildTeamResultVsUnderlyingSources(
+        data.evTakimi,
+        scores365?.home,
+        understatXg?.home,
+        data?.meta?.kaynak || null
       )
     } : data.evTakimi,
     deplasmanTakimi: data.deplasmanTakimi ? {
@@ -5943,6 +6050,12 @@ function attachStyleSources(data, supplements) {
       pressingSources: buildTeamPressingSources(
         data.deplasmanTakimi,
         scores365?.away
+      ),
+      resultVsUnderlyingSources: buildTeamResultVsUnderlyingSources(
+        data.deplasmanTakimi,
+        scores365?.away,
+        understatXg?.away,
+        data?.meta?.kaynak || null
       )
     } : data.deplasmanTakimi
   };

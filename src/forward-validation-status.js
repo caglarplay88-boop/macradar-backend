@@ -7,6 +7,26 @@ const { classificationMetrics } = require('./backtest-final-evaluation');
 
 const MODEL_NAME = 'two_core_dynamic_delta';
 
+function kickoffBucket(kickoffTime) {
+  const m = String(kickoffTime || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return 'unknown';
+  const hour = Number(m[1]);
+  const start = Math.floor(hour / 3) * 3;
+  return String(start).padStart(2, '0') + '-' +
+    String(start + 2).padStart(2, '0');
+}
+
+function countValues(values) {
+  const counts = {};
+  for (const value of values) {
+    const key = String(value ?? 'unknown');
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return Object.fromEntries(
+    Object.entries(counts).sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  );
+}
+
 async function buildForwardValidationStatus(db = pool, {
   modelName = MODEL_NAME,
   recentLimit = 8
@@ -47,6 +67,27 @@ async function buildForwardValidationStatus(db = pool, {
     ? classificationMetrics(settled.rows)
     : null;
 
+  const sample = await db.query(`
+    SELECT
+      f.prediction,
+      m.league,
+      m.kickoff_time
+    FROM ${TABLE} f
+    JOIN matches m ON m.event_id = f.event_id
+    WHERE f.model_name = $1
+    ORDER BY f.predicted_at,f.event_id
+  `, [modelName]);
+
+  const leagueCounts = countValues(
+    sample.rows.map(row => row.league || 'unknown')
+  );
+  const kickoffBucketCounts = countValues(
+    sample.rows.map(row => kickoffBucket(row.kickoff_time))
+  );
+  const predictionCounts = countValues(
+    sample.rows.map(row => row.prediction || 'unknown')
+  );
+
   return {
     model: modelName,
     total: summary.total_predictions,
@@ -55,6 +96,13 @@ async function buildForwardValidationStatus(db = pool, {
     correct: summary.correct,
     accuracy: summary.settled_accuracy,
     settled_metrics: settledMetrics,
+    diversity: {
+      league_count: Object.keys(leagueCounts).length,
+      league_distribution: leagueCounts,
+      kickoff_bucket_count: Object.keys(kickoffBucketCounts).length,
+      kickoff_bucket_distribution: kickoffBucketCounts,
+      prediction_distribution: predictionCounts
+    },
     quality_gate: summary.quality_gate,
     recent: recent.rows
   };
@@ -120,6 +168,25 @@ function formatForwardValidationStatus(status) {
     lines.push('Class metrics: waiting for settled predictions');
   }
 
+  const diversity = status.diversity || {};
+  const formatCounts = counts => Object.entries(counts || {})
+    .map(([key,value]) => key + '=' + value)
+    .join(', ');
+
+  lines.push(
+    'Diversity: leagues=' + (diversity.league_count ?? 0) +
+    ' | kickoff buckets=' + (diversity.kickoff_bucket_count ?? 0)
+  );
+  lines.push(
+    'Predictions: ' + (formatCounts(diversity.prediction_distribution) || '-')
+  );
+  lines.push(
+    'Kickoff buckets: ' + (formatCounts(diversity.kickoff_bucket_distribution) || '-')
+  );
+  lines.push(
+    'Leagues: ' + (formatCounts(diversity.league_distribution) || '-')
+  );
+
   if (Array.isArray(gate.reasons) && gate.reasons.length) {
     lines.push('Gate reasons: ' + gate.reasons.join(', '));
   }
@@ -161,6 +228,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  kickoffBucket,
+  countValues,
   buildForwardValidationStatus,
   formatForwardValidationStatus
 };

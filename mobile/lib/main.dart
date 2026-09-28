@@ -415,8 +415,10 @@ class Api {
   }
 }
 
-const int performanceEngineVersion = 83;
+const int performanceEngineVersion = 84;
+const Duration performanceCacheMaxAge = Duration(minutes: 20);
 const String performanceCachePrefix = 'macradar_performance_v3_';
+const String performanceCacheSavedAtPrefix = 'macradar_performance_saved_at_v1_';
 final Map<String, Future<Map<String, dynamic>>> performanceInFlight = {};
 
 Future<Map<String, dynamic>?> readLocalPerformance(String eventId) async {
@@ -424,6 +426,10 @@ Future<Map<String, dynamic>?> readLocalPerformance(String eventId) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(performanceCachePrefix + eventId);
     if (raw == null || raw.isEmpty) return null;
+    final savedAtMs = prefs.getInt(performanceCacheSavedAtPrefix + eventId);
+    if (savedAtMs == null) return null;
+    final age = DateTime.now().millisecondsSinceEpoch - savedAtMs;
+    if (age < 0 || age >= performanceCacheMaxAge.inMilliseconds) return null;
     final decoded = jsonDecode(raw);
     return decoded is Map
         ? Map<String, dynamic>.from(decoded)
@@ -439,9 +445,19 @@ Future<void> saveLocalPerformance(
 ) async {
   try {
     final prefs = await SharedPreferences.getInstance();
+    final cacheMeta = data['performance_cache'];
+    final updatedAtRaw = cacheMeta is Map ? cacheMeta['updated_at']?.toString() : null;
+    final updatedAt = updatedAtRaw == null ? null : DateTime.tryParse(updatedAtRaw);
+    final savedAtMs = updatedAt?.millisecondsSinceEpoch;
+    await prefs.remove(performanceCacheSavedAtPrefix + eventId);
+    if (savedAtMs == null) return;
     await prefs.setString(
       performanceCachePrefix + eventId,
       jsonEncode(data),
+    );
+    await prefs.setInt(
+      performanceCacheSavedAtPrefix + eventId,
+      savedAtMs,
     );
   } catch (_) {}
 }
@@ -453,7 +469,7 @@ bool _hasPerformanceData(Map<String, dynamic> d) {
       : null;
 
   return engineVersion != null &&
-      engineVersion >= performanceEngineVersion &&
+      engineVersion == performanceEngineVersion &&
       d['evTakimi'] is Map &&
       d['deplasmanTakimi'] is Map;
 }
@@ -540,11 +556,16 @@ Future<Map<String, dynamic>> fetchPerformancePersistent(
 
   performanceInFlight[eventId] = future;
 
-  future.whenComplete(() {
-    if (identical(performanceInFlight[eventId], future)) {
-      performanceInFlight.remove(eventId);
-    }
-  }).catchError((_) {});
+  unawaited(
+    future.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    ).whenComplete(() {
+      if (identical(performanceInFlight[eventId], future)) {
+        performanceInFlight.remove(eventId);
+      }
+    }),
+  );
 
   return future;
 }
@@ -4008,7 +4029,7 @@ class _MatchDetailState extends State<MatchDetail> {
                 )),
                 Expanded(child: _PerformanceTabButtonV83(
                   icon: Icons.analytics_outlined,
-                  label: 'Performans v83',
+                  label: 'Performans v$performanceEngineVersion',
                   selected: showPerformanceV83,
                   onTap: () => setState(() => showPerformanceV83 = true),
                 )),
@@ -4329,6 +4350,10 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
     return v.toString();
   }
 
+  String _confidenceText(dynamic value) {
+    return value == null ? 'Hesaplanmadı' : _v(value);
+  }
+
   String _date(dynamic raw) {
     if (raw == null) return '—';
     try {
@@ -4443,15 +4468,13 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
     final parts = <Widget>[
       _chip('Kaynak: ' + (meta['kaynak']?.toString() ?? '—')),
       _chip('Kapsam: ' + _v(coverage['available_count'], decimals: 0) +
-          '/' + _v(coverage['total_count'], decimals: 0)),
+          '/' + _v(coverage['total_count'], decimals: 0) +
+          (coverage['score'] != null
+              ? ' · %' + _v(coverage['score'], decimals: 0)
+              : '')),
+      _chip('Güven: ${_confidenceText(data['data_confidence'])}'),
       _chip(loadedFromCache ? 'Telefon cache' : 'Canlı API'),
     ];
-    if (data['data_confidence'] != null) {
-      parts.add(_chip('Güven: ' + _v(data['data_confidence'])));
-    }
-    if (data['primary_data_confidence'] != null) {
-      parts.add(_chip('Ana veri: ' + _v(data['primary_data_confidence'])));
-    }
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -4914,7 +4937,7 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
         margin: const EdgeInsets.only(bottom: 8),
         child: ExpansionTile(
           initiallyExpanded: true,
-          title: const Text('Veri kapsamı ve güven',
+          title: const Text('Veri kapsamı',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
           subtitle: Text(_v(c['available_count'], decimals: 0) + '/' +
               _v(c['total_count'], decimals: 0) + ' alan · ' +
@@ -4934,8 +4957,11 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
         'meta': data['meta'],
         'evTakimiKaynak': home['veriKaynagi'],
         'deplasmanTakimiKaynak': away['veriKaynagi'],
+        'coverage_score': c['score'],
+        'primary_coverage_score': c['primary_score'],
         'data_confidence': data['data_confidence'],
         'primary_data_confidence': data['primary_data_confidence'],
+        'confidence_policy': _map(data['meta'])['confidencePolicy'],
       }, maxDepth: 3),
       _generic('Supplement kaynakları', supplements,
           subtitle: supplements.isEmpty ? 'Supplement yok' : supplements.keys.join(', '),
@@ -4971,12 +4997,12 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
   Widget build(BuildContext context) {
     super.build(context);
     if (loading) {
-      return const Center(
+      return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 12),
-          Text('v83 Performans verileri hazırlanıyor…',
-              style: TextStyle(fontSize: 11, color: Color(0xFF97A39C))),
+          const CircularProgressIndicator(),
+          const SizedBox(height: 12),
+          Text('v$performanceEngineVersion Performans verileri hazırlanıyor…',
+              style: const TextStyle(fontSize: 11, color: Color(0xFF97A39C))),
         ]),
       );
     }
@@ -4985,7 +5011,7 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
     final home = _map(data['evTakimi']);
     final away = _map(data['deplasmanTakimi']);
     if (home.isEmpty || away.isEmpty) {
-      return ErrorPane(message: 'v83 Performans verisi eksik geldi.', retry: load);
+      return ErrorPane(message: 'v$performanceEngineVersion Performans verisi eksik geldi.', retry: load);
     }
 
     return RefreshIndicator(
@@ -5046,11 +5072,11 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
           _coverage(home, away),
 
           const SizedBox(height: 12),
-          const Center(
+          Center(
             child: Text(
-              'v83 · Gelecek veri sızıntısı engelli · Eksik değerler 0 kabul edilmez · Odds Performans hesabına dahil değildir',
+              'v$performanceEngineVersion · Gelecek veri sızıntısı engelli · Eksik değerler 0 kabul edilmez · Odds Performans hesabına dahil değildir',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 8.5, color: Color(0xFF68736D)),
+              style: const TextStyle(fontSize: 8.5, color: Color(0xFF68736D)),
             ),
           ),
         ],

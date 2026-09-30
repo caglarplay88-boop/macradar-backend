@@ -3352,7 +3352,7 @@ class _DroppingPageState extends State<DroppingPage> {
     super.initState();
     _load();
     _autoRefreshTimer = Timer.periodic(
-      const Duration(seconds: 15),
+      const Duration(seconds: 5),
       (_) {
         if (mounted && !_refreshing && !savingSettings) {
           _load(silent: true);

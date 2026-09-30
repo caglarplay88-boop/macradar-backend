@@ -552,43 +552,15 @@ async function pullOpeningOdds(rawUrl) {
       Date.now();
 
     try {
-      const [h1x2, hou, hbts] = await Promise.all([
-        fetchMarket(
-          parsed.eventId,
-          '1x2',
-          circuitTag,
-          source.socks
-        ),
-        fetchMarket(
-          parsed.eventId,
-          'ou',
-          circuitTag,
-          source.socks
-        ),
-        fetchMarket(
-          parsed.eventId,
-          'bts',
-          circuitTag,
-          source.socks
-        )
-      ]);
+      const h1x2 = await fetchMarket(
+        parsed.eventId,
+        '1x2',
+        circuitTag,
+        source.socks
+      );
 
       const msRows = uniqueInPageOrder(
         parseMarketHtml(h1x2, '1x2')
-      );
-
-      const ouRows = parseMarketHtml(hou, 'ou');
-
-      const ou15Rows = uniqueInPageOrder(
-        ouRows.filter(row => row.total === '1.5')
-      );
-
-      const ou25Rows = uniqueInPageOrder(
-        ouRows.filter(row => row.total === '2.5')
-      );
-
-      const btsRows = uniqueInPageOrder(
-        parseMarketHtml(hbts, 'bts')
       );
 
       const jobs = [];
@@ -631,26 +603,8 @@ async function pullOpeningOdds(rawUrl) {
         ['ms1', 'msx', 'ms2']
       );
 
-      addJobs(
-        ou15Rows,
-        '1.5',
-        ['Üst', 'Alt'],
-        ['ou15_over', 'ou15_under']
-      );
 
-      addJobs(
-        ou25Rows,
-        '2.5',
-        ['Üst', 'Alt'],
-        ['ou25_over', 'ou25_under']
-      );
 
-      addJobs(
-        btsRows,
-        'KG',
-        ['Var', 'Yok'],
-        ['btts_yes', 'btts_no']
-      );
 
       const rows = [];
       let cursor = 0;

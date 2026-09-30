@@ -1,5 +1,6 @@
 const http = require('http');
-const { pullOdds, closeBrowser } = require('./odds');
+const { pullOpeningOdds } = require('./odds');
+const { pullCurrent1x2, closeBrowser } = require('./odds-v2');
 const { sleep } = require('./util');
 
 const PORT = Number(process.env.PORT || 3000);
@@ -29,7 +30,7 @@ async function scrapeWithRetry(url, attempts = 3) {
   let last;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const data = await pullOdds(url);
+      const data = await pullCurrent1x2(url);
       return {
         ok: true,
         attempt,
@@ -49,6 +50,28 @@ async function scrapeWithRetry(url, attempts = 3) {
   return { ok: false, error: last?.message || String(last), attempts };
 }
 
+async function scrapeOpeningWithRetry(url, attempts = 2) {
+  let last;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const data = await pullOpeningOdds(url);
+      return {
+        ok: true,
+        attempt,
+        eventId: data.eventId,
+        url: data.url,
+        slug: data.slug,
+        meta: data.meta,
+        rows: data.rows
+      };
+    } catch (e) {
+      last = e;
+      if (attempt < attempts) await sleep(1500);
+    }
+  }
+  return { ok: false, error: last?.message || String(last), attempts };
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url === '/health') {
@@ -62,6 +85,14 @@ const server = http.createServer(async (req, res) => {
       if (!body.url) return json(res, 400, { error: 'url gerekli.' });
 
       const result = await scrapeWithRetry(String(body.url), 3);
+      return json(res, result.ok ? 200 : 502, result);
+    }
+
+    if (req.method === 'POST' && req.url === '/scrape-opening') {
+      const body = await readJson(req);
+      if (!body.url) return json(res, 400, { error: 'url gerekli.' });
+
+      const result = await scrapeOpeningWithRetry(String(body.url), 2);
       return json(res, result.ok ? 200 : 502, result);
     }
 

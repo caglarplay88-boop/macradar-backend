@@ -1,7 +1,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const { URL } = require('url');
-const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, archiveStartedMatch, finishMatch, pool, getPerformanceCache, markPerformancePreparing, savePerformanceCache, failPerformanceCache, getOpeningOdds } = require('./db');
+const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, archiveStartedMatch, finishMatch, pool, getPerformanceCache, markPerformancePreparing, savePerformanceCache, failPerformanceCache, getOpeningOdds, setMatchTrackingSettings, getOdds1x2State } = require('./db');
 const { getBulletin } = require('./bulletin');
 const { pullAndSave, pullOpeningAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
@@ -306,7 +306,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && u.pathname === '/api/settings') {
       return json(res, 200, {
         refresh_minutes: await getRefreshMinutes(),
-        allowed_refresh_minutes: [15, 30, 45, 60]
+        allowed_refresh_minutes: [5, 15, 30, 60, 120]
       });
     }
 
@@ -320,6 +320,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && u.pathname === '/api/matches') {
       return json(res, 200, { matches: await listMatches() });
     }
+    if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/odds\/1x2$/.test(u.pathname)) {
+      const eventId = decodeURIComponent(u.pathname.split('/')[3] || '');
+      const state = await getOdds1x2State(eventId);
+      return state
+        ? json(res, 200, state)
+        : json(res, 404, { error: 'Maç bulunamadı.' });
+    }
+
     if (req.method === 'GET' && /^\/api\/matches\/[^/]+$/.test(u.pathname)) {
       const eventId = eventFromPath(u.pathname);
       const m = await getMatch(eventId);
@@ -473,6 +481,7 @@ const server = http.createServer(async (req, res) => {
             await archiveStartedMatch(parsed.eventId);
           } else {
             await setActive(parsed.eventId, true);
+            await setMatchTrackingSettings(parsed.eventId, true, 60);
             eventIds.push(parsed.eventId);
             queueOpeningFetch(parsed.url, parsed.eventId);
           }
@@ -501,11 +510,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && u.pathname === '/api/settings/refresh-interval') {
       const body = await readJson(req);
       const minutes = Number(body.minutes);
-      const allowed = new Set([15, 30, 45, 60]);
+      const allowed = new Set([5, 15, 30, 60, 120]);
 
       if (!allowed.has(minutes)) {
         return json(res, 400, {
-          error: 'Aralık 15, 30, 45 veya 60 dakika olmalı.'
+          error: 'Aralık 5, 15, 30, 60 veya 120 dakika olmalı.'
         });
       }
 
@@ -534,6 +543,48 @@ const server = http.createServer(async (req, res) => {
 
       queueTargetRefresh([eventId], 'Manual');
       return json(res, 202, { ok: true, queued: true, eventId });
+    }
+
+    if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/tracking$/.test(u.pathname)) {
+      const eventId = eventFromPath(u.pathname, 'tracking');
+      const body = await readJson(req);
+      const enabled = body?.enabled;
+      const minutes = Number(body?.minutes);
+      const allowed = new Set([5, 15, 30, 60, 120]);
+
+      if (typeof enabled !== 'boolean' || !allowed.has(minutes)) {
+        return json(res, 400, {
+          error: 'enabled boolean ve minutes 5, 15, 30, 60 veya 120 olmalı.'
+        });
+      }
+
+      const current = await getMatch(eventId);
+      if (!current) return json(res, 404, { error: 'Maç bulunamadı.' });
+
+      if (
+        enabled &&
+        (
+          current.lifecycle === 'finished' ||
+          current.archived === true ||
+          matchHasStarted(current.match_date, current.kickoff_time)
+        )
+      ) {
+        return json(res, 409, {
+          error: 'Başlamış veya bitmiş maç için oran takibi başlatılamaz.'
+        });
+      }
+
+      const updated = await setMatchTrackingSettings(eventId, enabled, minutes);
+      if (enabled) {
+        queueOpeningFetch(current.url, eventId);
+        queueTargetRefresh([eventId], 'Tracking');
+      }
+
+      return json(res, 200, {
+        ok: true,
+        tracking_enabled: updated.tracking_enabled,
+        refresh_minutes: updated.refresh_minutes
+      });
     }
 
     if (req.method === 'DELETE' && /^\/api\/matches\/[^/]+$/.test(u.pathname)) {

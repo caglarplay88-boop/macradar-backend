@@ -7,15 +7,22 @@ const {
   archiveStartedMatch
 } = require('./db');
 const { pullAndSave } = require('./puller');
-const { closeBrowser } = require('./odds');
+const { closeBrowser } = require('./odds-v2');
 const { sleep } = require('./util');
 
 const LOCK_ID = 734221;
 const BETWEEN_MATCH_MS = Number(process.env.BETWEEN_MATCH_MS || 3500);
 
-function dueForRefresh(match, force, refreshMinutes) {
+function refreshMinutesForMatch(match, fallbackMinutes) {
+  const allowed = new Set([5, 15, 30, 60, 120]);
+  const value = Number(match?.refresh_minutes);
+  return allowed.has(value) ? value : fallbackMinutes;
+}
+
+function dueForRefresh(match, force, fallbackMinutes) {
   if (force || !match.last_capture) return true;
   const ageMs = Date.now() - new Date(match.last_capture).getTime();
+  const refreshMinutes = refreshMinutesForMatch(match, fallbackMinutes);
   return ageMs >= refreshMinutes * 60 * 1000;
 }
 
@@ -62,6 +69,7 @@ async function runWorkerOnce({ force = false, eventIds = null } = {}) {
 
     const refreshMinutes = await getRefreshMinutes();
     let matches = await listMatches({ activeOnly: true });
+    matches = matches.filter(m => m.tracking_enabled !== false);
 
     // Bu sistem yalnızca PRE-MATCH oranlarını takip eder.
     // Başlama saati gelen maçları otomatik pasife al; live oranları asla kaydetme.
@@ -104,7 +112,10 @@ async function runWorkerOnce({ force = false, eventIds = null } = {}) {
       const m = due[i];
       console.log(`[worker] ${i + 1}/${due.length} başlıyor: ${m.match_slug || m.event_id}`);
 
-      const result = await pullAndSave(m.url, { attempts: 3 });
+      const result = await pullAndSave(m.url, {
+        attempts: 3,
+        captureType: force ? 'current' : 'periodic'
+      });
 
       processed++;
       if (result.ok) ok++;

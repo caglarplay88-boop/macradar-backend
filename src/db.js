@@ -168,6 +168,44 @@ async function initDb() {
       ALTER TABLE matches
         ADD COLUMN IF NOT EXISTS refresh_minutes INTEGER;
 
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS tracking_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
+    UPDATE matches
+    SET refresh_minutes=60
+    WHERE refresh_minutes IS NULL;
+
+    ALTER TABLE matches
+      ALTER COLUMN refresh_minutes SET DEFAULT 60;
+
+    ALTER TABLE matches
+      ALTER COLUMN refresh_minutes SET NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS odds_1x2_snapshots (
+      id BIGSERIAL PRIMARY KEY,
+      event_id TEXT NOT NULL REFERENCES matches(event_id) ON DELETE CASCADE,
+      bookmaker_id TEXT,
+      bookmaker_key TEXT NOT NULL,
+      bookmaker_name TEXT NOT NULL,
+      market TEXT NOT NULL DEFAULT '1X2' CHECK (market='1X2'),
+      home_odd DOUBLE PRECISION NOT NULL CHECK (home_odd > 1),
+      draw_odd DOUBLE PRECISION NOT NULL CHECK (draw_odd > 1),
+      away_odd DOUBLE PRECISION NOT NULL CHECK (away_odd > 1),
+      captured_at TIMESTAMPTZ NOT NULL,
+      capture_sequence BIGINT NOT NULL CHECK (capture_sequence > 0),
+      capture_type TEXT NOT NULL CHECK (capture_type IN ('opening','current','periodic')),
+      source_name TEXT NOT NULL,
+      source_region TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_odds_1x2_time
+      ON odds_1x2_snapshots(event_id,bookmaker_key,market,captured_at,capture_type);
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_odds_1x2_sequence
+      ON odds_1x2_snapshots(event_id,bookmaker_key,market,capture_sequence,capture_type);
+    CREATE INDEX IF NOT EXISTS idx_odds_1x2_match_time
+      ON odds_1x2_snapshots(event_id,captured_at DESC);
+
 
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
@@ -908,6 +946,136 @@ async function setMatchRefreshMinutes(eventId, minutes) {
   return r.rows[0] || null;
 }
 
+async function setMatchTrackingSettings(eventId, enabled, minutes) {
+  const r = await pool.query(
+    `UPDATE matches
+     SET tracking_enabled=$2,
+         refresh_minutes=$3,
+         updated_at=NOW()
+     WHERE event_id=$1
+     RETURNING *`,
+    [eventId, enabled, minutes]
+  );
+  return r.rows[0] || null;
+}
+
+function normalizeOdds1x2Bookmaker(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function validOdds1x2Row(row) {
+  if (!String(row?.bookmaker || row?.bookmakerName || '').trim()) return false;
+  return [row?.ms1 ?? row?.homeOdd, row?.msx ?? row?.drawOdd, row?.ms2 ?? row?.awayOdd]
+    .every(value => Number.isFinite(Number(value)) && Number(value) > 1);
+}
+
+async function saveOdds1x2Batch({
+  eventId,
+  rows,
+  capturedAt = new Date(),
+  captureType,
+  sourceName,
+  sourceRegion = null
+}) {
+  const allowedTypes = new Set(['opening', 'current', 'periodic']);
+  if (!String(eventId || '').trim()) throw new Error('1X2 eventId missing.');
+  if (!allowedTypes.has(captureType)) throw new Error('Invalid 1X2 capture type.');
+  if (!String(sourceName || '').trim()) throw new Error('1X2 source missing.');
+
+  const validRows = (Array.isArray(rows) ? rows : []).filter(validOdds1x2Row);
+  if (!validRows.length) throw new Error('No valid 1X2 bookmaker row.');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const seqRow = (await client.query(
+      `SELECT COALESCE(MAX(capture_sequence),0)::bigint + 1 AS seq
+       FROM odds_1x2_snapshots
+       WHERE event_id=$1`,
+      [eventId]
+    )).rows[0];
+    const sequence = Number(seqRow?.seq || 1);
+    let saved = 0;
+
+    for (const row of validRows) {
+      const bookmakerName = String(row.bookmaker || row.bookmakerName).trim();
+      const bookmakerKey = normalizeOdds1x2Bookmaker(row.bookmakerId || bookmakerName);
+      if (!bookmakerKey) continue;
+
+      const r = await client.query(
+        `INSERT INTO odds_1x2_snapshots(
+          event_id,bookmaker_id,bookmaker_key,bookmaker_name,
+          home_odd,draw_odd,away_odd,captured_at,capture_sequence,
+          capture_type,source_name,source_region
+        )
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        ON CONFLICT DO NOTHING
+        RETURNING id`,
+        [
+          eventId,
+          row.bookmakerId ? String(row.bookmakerId) : null,
+          bookmakerKey,
+          bookmakerName,
+          Number(row.ms1 ?? row.homeOdd),
+          Number(row.msx ?? row.drawOdd),
+          Number(row.ms2 ?? row.awayOdd),
+          new Date(capturedAt),
+          sequence,
+          captureType,
+          String(sourceName),
+          sourceRegion ? String(sourceRegion) : null
+        ]
+      );
+      saved += r.rowCount || 0;
+    }
+
+    await client.query('COMMIT');
+    return { saved, sequence, accepted: validRows.length };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function getOdds1x2State(eventId) {
+  const match = (await pool.query(
+    `SELECT event_id,tracking_enabled,refresh_minutes,active,archived,lifecycle
+     FROM matches WHERE event_id=$1`,
+    [eventId]
+  )).rows[0];
+  if (!match) return null;
+
+  async function latestBatch(types) {
+    const head = (await pool.query(
+      `SELECT capture_sequence,capture_type,captured_at,source_name,source_region
+       FROM odds_1x2_snapshots
+       WHERE event_id=$1 AND capture_type = ANY($2::text[])
+       ORDER BY captured_at DESC,id DESC LIMIT 1`,
+      [eventId, types]
+    )).rows[0];
+    if (!head) return null;
+
+    const rows = (await pool.query(
+      `SELECT bookmaker_id,bookmaker_name,home_odd,draw_odd,away_odd
+       FROM odds_1x2_snapshots
+       WHERE event_id=$1 AND capture_sequence=$2 AND capture_type=$3
+       ORDER BY bookmaker_name`,
+      [eventId, head.capture_sequence, head.capture_type]
+    )).rows;
+
+    return { ...head, rows };
+  }
+
+  return {
+    ...match,
+    market: '1X2',
+    opening: await latestBatch(['opening']),
+    current: await latestBatch(['current','periodic'])
+  };
+}
+
 async function createWorkerRun(total) {
   const r = await pool.query(
     'INSERT INTO worker_runs(total) VALUES($1) RETURNING *',
@@ -1197,6 +1365,9 @@ module.exports = {
   getMatch,
   setActive,
   setMatchRefreshMinutes,
+  setMatchTrackingSettings,
+  saveOdds1x2Batch,
+  getOdds1x2State,
   createWorkerRun,
   updateWorkerRun,
   getWorkerStatus,

@@ -9,6 +9,10 @@ const {
   failPerformanceCache
 } = require('./db');
 const { captureInitial1x2 } = require('./odds1x2Capture');
+const {
+  pull1x2WithFailover,
+  pullOpening1x2WithFailover
+} = require('./odds1x2');
 const { startOdds1x2Worker } = require('./odds1x2Worker');
 const { latestLiveOddsBatch } = require('./odds1x2View');
 const { getBulletin } = require('./bulletin');
@@ -21,6 +25,11 @@ const PORT = Number(process.env.PORT || 3000);
 const API_KEY = String(process.env.API_KEY || '');
 const HTTP_ONLY = String(process.env.MACRADAR_HTTP_ONLY || '') === '1';
 const MOBILE_CODE_HASH = 'ee3a321e49e949c5ac27dc2a5504ba55a59b11eae7ab1f7b5357cd305b6e8968';
+const ODDS_SOURCE_SECRET = String(
+  process.env.ODDS_SOURCE_HMAC_SECRET ||
+  API_KEY ||
+  MOBILE_CODE_HASH
+);
 
 const performanceBuilds = new Map();
 const PERFORMANCE_ENGINE_VERSION = 84;
@@ -89,6 +98,63 @@ function authorized(req) {
     if (hash === MOBILE_CODE_HASH) return true;
   }
   return false;
+}
+
+function oddsHmac(secret, value) {
+  return crypto.createHmac('sha256', secret)
+    .update(String(value))
+    .digest('hex');
+}
+
+function oddsEqualHex(left, right) {
+  const a = Buffer.from(String(left || ''), 'hex');
+  const b = Buffer.from(String(right || ''), 'hex');
+  return a.length === 32 &&
+    b.length === 32 &&
+    crypto.timingSafeEqual(a, b);
+}
+
+function oddsSourceAuthorized(req, u) {
+  if (!ODDS_SOURCE_SECRET) return false;
+
+  const timestamp = String(req.headers['x-odds-ts'] || '').trim();
+  const signature = String(
+    req.headers['x-odds-signature'] || ''
+  ).trim();
+  const timestampMs = Number(timestamp);
+
+  if (
+    !Number.isFinite(timestampMs) ||
+    Math.abs(Date.now() - timestampMs) > 30000
+  ) {
+    return false;
+  }
+
+  const capture = String(u.searchParams.get('capture') || '').trim();
+  const rawUrl = String(u.searchParams.get('url') || '').trim();
+  if (!['opening', 'current'].includes(capture) || !rawUrl) {
+    return false;
+  }
+
+  const expected = oddsHmac(
+    ODDS_SOURCE_SECRET,
+    timestamp + '\n' + capture + '\n' + rawUrl
+  );
+  return oddsEqualHex(signature, expected);
+}
+
+function oddsSourceJson(res, status, data, timestamp) {
+  const body = JSON.stringify(data);
+  const signature = oddsHmac(
+    ODDS_SOURCE_SECRET,
+    String(timestamp) + '\n' + body
+  );
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'x-odds-response-signature': signature,
+    'cache-control': 'no-store'
+  });
+  res.end(body);
 }
 
 async function readJson(req) {
@@ -452,6 +518,48 @@ const server = http.createServer(async (req, res) => {
         status: 'missing',
         error: 'Performans verisi henüz hazırlanmadı.'
       });
+    }
+
+    if (
+      req.method === 'GET' &&
+      u.pathname === '/api/internal/odds-source/1x2'
+    ) {
+      const timestamp = String(req.headers['x-odds-ts'] || '').trim();
+      if (!oddsSourceAuthorized(req, u)) {
+        return json(res, 401, {
+          error: 'Invalid odds source signature.'
+        });
+      }
+
+      const capture = String(
+        u.searchParams.get('capture') || ''
+      ).trim();
+      const rawUrl = String(u.searchParams.get('url') || '').trim();
+      parseBetExplorerUrl(rawUrl);
+
+      const pulled = capture === 'opening'
+        ? await pullOpening1x2WithFailover(rawUrl)
+        : await pull1x2WithFailover(rawUrl);
+
+      return oddsSourceJson(res, 200, {
+        event_id: pulled.eventId,
+        market: pulled.market,
+        source_name: pulled.sourceName,
+        source_region: pulled.sourceRegion,
+        fallback_used: pulled.fallbackUsed === true,
+        attempts: Array.isArray(pulled.attempts)
+          ? pulled.attempts
+          : [],
+        captured_at: pulled.capturedAt || null,
+        rows: pulled.rows.map(row => ({
+          bookmaker_id: row.bookmakerId || null,
+          bookmaker_name: row.bookmakerName,
+          home_odd: Number(row.homeOdd),
+          draw_odd: Number(row.drawOdd),
+          away_odd: Number(row.awayOdd),
+          captured_at: row.capturedAt || null
+        }))
+      }, timestamp);
     }
 
     if (!authorized(req)) return json(res, 401, { error: 'Yetkisiz.' });

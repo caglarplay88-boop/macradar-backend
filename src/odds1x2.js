@@ -1,11 +1,18 @@
 const { execFile } = require('child_process');
 const { promisify } = require('util');
+const http = require('http');
+const https = require('https');
+const crypto = require('crypto');
+const { URL } = require('url');
 
 const execFileAsync = promisify(execFile);
 
 const USER_AGENT =
   'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36';
+
+const DEFAULT_REMOTE_SOURCE_SECRET =
+  'ee3a321e49e949c5ac27dc2a5504ba55a59b11eae7ab1f7b5357cd305b6e8968';
 
 const MIN_HEALTHY_BOOKMAKERS = Math.max(
   1,
@@ -16,6 +23,201 @@ const MIN_OPENING_BOOKMAKERS = Math.max(
   1,
   Math.min(50, Number(process.env.ODDS_MIN_OPENING_BOOKMAKERS) || 8)
 );
+
+function remoteSourceConfig() {
+  const base = String(process.env.ODDS_REMOTE_SOURCE_URL || '')
+    .trim()
+    .replace(/\/+$/, '');
+  if (!base) return null;
+
+  const secret = String(
+    process.env.ODDS_REMOTE_SOURCE_SECRET ||
+    process.env.API_KEY ||
+    DEFAULT_REMOTE_SOURCE_SECRET
+  );
+  if (!secret) {
+    throw new Error('Remote odds source shared secret missing.');
+  }
+
+  const parsed = new URL(base);
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Invalid remote odds source protocol.');
+  }
+  return { base, secret };
+}
+
+function hmacHex(secret, value) {
+  return crypto.createHmac('sha256', secret)
+    .update(String(value))
+    .digest('hex');
+}
+
+function equalHex(left, right) {
+  const a = Buffer.from(String(left || ''), 'hex');
+  const b = Buffer.from(String(right || ''), 'hex');
+  return a.length === 32 &&
+    b.length === 32 &&
+    crypto.timingSafeEqual(a, b);
+}
+
+function remoteGet(endpoint, headers) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(endpoint);
+    const transport = parsed.protocol === 'https:' ? https : http;
+    const req = transport.get(
+      parsed,
+      { headers, timeout: 60000 },
+      res => {
+        const chunks = [];
+        let size = 0;
+        res.on('data', chunk => {
+          size += chunk.length;
+          if (size > 4 * 1024 * 1024) {
+            req.destroy(new Error('Remote odds response too large.'));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on('end', () => resolve({
+          status: Number(res.statusCode || 0),
+          headers: res.headers,
+          body: Buffer.concat(chunks).toString('utf8')
+        }));
+      }
+    );
+    req.on('timeout', () => {
+      req.destroy(new Error('Remote odds source timeout.'));
+    });
+    req.on('error', reject);
+  });
+}
+
+async function fetchRemoteValidated(rawUrl, capture) {
+  const config = remoteSourceConfig();
+  if (!config) return null;
+
+  const parsed = parseBetExplorerUrl(rawUrl);
+  const mode = capture === 'opening' ? 'opening' : 'current';
+  const timestamp = String(Date.now());
+  const requestSignature = hmacHex(
+    config.secret,
+    timestamp + '\n' + mode + '\n' + parsed.url
+  );
+
+  const endpoint =
+    config.base +
+    '/api/internal/odds-source/1x2?capture=' +
+    encodeURIComponent(mode) +
+    '&url=' +
+    encodeURIComponent(parsed.url);
+
+  const response = await remoteGet(endpoint, {
+    accept: 'application/json',
+    'x-odds-ts': timestamp,
+    'x-odds-signature': requestSignature
+  });
+
+  const responseSignature = String(
+    response.headers['x-odds-response-signature'] || ''
+  );
+  const expectedResponseSignature = hmacHex(
+    config.secret,
+    timestamp + '\n' + response.body
+  );
+  if (!equalHex(responseSignature, expectedResponseSignature)) {
+    throw new Error('Remote odds response signature invalid.');
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(response.body);
+  } catch {
+    throw new Error('Remote odds source returned invalid JSON.');
+  }
+
+  if (response.status !== 200) {
+    throw new Error(
+      'Remote odds source HTTP ' + response.status + ': ' +
+      String(payload?.error || 'unknown error')
+    );
+  }
+
+  if (
+    String(payload?.event_id || '') !== parsed.eventId ||
+    payload?.market !== '1X2' ||
+    !Array.isArray(payload?.rows)
+  ) {
+    throw new Error('Remote odds source envelope invalid.');
+  }
+
+  const minimum = mode === 'opening'
+    ? MIN_OPENING_BOOKMAKERS
+    : MIN_HEALTHY_BOOKMAKERS;
+  if (payload.rows.length < minimum) {
+    throw new Error(
+      'Remote odds coverage too low: ' +
+      payload.rows.length + ' < ' + minimum
+    );
+  }
+
+  const rows = payload.rows.map(row => {
+    const bookmakerId = String(row?.bookmaker_id || '').trim() || null;
+    const bookmakerName = String(row?.bookmaker_name || '').trim();
+    const homeOdd = Number(row?.home_odd);
+    const drawOdd = Number(row?.draw_odd);
+    const awayOdd = Number(row?.away_odd);
+
+    if (
+      !bookmakerName ||
+      ![homeOdd, drawOdd, awayOdd].every(
+        value => Number.isFinite(value) && value > 1
+      )
+    ) {
+      throw new Error('Remote odds row invalid.');
+    }
+
+    const out = {
+      bookmakerId,
+      bookmakerName,
+      homeOdd,
+      drawOdd,
+      awayOdd
+    };
+
+    if (mode === 'opening') {
+      const capturedAt = new Date(row?.captured_at);
+      if (!Number.isFinite(capturedAt.getTime())) {
+        throw new Error('Remote opening timestamp invalid.');
+      }
+      out.capturedAt = capturedAt;
+    }
+    return out;
+  });
+
+  let capturedAt = null;
+  if (mode === 'current') {
+    capturedAt = new Date(payload.captured_at);
+    if (!Number.isFinite(capturedAt.getTime())) {
+      throw new Error('Remote current timestamp invalid.');
+    }
+  }
+
+  return {
+    eventId: parsed.eventId,
+    url: parsed.url,
+    market: '1X2',
+    capturedAt,
+    sourceName: String(payload.source_name || '').trim(),
+    sourceRegion: payload.source_region == null
+      ? null
+      : String(payload.source_region).trim() || null,
+    rows,
+    attempts: Array.isArray(payload.attempts)
+      ? payload.attempts
+      : [],
+    fallbackUsed: payload.fallback_used === true
+  };
+}
 
 function parseBetExplorerUrl(rawUrl) {
   const value = String(rawUrl || '').trim();
@@ -364,6 +566,24 @@ async function fetch1x2SingleSource(rawUrl, {
 
 async function pull1x2WithFailover(rawUrl) {
   const attempts = [];
+  const remote = remoteSourceConfig();
+
+  if (remote) {
+    try {
+      const result = await fetchRemoteValidated(rawUrl, 'current');
+      return {
+        ...result,
+        attempts: result.attempts || [],
+        fallbackUsed: result.fallbackUsed === true
+      };
+    } catch (error) {
+      attempts.push({
+        sourceName: 'remote-validated',
+        sourceRegion: null,
+        error: String(error?.message || error)
+      });
+    }
+  }
 
   for (const source of sourceChain()) {
     try {
@@ -391,6 +611,24 @@ async function pull1x2WithFailover(rawUrl) {
 
 async function pullOpening1x2WithFailover(rawUrl) {
   const attempts = [];
+  const remote = remoteSourceConfig();
+
+  if (remote) {
+    try {
+      const result = await fetchRemoteValidated(rawUrl, 'opening');
+      return {
+        ...result,
+        attempts: result.attempts || [],
+        fallbackUsed: result.fallbackUsed === true
+      };
+    } catch (error) {
+      attempts.push({
+        sourceName: 'remote-validated-opening',
+        sourceRegion: null,
+        error: String(error?.message || error)
+      });
+    }
+  }
 
   for (const source of sourceChain()) {
     try {

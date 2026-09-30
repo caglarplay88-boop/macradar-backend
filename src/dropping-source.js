@@ -50,78 +50,81 @@ function parseDropping(html) {
   let currentCountry = null;
 
   for (const block of blocks) {
-    const league = block.match(/table-main__tournament[^>]*>[\s\S]*?<\/i>([^<]+)<\/a>/i);
-    const date = block.match(/table-main__date">([^<]+)</i);
-    const flag = block.match(/<img[^>]+src="[^"]*\/([^/"?]+)\.svg(?:\?[^"]*)?"[^>]*>/i);
+    const tableRows = block.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi) || [];
 
-    if (league) currentLeague = decodeHtml(league[1]);
-    if (date) currentDate = decodeHtml(date[1]);
-    if (flag) {
-      currentCountryCode = String(flag[1] || '').toLowerCase() || null;
-      const alt = flag[0].match(/\balt="([^"]*)"/i);
-      currentCountry = alt ? decodeHtml(alt[1]) : null;
-    }
+    for (const tableRow of tableRows) {
+      const league = tableRow.match(/table-main__tournament[^>]*>[\s\S]*?<\/i>([^<]+)<\/a>/i);
+      const date = tableRow.match(/table-main__date">([^<]+)</i);
+      const flag = tableRow.match(/<img[^>]+src="[^"]*\/([^\/"?]+)\.svg(?:\?[^"]*)?"[^>]*>/i);
 
-    const matchLink = block.match(/href="\/football\/[^"]+\/([A-Za-z0-9]+)\/">([^<]+)<\/a>/i);
-    const time = block.match(/table-main__time">([^<]+)</i);
-    if (!matchLink) continue;
+      if (league) currentLeague = decodeHtml(league[1]);
+      if (date) currentDate = decodeHtml(date[1]);
+      if (flag) {
+        currentCountryCode = String(flag[1] || '').toLowerCase() || null;
+        const alt = flag[0].match(/\balt="([^"]*)"/i);
+        currentCountry = alt ? decodeHtml(alt[1]) : null;
+      }
 
-    const oddsCells = [
-      ...block.matchAll(/<td class="table-main__odds([^"]*)"[^>]*data-oid="([^"]+)"[\s\S]*?<\/td>/gi)
-    ];
+      const matchLink = tableRow.match(/href="\/football\/[^"]+\/([A-Za-z0-9]+)\/">([^<]+)<\/a>/i);
+      const time = tableRow.match(/table-main__time">([^<]+)</i);
+      if (!matchLink) continue;
 
-    const currentOdds = oddsCells.slice(0, 3).map(cellMatch => {
-      const cell = cellMatch[0];
-      const dropped = cell.match(/<li>Drop:\s*\d+%<\/li>[\s\S]*?<span data-odd="([^"]+)"><\/span>\s*&raquo;\s*<span data-odd="([^"]+)"><\/span>/i);
-      if (dropped) return Number(dropped[2]);
-      const button = cell.match(/<button\b[^>]*data-odd="([^"]+)"/i);
-      if (button) return Number(button[1]);
-      const anyOdd = cell.match(/\bdata-odd="([^"]+)"/i);
-      return anyOdd ? Number(anyOdd[1]) : null;
-    });
+      const oddsCells = [
+        ...tableRow.matchAll(/<td class="table-main__odds([^"]*)"[^>]*data-oid="([^"]+)"[\s\S]*?<\/td>/gi)
+      ];
 
-    const bestBetOddMatch = block.match(/<td class="bestbet-odd"[^>]*data-odd="([^"]+)"/i);
-    const bestBetBookmakerMatch = block.match(/<td class="bestbet-logo"[^>]*title="([^"]+)"/i);
-    const bestBetOdd = bestBetOddMatch ? Number(bestBetOddMatch[1]) : null;
-    const bestBetBookmaker = bestBetBookmakerMatch ? decodeHtml(bestBetBookmakerMatch[1]) : null;
-
-    for (let index = 0; index < oddsCells.length && index < 3; index++) {
-      const classes = oddsCells[index][1] || '';
-      if (!/\bdrop\d\b/i.test(classes)) continue;
-
-      const cell = oddsCells[index][0];
-      const detail = cell.match(/<li>Drop:\s*(\d+)%<\/li>[\s\S]*?<span data-odd="([^"]+)"><\/span>\s*&raquo;\s*<span data-odd="([^"]+)"><\/span>[\s\S]*?B's:\s*(\d+)%\s*\((\d+)\/(\d+)\)/i);
-      if (!detail) continue;
-
-      const selection = ['1', 'X', '2'][index] || null;
-      rows.push({
-        matchId: matchLink[1],
-        match: decodeHtml(matchLink[2]),
-        time: time ? decodeHtml(time[1]) : null,
-        date: currentDate,
-        league: currentLeague,
-        country: currentCountry,
-        countryCode: currentCountryCode,
-        selection,
-        outcomeId: oddsCells[index][2],
-        dropPct: Number(detail[1]),
-        oldOdd: Number(detail[2]),
-        currentOdd: Number(detail[3]),
-        odd1: currentOdds[0] ?? null,
-        oddX: currentOdds[1] ?? null,
-        odd2: currentOdds[2] ?? null,
-        bestBetOdd,
-        bestBetBookmaker,
-        bookiesPct: Number(detail[4]),
-        bookiesDown: Number(detail[5]),
-        bookiesTotal: Number(detail[6])
+      const currentOdds = oddsCells.slice(0, 3).map(cellMatch => {
+        const cell = cellMatch[0];
+        const dropped = cell.match(/<li>Drop:\s*\d+%<\/li>[\s\S]*?<span data-odd="([^"]+)"><\/span>\s*&raquo;\s*<span data-odd="([^"]+)"><\/span>/i);
+        if (dropped) return Number(dropped[2]);
+        const button = cell.match(/<button\b[^>]*data-odd="([^"]+)"/i);
+        if (button) return Number(button[1]);
+        const anyOdd = cell.match(/\bdata-odd="([^"]+)"/i);
+        return anyOdd ? Number(anyOdd[1]) : null;
       });
+
+      const bestBetOddMatch = tableRow.match(/<td class="bestbet-odd"[^>]*data-odd="([^"]+)"/i);
+      const bestBetBookmakerMatch = tableRow.match(/<td class="bestbet-logo"[^>]*title="([^"]+)"/i);
+      const bestBetOdd = bestBetOddMatch ? Number(bestBetOddMatch[1]) : null;
+      const bestBetBookmaker = bestBetBookmakerMatch ? decodeHtml(bestBetBookmakerMatch[1]) : null;
+
+      for (let index = 0; index < oddsCells.length && index < 3; index++) {
+        const classes = oddsCells[index][1] || '';
+        if (!/\bdrop\d\b/i.test(classes)) continue;
+
+        const cell = oddsCells[index][0];
+        const detail = cell.match(/<li>Drop:\s*(\d+)%<\/li>[\s\S]*?<span data-odd="([^"]+)"><\/span>\s*&raquo;\s*<span data-odd="([^"]+)"><\/span>[\s\S]*?B's:\s*(\d+)%\s*\((\d+)\/(\d+)\)/i);
+        if (!detail) continue;
+
+        const selection = ['1', 'X', '2'][index] || null;
+        rows.push({
+          matchId: matchLink[1],
+          match: decodeHtml(matchLink[2]),
+          time: time ? decodeHtml(time[1]) : null,
+          date: currentDate,
+          league: currentLeague,
+          country: currentCountry,
+          countryCode: currentCountryCode,
+          selection,
+          outcomeId: oddsCells[index][2],
+          dropPct: Number(detail[1]),
+          oldOdd: Number(detail[2]),
+          currentOdd: Number(detail[3]),
+          odd1: currentOdds[0] ?? null,
+          oddX: currentOdds[1] ?? null,
+          odd2: currentOdds[2] ?? null,
+          bestBetOdd,
+          bestBetBookmaker,
+          bookiesPct: Number(detail[4]),
+          bookiesDown: Number(detail[5]),
+          bookiesTotal: Number(detail[6])
+        });
+      }
     }
   }
 
   return rows;
 }
-
 function discoverPaginationUrls(html, currentUrl) {
   const found = new Set();
   const current = new URL(currentUrl);
@@ -177,11 +180,15 @@ async function fetchDropping(options = {}) {
     if (seenPages.has(endpoint)) continue;
     seenPages.add(endpoint);
 
-    const response = await fetchImpl(endpoint, {
+    const requestUrl = new URL(endpoint);
+    requestUrl.searchParams.set('_', String(Date.now()));
+
+    const response = await fetchImpl(requestUrl.toString(), {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/149 Mobile Safari/537.36',
         'X-Requested-With': 'XMLHttpRequest',
         Referer: 'https://www.betexplorer.com/football/dropping-odds/',
+        Cookie: 'my_timezone=+3',
         'Accept-Language': 'en-US,en;q=0.9'
       }
     });

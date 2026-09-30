@@ -224,15 +224,26 @@ async function getTrackingSettings(eventId) {
   return r.rows[0] || null;
 }
 
-async function updateTrackingSettings(eventId, enabled, refreshMinutes) {
+async function updateTrackingSettings(
+  eventId,
+  enabled,
+  refreshMinutes,
+  scheduleFrom = null
+) {
   const id = String(eventId || '').trim();
   const minutes = Number(refreshMinutes);
+  const referenceAt = scheduleFrom == null
+    ? null
+    : new Date(scheduleFrom);
 
   if (!id || typeof enabled !== 'boolean') {
     throw new Error('Geçersiz oran takip ayarı.');
   }
   if (!ALLOWED_ODDS_REFRESH_MINUTES.has(minutes)) {
     throw new Error('Geçersiz oran çekim aralığı.');
+  }
+  if (referenceAt && !Number.isFinite(referenceAt.getTime())) {
+    throw new Error('Geçersiz oran takip başlangıç zamanı.');
   }
 
   const r = await pool.query(`
@@ -241,7 +252,12 @@ async function updateTrackingSettings(eventId, enabled, refreshMinutes) {
       created_at,updated_at
     )
     SELECT event_id,$2,$3::int,
-           CASE WHEN $2 THEN NOW() + ($3::int * INTERVAL '1 minute') ELSE NULL END,
+           CASE
+             WHEN $2 THEN
+               COALESCE($4::timestamptz,NOW()) +
+               ($3::int * INTERVAL '1 minute')
+             ELSE NULL
+           END,
            NULL,NOW(),NOW()
     FROM matches
     WHERE event_id=$1
@@ -249,8 +265,9 @@ async function updateTrackingSettings(eventId, enabled, refreshMinutes) {
       tracking_enabled=EXCLUDED.tracking_enabled,
       refresh_minutes=EXCLUDED.refresh_minutes,
       next_pull_at=CASE
-        WHEN EXCLUDED.tracking_enabled
-          THEN NOW() + (EXCLUDED.refresh_minutes * INTERVAL '1 minute')
+        WHEN EXCLUDED.tracking_enabled THEN
+          COALESCE($4::timestamptz,NOW()) +
+          (EXCLUDED.refresh_minutes * INTERVAL '1 minute')
         ELSE NULL
       END,
       last_error=NULL,
@@ -258,7 +275,7 @@ async function updateTrackingSettings(eventId, enabled, refreshMinutes) {
     RETURNING event_id,tracking_enabled,refresh_minutes,
               last_attempt_at,last_success_at,next_pull_at,last_error,
               created_at,updated_at
-  `, [id, enabled, minutes]);
+  `, [id, enabled, minutes, referenceAt]);
 
   return r.rows[0] || null;
 }
@@ -294,29 +311,60 @@ async function markTrackingAttempt(eventId) {
   return r.rows[0] || null;
 }
 
-async function markTrackingSuccess(eventId) {
+async function markTrackingSuccess(
+  eventId,
+  expectedRefreshMinutes,
+  nextPullAt
+) {
+  const minutes = Number(expectedRefreshMinutes);
+  const nextAt = new Date(nextPullAt);
+
+  if (
+    !ALLOWED_ODDS_REFRESH_MINUTES.has(minutes) ||
+    !Number.isFinite(nextAt.getTime())
+  ) {
+    throw new Error('Geçersiz başarılı takip zamanlaması.');
+  }
+
   const r = await pool.query(`
     UPDATE odds_tracking_settings
     SET last_success_at=NOW(),
-        next_pull_at=NOW() + (refresh_minutes * INTERVAL '1 minute'),
+        next_pull_at=CASE
+          WHEN refresh_minutes=$2::int THEN $3::timestamptz
+          ELSE next_pull_at
+        END,
         last_error=NULL,
         updated_at=NOW()
     WHERE event_id=$1 AND tracking_enabled=TRUE
-    RETURNING *
-  `, [String(eventId || '').trim()]);
+    RETURNING *,
+              (refresh_minutes=$2::int) AS schedule_applied
+  `, [String(eventId || '').trim(), minutes, nextAt]);
   return r.rows[0] || null;
 }
 
-async function markTrackingFailure(eventId, error) {
-  const message = String(error || 'Bilinmeyen periyodik oran hatası').slice(0, 1200);
+async function markTrackingFailure(
+  eventId,
+  error,
+  expectedRefreshMinutes
+) {
+  const message = String(
+    error || 'Bilinmeyen periyodik oran hatası'
+  ).slice(0, 1200);
+  const minutes = Number(expectedRefreshMinutes);
+
   const r = await pool.query(`
     UPDATE odds_tracking_settings
-    SET next_pull_at=NOW() + INTERVAL '5 minutes',
+    SET next_pull_at=CASE
+          WHEN refresh_minutes=$3::int
+            THEN NOW() + INTERVAL '5 minutes'
+          ELSE next_pull_at
+        END,
         last_error=$2,
         updated_at=NOW()
     WHERE event_id=$1 AND tracking_enabled=TRUE
-    RETURNING *
-  `, [String(eventId || '').trim(), message]);
+    RETURNING *,
+              (refresh_minutes=$3::int) AS schedule_applied
+  `, [String(eventId || '').trim(), message, minutes]);
   return r.rows[0] || null;
 }
 

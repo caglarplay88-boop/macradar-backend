@@ -24,22 +24,86 @@ function periodicSequence(seed = Date.now()) {
   return value;
 }
 
+function computeNextScheduledAt(
+  scheduledAt,
+  refreshMinutes,
+  now = new Date()
+) {
+  const scheduledMs = new Date(scheduledAt).getTime();
+  const nowMs = new Date(now).getTime();
+  const minutes = Number(refreshMinutes);
+  const intervalMs = minutes * 60 * 1000;
+
+  if (
+    !Number.isFinite(scheduledMs) ||
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(intervalMs) ||
+    intervalMs <= 0
+  ) {
+    throw new Error('Invalid periodic 1X2 schedule.');
+  }
+
+  let nextMs = scheduledMs + intervalMs;
+  if (nextMs <= nowMs) {
+    const missedSlots =
+      Math.floor((nowMs - nextMs) / intervalMs) + 1;
+    nextMs += missedSlots * intervalMs;
+  }
+
+  return new Date(nextMs);
+}
+
+function isoTime(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toISOString()
+    : null;
+}
+
 async function capturePeriodic1x2(job) {
   const eventId = String(job?.event_id || '').trim();
   const url = String(job?.url || '').trim();
-  if (!eventId || !url) throw new Error('Periodic 1X2 job identity missing.');
+  const intervalMinutes = Number(job?.refresh_minutes);
+  const scheduledAt = new Date(job?.next_pull_at);
+  const startedAt = new Date();
+
+  if (!eventId || !url) {
+    throw new Error('Periodic 1X2 job identity missing.');
+  }
+  if (
+    !Number.isFinite(scheduledAt.getTime()) ||
+    !Number.isFinite(intervalMinutes) ||
+    intervalMinutes <= 0
+  ) {
+    throw new Error('Periodic 1X2 job schedule invalid.');
+  }
   if (runningEvents.has(eventId)) {
-    return { eventId, skipped: true, reason: 'already-running' };
+    return {
+      eventId,
+      skipped: true,
+      reason: 'already-running'
+    };
   }
 
   runningEvents.add(eventId);
+  let requestStartedAt = null;
+  let responseReceivedAt = null;
+  let savedAt = null;
+
   try {
     const claimed = await markTrackingAttempt(eventId);
     if (!claimed) {
-      return { eventId, skipped: true, reason: 'disabled-before-start' };
+      return {
+        eventId,
+        skipped: true,
+        reason: 'disabled-before-start'
+      };
     }
 
+    requestStartedAt = new Date();
     const pulled = await pull1x2WithFailover(url);
+    responseReceivedAt = new Date();
+
     if (pulled.eventId !== eventId) {
       throw new Error('Periodic 1X2 event mismatch.');
     }
@@ -57,18 +121,41 @@ async function capturePeriodic1x2(job) {
       sourceRegion: pulled.sourceRegion,
       captureSequence: periodicSequence()
     });
+    savedAt = new Date();
 
-    await markTrackingSuccess(eventId);
+    const nextRunAt = computeNextScheduledAt(
+      scheduledAt,
+      intervalMinutes,
+      savedAt
+    );
+    const success = await markTrackingSuccess(
+      eventId,
+      intervalMinutes,
+      nextRunAt
+    );
+
     return {
       eventId,
       skipped: false,
       fetched: rows.length,
       inserted: saved.inserted,
       sourceName: pulled.sourceName,
-      sourceRegion: pulled.sourceRegion
+      sourceRegion: pulled.sourceRegion,
+      intervalMinutes,
+      scheduleApplied: success?.schedule_applied === true,
+      scheduledAt: isoTime(scheduledAt),
+      startedAt: isoTime(startedAt),
+      requestStartedAt: isoTime(requestStartedAt),
+      responseReceivedAt: isoTime(responseReceivedAt),
+      savedAt: isoTime(savedAt),
+      nextRunAt: isoTime(success?.next_pull_at || nextRunAt)
     };
   } catch (error) {
-    await markTrackingFailure(eventId, error?.message || String(error)).catch(() => {});
+    await markTrackingFailure(
+      eventId,
+      error?.message || String(error),
+      intervalMinutes
+    ).catch(() => {});
     throw error;
   } finally {
     runningEvents.delete(eventId);
@@ -91,7 +178,15 @@ async function runOddsWorkerTick() {
           console.log(
             '[odds-worker] event=' + result.eventId +
             ' inserted=' + result.inserted +
-            ' source=' + result.sourceName
+            ' source=' + result.sourceName +
+            ' intervalMinutes=' + result.intervalMinutes +
+            ' scheduledAt=' + result.scheduledAt +
+            ' startedAt=' + result.startedAt +
+            ' requestStartedAt=' + result.requestStartedAt +
+            ' responseReceivedAt=' + result.responseReceivedAt +
+            ' savedAt=' + result.savedAt +
+            ' nextRunAt=' + result.nextRunAt +
+            ' scheduleApplied=' + result.scheduleApplied
           );
         }
       } catch (error) {
@@ -143,6 +238,7 @@ function stopOdds1x2Worker() {
 
 module.exports = {
   periodicSequence,
+  computeNextScheduledAt,
   capturePeriodic1x2,
   runOddsWorkerTick,
   startOdds1x2Worker,

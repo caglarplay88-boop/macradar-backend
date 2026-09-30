@@ -21,7 +21,7 @@ const MIN_HEALTHY_BOOKMAKERS = Math.max(
 
 const MIN_OPENING_BOOKMAKERS = Math.max(
   1,
-  Math.min(50, Number(process.env.ODDS_MIN_OPENING_BOOKMAKERS) || 8)
+  Math.min(50, Number(process.env.ODDS_MIN_OPENING_BOOKMAKERS) || 7)
 );
 
 function remoteSourceConfig() {

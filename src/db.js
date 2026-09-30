@@ -356,7 +356,7 @@ async function getLatestOdds1x2Batch(eventId, captureType) {
 
   const sequence = latest.rows[0].capture_sequence;
   const rows = await pool.query(
-    `SELECT bookmaker_id,bookmaker_name,home_odd,draw_odd,away_odd,
+    `SELECT bookmaker_id,bookmaker_key,bookmaker_name,home_odd,draw_odd,away_odd,
             captured_at,capture_sequence,capture_type,source_name,source_region
      FROM odds_1x2_snapshots
      WHERE event_id=$1 AND capture_type=$2 AND capture_sequence=$3
@@ -381,6 +381,30 @@ async function getLatestOdds1x2Batch(eventId, captureType) {
   };
 }
 
+async function getPreviousLiveOdds1x2Rows(eventId, beforeSequence) {
+  const id = String(eventId || '').trim();
+  const sequence = String(beforeSequence || '').trim();
+
+  if (!id || !/^\d+$/.test(sequence)) {
+    throw new Error('Invalid previous 1X2 snapshot query.');
+  }
+
+  const result = await pool.query(
+    `SELECT DISTINCT ON (bookmaker_key)
+            bookmaker_id,bookmaker_key,bookmaker_name,
+            home_odd,draw_odd,away_odd,captured_at,
+            capture_sequence,capture_type,source_name,source_region
+     FROM odds_1x2_snapshots
+     WHERE event_id=$1
+       AND capture_type IN ('current','periodic')
+       AND capture_sequence < $2::bigint
+     ORDER BY bookmaker_key, capture_sequence DESC, id DESC`,
+    [id, sequence]
+  );
+
+  return result.rows;
+}
+
 async function listOdds1x2History({
   eventId,
   bookmaker = null,
@@ -399,15 +423,60 @@ async function listOdds1x2History({
     throw new Error('Invalid bookmaker.');
   }
 
-  const where = bookmakerKey
-    ? 'event_id=$1 AND bookmaker_key=$2'
-    : 'event_id=$1';
+  const bookmakerFilter = bookmakerKey
+    ? ' AND bookmaker_key=$2'
+    : '';
   const baseParams = bookmakerKey ? [id, bookmakerKey] : [id];
 
+  const visibleHistoryCte = `
+    WITH live_ordered AS (
+      SELECT
+        id,event_id,bookmaker_id,bookmaker_key,bookmaker_name,market,
+        home_odd,draw_odd,away_odd,captured_at,capture_sequence,
+        capture_type,source_name,source_region,
+        LAG(home_odd) OVER (
+          PARTITION BY bookmaker_key
+          ORDER BY captured_at ASC, capture_sequence ASC, id ASC
+        ) AS previous_home_odd,
+        LAG(draw_odd) OVER (
+          PARTITION BY bookmaker_key
+          ORDER BY captured_at ASC, capture_sequence ASC, id ASC
+        ) AS previous_draw_odd,
+        LAG(away_odd) OVER (
+          PARTITION BY bookmaker_key
+          ORDER BY captured_at ASC, capture_sequence ASC, id ASC
+        ) AS previous_away_odd
+      FROM odds_1x2_snapshots
+      WHERE event_id=$1
+        AND capture_type IN ('current','periodic')
+        ${bookmakerFilter}
+    ),
+    visible AS (
+      SELECT
+        id,event_id,bookmaker_id,bookmaker_key,bookmaker_name,market,
+        home_odd,draw_odd,away_odd,captured_at,capture_sequence,
+        capture_type,source_name,source_region
+      FROM odds_1x2_snapshots
+      WHERE event_id=$1
+        AND capture_type='opening'
+        ${bookmakerFilter}
+
+      UNION ALL
+
+      SELECT
+        id,event_id,bookmaker_id,bookmaker_key,bookmaker_name,market,
+        home_odd,draw_odd,away_odd,captured_at,capture_sequence,
+        capture_type,source_name,source_region
+      FROM live_ordered
+      WHERE previous_home_odd IS NULL
+         OR home_odd IS DISTINCT FROM previous_home_odd
+         OR draw_odd IS DISTINCT FROM previous_draw_odd
+         OR away_odd IS DISTINCT FROM previous_away_odd
+    )
+  `;
+
   const countResult = await pool.query(
-    `SELECT COUNT(*)::int AS total
-     FROM odds_1x2_snapshots
-     WHERE ${where}`,
+    visibleHistoryCte + ' SELECT COUNT(*)::int AS total FROM visible',
     baseParams
   );
   const totalRecords = Number(countResult.rows[0]?.total || 0);
@@ -417,15 +486,16 @@ async function listOdds1x2History({
   const limitParam = baseParams.length + 1;
   const offsetParam = baseParams.length + 2;
   const rowsResult = await pool.query(
-    `SELECT id,event_id,bookmaker_id,bookmaker_key,bookmaker_name,market,
-            home_odd,draw_odd,away_odd,captured_at,capture_sequence,
-            capture_type,source_name,source_region
-     FROM odds_1x2_snapshots
-     WHERE ${where}
-     ORDER BY
-       CASE WHEN capture_type='opening' THEN 1 ELSE 0 END ASC,
-       captured_at DESC, capture_sequence DESC, id DESC
-     LIMIT $${limitParam} OFFSET $${offsetParam}`,
+    visibleHistoryCte + `
+      SELECT id,event_id,bookmaker_id,bookmaker_key,bookmaker_name,market,
+             home_odd,draw_odd,away_odd,captured_at,capture_sequence,
+             capture_type,source_name,source_region
+      FROM visible
+      ORDER BY
+        CASE WHEN capture_type='opening' THEN 1 ELSE 0 END ASC,
+        captured_at DESC, capture_sequence DESC, id DESC
+      LIMIT $${limitParam} OFFSET $${offsetParam}
+    `,
     [...baseParams, safePageSize, offset]
   );
 
@@ -646,7 +716,7 @@ module.exports = {
   setMatchLifecycle, archiveStartedMatch, finishMatch,
   saveOdds1x2Snapshot, saveOdds1x2Batch,
   getTrackingSettings, updateTrackingSettings, getLatestOdds1x2Batch,
-  listOdds1x2History,
+  getPreviousLiveOdds1x2Rows, listOdds1x2History,
   listDueTrackingJobs, markTrackingAttempt, markTrackingSuccess, markTrackingFailure,
   getPerformanceCache, markPerformancePreparing, savePerformanceCache, failPerformanceCache
 };

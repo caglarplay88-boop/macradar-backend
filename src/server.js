@@ -4,7 +4,7 @@ const { URL } = require('url');
 const {
   initDb, upsertMatch, listMatches, setActive, archiveStartedMatch, finishMatch,
   pool, getTrackingSettings, updateTrackingSettings, getLatestOdds1x2Batch,
-  listOdds1x2History,
+  getPreviousLiveOdds1x2Rows, listOdds1x2History,
   getPerformanceCache, markPerformancePreparing, savePerformanceCache,
   failPerformanceCache
 } = require('./db');
@@ -191,8 +191,12 @@ function oddsHistoryEventFromPath(pathname) {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
-function oddsBatchEnvelope(batch) {
+function oddsBatchEnvelope(batch, previousRows = []) {
   if (!batch) return null;
+
+  const previousByKey = new Map(
+    previousRows.map(row => [String(row.bookmaker_key || ''), row])
+  );
 
   return {
     captured_at: batch.captured_at,
@@ -200,13 +204,20 @@ function oddsBatchEnvelope(batch) {
     capture_sequence: batch.capture_sequence,
     source_name: batch.source_name,
     source_region: batch.source_region,
-    rows: batch.rows.map(row => ({
-      bookmaker_id: row.bookmaker_id,
-      bookmaker_name: row.bookmaker_name,
-      home_odd: Number(row.home_odd),
-      draw_odd: Number(row.draw_odd),
-      away_odd: Number(row.away_odd)
-    }))
+    rows: batch.rows.map(row => {
+      const previous = previousByKey.get(String(row.bookmaker_key || ''));
+
+      return {
+        bookmaker_id: row.bookmaker_id,
+        bookmaker_name: row.bookmaker_name,
+        home_odd: Number(row.home_odd),
+        draw_odd: Number(row.draw_odd),
+        away_odd: Number(row.away_odd),
+        previous_home_odd: previous ? Number(previous.home_odd) : null,
+        previous_draw_odd: previous ? Number(previous.draw_odd) : null,
+        previous_away_odd: previous ? Number(previous.away_odd) : null
+      };
+    })
   };
 }
 
@@ -639,6 +650,12 @@ const server = http.createServer(async (req, res) => {
         getLatestOdds1x2Batch(eventId, 'periodic')
       ]);
       const liveCurrent = latestLiveOddsBatch(initialCurrent, periodic);
+      const previousLiveRows = liveCurrent
+        ? await getPreviousLiveOdds1x2Rows(
+            eventId,
+            liveCurrent.capture_sequence
+          )
+        : [];
 
       return json(res, 200, {
         event_id: eventId,
@@ -646,7 +663,7 @@ const server = http.createServer(async (req, res) => {
         refresh_minutes: Number(settings?.refresh_minutes || 60),
         allowed_refresh_minutes: [5, 15, 30, 60, 120],
         opening: oddsBatchEnvelope(opening),
-        current: oddsBatchEnvelope(liveCurrent)
+        current: oddsBatchEnvelope(liveCurrent, previousLiveRows)
       });
     }
 

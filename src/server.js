@@ -691,16 +691,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      const scheduleFrom =
-        enabled && initialCapture?.current?.capturedAt
-          ? initialCapture.current.capturedAt
-          : null;
-      const settings = await updateTrackingSettings(
-        eventId,
-        enabled,
-        minutes,
-        scheduleFrom
-      );
+      const settings = await updateTrackingSettings(eventId, enabled, minutes);
       if (!settings) return json(res, 404, { error: 'Maç bulunamadı.' });
 
       return json(res, 200, {

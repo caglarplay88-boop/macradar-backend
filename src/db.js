@@ -407,7 +407,9 @@ async function listOdds1x2History({
             capture_type,source_name,source_region
      FROM odds_1x2_snapshots
      WHERE ${where}
-     ORDER BY captured_at DESC, capture_sequence DESC, id DESC
+     ORDER BY
+       CASE WHEN capture_type='opening' THEN 1 ELSE 0 END ASC,
+       captured_at DESC, capture_sequence DESC, id DESC
      LIMIT $${limitParam} OFFSET $${offsetParam}`,
     [...baseParams, safePageSize, offset]
   );

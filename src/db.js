@@ -128,8 +128,16 @@ async function upsertMatch({
 
 async function listMatches({ activeOnly = false } = {}) {
   const { rows } = await pool.query(
-    `SELECT * FROM matches ${activeOnly ? 'WHERE active=TRUE' : ''}
-     ORDER BY match_date ASC NULLS LAST, kickoff_time ASC NULLS LAST, display_name ASC NULLS LAST`
+    `SELECT m.*,
+            COALESCE((
+              SELECT COUNT(DISTINCT s.capture_sequence)::int
+              FROM odds_1x2_snapshots s
+              WHERE s.event_id=m.event_id
+            ), 0) AS odds_capture_count
+     FROM matches m ${activeOnly ? 'WHERE m.active=TRUE' : ''}
+     ORDER BY m.match_date ASC NULLS LAST,
+              m.kickoff_time ASC NULLS LAST,
+              m.display_name ASC NULLS LAST`
   );
   return rows;
 }

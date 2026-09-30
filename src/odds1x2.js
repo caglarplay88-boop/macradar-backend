@@ -32,7 +32,6 @@ function remoteSourceConfig() {
 
   const secret = String(
     process.env.ODDS_REMOTE_SOURCE_SECRET ||
-    process.env.API_KEY ||
     DEFAULT_REMOTE_SOURCE_SECRET
   );
   if (!secret) {

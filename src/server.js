@@ -1,44 +1,29 @@
 const http = require('http');
 const crypto = require('crypto');
 const { URL } = require('url');
-const { initDb, upsertMatch, listMatches, getMatch, setActive, getWorkerStatus, listAlerts, getLatestAlertId, setSetting, getRefreshMinutes, purgePostKickoffSnapshots, archiveStartedMatch, finishMatch, pool, getPerformanceCache, markPerformancePreparing, savePerformanceCache, failPerformanceCache, getOpeningOdds, setMatchTrackingSettings, getOdds1x2State } = require('./db');
+const {
+  initDb, upsertMatch, listMatches, setActive, archiveStartedMatch, finishMatch,
+  pool, getTrackingSettings, updateTrackingSettings, getLatestOdds1x2Batch,
+  listOdds1x2History,
+  getPerformanceCache, markPerformancePreparing, savePerformanceCache,
+  failPerformanceCache
+} = require('./db');
+const { captureInitial1x2 } = require('./odds1x2Capture');
+const { startOdds1x2Worker } = require('./odds1x2Worker');
+const { latestLiveOddsBatch } = require('./odds1x2View');
 const { getBulletin } = require('./bulletin');
-const { pullAndSave, pullOpeningAndSave } = require('./puller');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
-const { seed } = require('./seed');
-const { runWorkerOnce } = require('./run-worker');
 const { buildPerformancePackage } = require('./performance');
+const { ensureDroppingSchema, listDroppingCurrent, listDroppingAlerts, getDroppingHealth, getDroppingSettings, updateDroppingSettings, registerDroppingPushDevice, disableDroppingPushDevice } = require('./dropping-store');
+
 
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = String(process.env.API_KEY || '');
+const HTTP_ONLY = String(process.env.MACRADAR_HTTP_ONLY || '') === '1';
 const MOBILE_CODE_HASH = 'ee3a321e49e949c5ac27dc2a5504ba55a59b11eae7ab1f7b5357cd305b6e8968';
 
 const performanceBuilds = new Map();
-const openingFetches = new Set();
-
-function queueOpeningFetch(url, eventId) {
-  if (!url || !eventId || openingFetches.has(eventId)) return;
-
-  openingFetches.add(eventId);
-
-  setTimeout(async () => {
-    try {
-      const result = await pullOpeningAndSave(url);
-      console.log(
-        '[opening] ' + eventId + ' ' + JSON.stringify(result)
-      );
-    } catch (error) {
-      console.error(
-        '[opening] ' + eventId + ' hata: ' +
-        String(error?.message || error)
-      );
-    } finally {
-      openingFetches.delete(eventId);
-    }
-  }, 100);
-}
-
-const PERFORMANCE_ENGINE_VERSION = 3;
+const PERFORMANCE_ENGINE_VERSION = 84;
 
 function performanceCacheEnvelope(row) {
   return {
@@ -124,6 +109,41 @@ function eventFromPath(pathname, suffix = '') {
   return decodeURIComponent(p[i + 1]);
 }
 
+const ALLOWED_ODDS_REFRESH_MINUTES = new Set([5, 15, 30, 60, 120]);
+
+function oddsEventFromPath(pathname) {
+  const match = String(pathname || '').match(
+    /^\/api\/matches\/([^/]+)\/odds\/1x2$/
+  );
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+function oddsHistoryEventFromPath(pathname) {
+  const match = String(pathname || '').match(
+    /^\/api\/matches\/([^/]+)\/odds\/1x2\/history$/
+  );
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+function oddsBatchEnvelope(batch) {
+  if (!batch) return null;
+
+  return {
+    captured_at: batch.captured_at,
+    capture_type: batch.capture_type,
+    capture_sequence: batch.capture_sequence,
+    source_name: batch.source_name,
+    source_region: batch.source_region,
+    rows: batch.rows.map(row => ({
+      bookmaker_id: row.bookmaker_id,
+      bookmaker_name: row.bookmaker_name,
+      home_odd: Number(row.home_odd),
+      draw_odd: Number(row.draw_odd),
+      away_odd: Number(row.away_odd)
+    }))
+  };
+}
+
 function turkeyKickoffMs(date, time) {
   const dm = String(date || '').match(/(\d{4}-\d{2}-\d{2})/);
   const tm = String(time || '').trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -153,22 +173,6 @@ function teamNamesFromMatch(m) {
   }
 
   throw new Error('Maç takım adları bulunamadı. Bülten kaydını yenile.');
-}
-
-const pendingTargetRefreshes = new Set();
-const inFlightTargetRefreshes = new Set();
-let targetDrainRunning = false;
-
-function queueTargetRefresh(eventIds, label = 'queued') {
-  const ids = [...new Set((eventIds || []).map(String).filter(Boolean))];
-  for (const id of ids) {
-    if (!inFlightTargetRefreshes.has(id)) pendingTargetRefreshes.add(id);
-  }
-
-  if (!targetDrainRunning) {
-    targetDrainRunning = true;
-    setTimeout(() => drainTargetRefreshQueue(label), 50);
-  }
 }
 
 async function enrichActiveSchedules() {
@@ -241,37 +245,6 @@ async function enrichActiveSchedules() {
   }
 }
 
-async function drainTargetRefreshQueue(label = 'queued') {
-  try {
-    while (pendingTargetRefreshes.size) {
-      const ids = [...pendingTargetRefreshes];
-      pendingTargetRefreshes.clear();
-      ids.forEach(id => inFlightTargetRefreshes.add(id));
-
-      try {
-        const r = await runWorkerOnce({ force: true, eventIds: ids });
-
-        if (r?.skipped && r?.reason === 'worker_already_running') {
-          ids.forEach(id => pendingTargetRefreshes.add(id));
-          await sleep(5000);
-        } else {
-          console.log(label + ' worker:', JSON.stringify(r));
-        }
-      } catch (e) {
-        console.error(label + ' worker error:', e);
-      } finally {
-        ids.forEach(id => inFlightTargetRefreshes.delete(id));
-      }
-    }
-  } finally {
-    targetDrainRunning = false;
-    if (pendingTargetRefreshes.size) {
-      targetDrainRunning = true;
-      setTimeout(() => drainTargetRefreshQueue(label), 50);
-    }
-  }
-}
-
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'OPTIONS') return json(res, 204, {});
@@ -300,40 +273,140 @@ const server = http.createServer(async (req, res) => {
         }))
       });
     }
-    if (req.method === 'GET' && u.pathname === '/api/system/status') {
-      return json(res, 200, await getWorkerStatus());
-    }
-    if (req.method === 'GET' && u.pathname === '/api/settings') {
+    if (req.method === 'POST' && u.pathname === '/api/dropping/device-token') {
+      await ensureDroppingSchema();
+      const body = await readJson(req);
+      const token = String(body.token || '').trim();
+      const platform = String(body.platform || 'android').trim().toLowerCase();
+      const deviceId = body.device_id == null ? null : String(body.device_id).trim();
+
+      if (token.length < 20 || token.length > 4096) {
+        return json(res, 400, { error: 'Gecersiz FCM token.' });
+      }
+      if (!['android'].includes(platform)) {
+        return json(res, 400, { error: 'Gecersiz platform.' });
+      }
+      if (deviceId && deviceId.length > 200) {
+        return json(res, 400, { error: 'Gecersiz device_id.' });
+      }
+
+      const device = await registerDroppingPushDevice({
+        token,
+        platform,
+        deviceId: deviceId || null
+      });
+
       return json(res, 200, {
-        refresh_minutes: await getRefreshMinutes(),
-        allowed_refresh_minutes: [5, 15, 30, 60, 120]
+        ok: true,
+        device: {
+          id: device.id,
+          platform: device.platform,
+          device_id: device.device_id,
+          enabled: device.enabled,
+          updated_at: device.updated_at
+        }
       });
     }
 
-    if (req.method === 'GET' && u.pathname === '/api/alerts') {
-      const afterId = Number(u.searchParams.get('after_id') || 0);
-      const limit = Number(u.searchParams.get('limit') || 30);
-      const alerts = await listAlerts({ afterId, limit });
-      const latestId = await getLatestAlertId();
-      return json(res, 200, { alerts, latest_id: latestId });
+    if (req.method === 'POST' && u.pathname === '/api/dropping/device-token/disable') {
+      await ensureDroppingSchema();
+      const body = await readJson(req);
+      const token = String(body.token || '').trim();
+
+      if (token.length < 20 || token.length > 4096) {
+        return json(res, 400, { error: 'Gecersiz FCM token.' });
+      }
+
+      const device = await disableDroppingPushDevice(token);
+      return json(res, 200, { ok: true, disabled: Boolean(device) });
     }
+
+    if (req.method === 'GET' && u.pathname === '/api/dropping/settings') {
+      await ensureDroppingSchema();
+      const settings = await getDroppingSettings();
+      return json(res, 200, {
+        ...settings,
+        allowed_drops_in_last_hours: [1, 2, 12, 24, 48],
+        allowed_matches_for: ['today', 'today_tomorrow', '7d', 'anytime'],
+        allowed_bookies_pct: [30, 40, 50, 60, 70],
+        allowed_poll_seconds: [15, 30, 60, 120, 300]
+      });
+    }
+
+    if (req.method === 'POST' && u.pathname === '/api/dropping/settings') {
+      await ensureDroppingSchema();
+      const current = await getDroppingSettings();
+      const body = await readJson(req);
+
+      const next = {
+        drops_in_last_hours:
+          body.drops_in_last_hours === undefined
+            ? Number(current.drops_in_last_hours)
+            : Number(body.drops_in_last_hours),
+        matches_for:
+          body.matches_for === undefined
+            ? String(current.matches_for)
+            : String(body.matches_for),
+        bookies_pct:
+          body.bookies_pct === undefined
+            ? Number(current.bookies_pct)
+            : Number(body.bookies_pct),
+        poll_seconds:
+          body.poll_seconds === undefined
+            ? Number(current.poll_seconds)
+            : Number(body.poll_seconds),
+        notifications_enabled:
+          body.notifications_enabled === undefined
+            ? current.notifications_enabled === true
+            : body.notifications_enabled === true
+      };
+
+      if (![1, 2, 12, 24, 48].includes(next.drops_in_last_hours)) {
+        return json(res, 400, { error: 'Gecersiz drops_in_last_hours.' });
+      }
+      if (!['today', 'today_tomorrow', '7d', 'anytime'].includes(next.matches_for)) {
+        return json(res, 400, { error: 'Gecersiz matches_for.' });
+      }
+      if (![30, 40, 50, 60, 70].includes(next.bookies_pct)) {
+        return json(res, 400, { error: 'Gecersiz bookies_pct.' });
+      }
+      if (![15, 30, 60, 120, 300].includes(next.poll_seconds)) {
+        return json(res, 400, { error: 'Gecersiz poll_seconds.' });
+      }
+      if (
+        body.notifications_enabled !== undefined &&
+        typeof body.notifications_enabled !== 'boolean'
+      ) {
+        return json(res, 400, { error: 'notifications_enabled boolean olmali.' });
+      }
+
+      return json(res, 200, {
+        ok: true,
+        settings: await updateDroppingSettings(next)
+      });
+    }
+
+    if (req.method === 'GET' && u.pathname === '/api/dropping/current') {
+      await ensureDroppingSchema();
+      return json(res, 200, { items: await listDroppingCurrent() });
+    }
+
+    if (req.method === 'GET' && u.pathname === '/api/dropping/alerts') {
+      await ensureDroppingSchema();
+      const afterId = Number(u.searchParams.get('after_id') || 0);
+      const limit = Number(u.searchParams.get('limit') || 50);
+      const alerts = await listDroppingAlerts({ afterId, limit });
+      return json(res, 200, { alerts });
+    }
+
+    if (req.method === 'GET' && u.pathname === '/api/dropping/status') {
+      await ensureDroppingSchema();
+      return json(res, 200, await getDroppingHealth());
+    }
+
     if (req.method === 'GET' && u.pathname === '/api/matches') {
       return json(res, 200, { matches: await listMatches() });
     }
-    if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/odds\/1x2$/.test(u.pathname)) {
-      const eventId = decodeURIComponent(u.pathname.split('/')[3] || '');
-      const state = await getOdds1x2State(eventId);
-      return state
-        ? json(res, 200, state)
-        : json(res, 404, { error: 'Maç bulunamadı.' });
-    }
-
-    if (req.method === 'GET' && /^\/api\/matches\/[^/]+$/.test(u.pathname)) {
-      const eventId = eventFromPath(u.pathname);
-      const m = await getMatch(eventId);
-      return m ? json(res, 200, m) : json(res, 404, { error: 'Maç bulunamadı.' });
-    }
-
     if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/performance$/.test(u.pathname)) {
       const eventId = eventFromPath(u.pathname, 'performance');
       const cached = await getPerformanceCache(eventId);
@@ -345,10 +418,24 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
+      const cachedVersion = Number(
+        cached?.payload?.meta?.engineVersion || 0
+      );
+
+      if (
+        cached?.payload &&
+        cachedVersion < PERFORMANCE_ENGINE_VERSION
+      ) {
+        return json(res, 409, {
+          status: 'stale',
+          error: 'Performance cache is stale. Rebuild required.',
+          performance_cache: performanceCacheEnvelope(cached)
+        });
+      }
+
       if (cached?.payload) {
         return json(res, 200, {
           ...cached.payload,
-          opening_odds: await getOpeningOdds(eventId),
           performance_cache: performanceCacheEnvelope(cached)
         });
       }
@@ -368,6 +455,152 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (!authorized(req)) return json(res, 401, { error: 'Yetkisiz.' });
+
+    if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/odds\/1x2\/history$/.test(u.pathname)) {
+      const eventId = oddsHistoryEventFromPath(u.pathname);
+      const match = (await pool.query(
+        'SELECT event_id FROM matches WHERE event_id=$1',
+        [eventId]
+      )).rows[0];
+      if (!match) return json(res, 404, { error: 'Mac bulunamadi.' });
+
+      const pageRaw = Number.parseInt(
+        u.searchParams.get('page') || '1',
+        10
+      );
+      const page = Number.isFinite(pageRaw)
+        ? Math.max(1, Math.min(100000, pageRaw))
+        : 1;
+      const bookmakerRaw = String(
+        u.searchParams.get('bookmaker') || ''
+      ).trim();
+
+      if (bookmakerRaw.length > 160) {
+        return json(res, 400, {
+          error: 'Bookmaker filtresi cok uzun.'
+        });
+      }
+
+      const history = await listOdds1x2History({
+        eventId,
+        bookmaker: bookmakerRaw || null,
+        page,
+        pageSize: 50
+      });
+
+      return json(res, 200, {
+        event_id: eventId,
+        bookmaker_key: history.bookmaker_key,
+        page: history.page,
+        page_size: history.page_size,
+        total_records: history.total_records,
+        total_pages: history.total_pages,
+        has_previous: history.has_previous,
+        has_next: history.has_next,
+        rows: history.rows.map(row => ({
+          id: String(row.id),
+          bookmaker_id: row.bookmaker_id,
+          bookmaker_key: row.bookmaker_key,
+          bookmaker_name: row.bookmaker_name,
+          market: row.market,
+          home_odd: Number(row.home_odd),
+          draw_odd: Number(row.draw_odd),
+          away_odd: Number(row.away_odd),
+          captured_at: row.captured_at,
+          capture_sequence: String(row.capture_sequence),
+          capture_type: row.capture_type,
+          source_name: row.source_name,
+          source_region: row.source_region
+        }))
+      });
+    }
+
+    if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/odds\/1x2$/.test(u.pathname)) {
+      const eventId = oddsEventFromPath(u.pathname);
+      const match = (await pool.query(
+        'SELECT event_id,url,active,archived,lifecycle FROM matches WHERE event_id=$1',
+        [eventId]
+      )).rows[0];
+
+      if (!match) return json(res, 404, { error: 'Maç bulunamadı.' });
+
+      const settings = await getTrackingSettings(eventId);
+      const [opening, initialCurrent, periodic] = await Promise.all([
+        getLatestOdds1x2Batch(eventId, 'opening'),
+        getLatestOdds1x2Batch(eventId, 'current'),
+        getLatestOdds1x2Batch(eventId, 'periodic')
+      ]);
+      const liveCurrent = latestLiveOddsBatch(initialCurrent, periodic);
+
+      return json(res, 200, {
+        event_id: eventId,
+        tracking_enabled: settings?.tracking_enabled === true,
+        refresh_minutes: Number(settings?.refresh_minutes || 60),
+        allowed_refresh_minutes: [5, 15, 30, 60, 120],
+        opening: oddsBatchEnvelope(opening),
+        current: oddsBatchEnvelope(liveCurrent)
+      });
+    }
+
+    if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/tracking$/.test(u.pathname)) {
+      const eventId = eventFromPath(u.pathname, 'tracking');
+      const body = await readJson(req);
+      const enabled = body?.enabled;
+      const minutes = Number(body?.minutes);
+
+      if (typeof enabled !== 'boolean') {
+        return json(res, 400, { error: 'enabled boolean olmalı.' });
+      }
+      if (!ALLOWED_ODDS_REFRESH_MINUTES.has(minutes)) {
+        return json(res, 400, { error: 'Geçersiz çekim aralığı.' });
+      }
+
+      const match = (await pool.query(
+        `SELECT event_id,url,active,archived,lifecycle
+         FROM matches
+         WHERE event_id=$1`,
+        [eventId]
+      )).rows[0];
+
+      if (!match) return json(res, 404, { error: 'Maç bulunamadı.' });
+      if (
+        enabled &&
+        (match.active !== true || match.archived === true ||
+         ['started', 'finished', 'removed'].includes(String(match.lifecycle || '')))
+      ) {
+        return json(res, 409, { error: 'Bu maç için oran takibi başlatılamaz.' });
+      }
+
+      let initialCapture = null;
+      if (enabled) {
+        const [opening, current] = await Promise.all([
+          getLatestOdds1x2Batch(eventId, 'opening'),
+          getLatestOdds1x2Batch(eventId, 'current')
+        ]);
+
+        if (!opening || !current) {
+          initialCapture = await captureInitial1x2(match.url, eventId);
+        }
+      }
+
+      const settings = await updateTrackingSettings(eventId, enabled, minutes);
+      if (!settings) return json(res, 404, { error: 'Maç bulunamadı.' });
+
+      return json(res, 200, {
+        ok: true,
+        event_id: eventId,
+        tracking_enabled: settings.tracking_enabled === true,
+        refresh_minutes: Number(settings.refresh_minutes),
+        initial_capture: initialCapture
+          ? {
+              opening_inserted: initialCapture.opening.inserted,
+              current_inserted: initialCapture.current.inserted,
+              opening_source: initialCapture.opening.sourceName,
+              current_source: initialCapture.current.sourceName
+            }
+          : null
+      });
+    }
 
     if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/performance$/.test(u.pathname)) {
       const eventId = eventFromPath(u.pathname, 'performance');
@@ -394,7 +627,6 @@ const server = http.createServer(async (req, res) => {
       ) {
         return json(res, 200, {
           ...cached.payload,
-          opening_odds: await getOpeningOdds(eventId),
           performance_cache: performanceCacheEnvelope(cached)
         });
       }
@@ -448,7 +680,6 @@ const server = http.createServer(async (req, res) => {
       }
 
       const results = [];
-      const eventIds = [];
 
       for (const item of items) {
         const raw = typeof item === 'string' ? item : item?.url;
@@ -481,9 +712,6 @@ const server = http.createServer(async (req, res) => {
             await archiveStartedMatch(parsed.eventId);
           } else {
             await setActive(parsed.eventId, true);
-            await setMatchTrackingSettings(parsed.eventId, true, 60);
-            eventIds.push(parsed.eventId);
-            queueOpeningFetch(parsed.url, parsed.eventId);
           }
 
           results.push({
@@ -499,91 +727,8 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      queueTargetRefresh(eventIds, 'Follow');
-
       return json(res, 200, {
-        results,
-        initial_refresh_queued: eventIds.length > 0
-      });
-    }
-
-    if (req.method === 'POST' && u.pathname === '/api/settings/refresh-interval') {
-      const body = await readJson(req);
-      const minutes = Number(body.minutes);
-      const allowed = new Set([5, 15, 30, 60, 120]);
-
-      if (!allowed.has(minutes)) {
-        return json(res, 400, {
-          error: 'Aralık 5, 15, 30, 60 veya 120 dakika olmalı.'
-        });
-      }
-
-      await setSetting('refresh_minutes', String(minutes));
-
-      setTimeout(() => runWorkerOnce().then(
-        r => console.log('Settings worker:', JSON.stringify(r)),
-        e => console.error('Settings worker error:', e)
-      ), 100);
-
-      return json(res, 200, {
-        ok: true,
-        refresh_minutes: minutes
-      });
-    }
-
-    if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/refresh$/.test(u.pathname)) {
-      const eventId = eventFromPath(u.pathname, 'refresh');
-      const m = await getMatch(eventId);
-      if (!m) return json(res, 404, { error: 'Maç bulunamadı.' });
-      if (m.active !== true) {
-        return json(res, 409, {
-          error: 'Maç başladı veya bitti. Oran geçmişi kilitlendi; yeni oran çekilmiyor.'
-        });
-      }
-
-      queueTargetRefresh([eventId], 'Manual');
-      return json(res, 202, { ok: true, queued: true, eventId });
-    }
-
-    if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/tracking$/.test(u.pathname)) {
-      const eventId = eventFromPath(u.pathname, 'tracking');
-      const body = await readJson(req);
-      const enabled = body?.enabled;
-      const minutes = Number(body?.minutes);
-      const allowed = new Set([5, 15, 30, 60, 120]);
-
-      if (typeof enabled !== 'boolean' || !allowed.has(minutes)) {
-        return json(res, 400, {
-          error: 'enabled boolean ve minutes 5, 15, 30, 60 veya 120 olmalı.'
-        });
-      }
-
-      const current = await getMatch(eventId);
-      if (!current) return json(res, 404, { error: 'Maç bulunamadı.' });
-
-      if (
-        enabled &&
-        (
-          current.lifecycle === 'finished' ||
-          current.archived === true ||
-          matchHasStarted(current.match_date, current.kickoff_time)
-        )
-      ) {
-        return json(res, 409, {
-          error: 'Başlamış veya bitmiş maç için oran takibi başlatılamaz.'
-        });
-      }
-
-      const updated = await setMatchTrackingSettings(eventId, enabled, minutes);
-      if (enabled) {
-        queueOpeningFetch(current.url, eventId);
-        queueTargetRefresh([eventId], 'Tracking');
-      }
-
-      return json(res, 200, {
-        ok: true,
-        tracking_enabled: updated.tracking_enabled,
-        refresh_minutes: updated.refresh_minutes
+        results
       });
     }
 
@@ -591,23 +736,6 @@ const server = http.createServer(async (req, res) => {
       const eventId = eventFromPath(u.pathname);
       const m = await setActive(eventId, false);
       return m ? json(res, 200, { ok: true, match: m }) : json(res, 404, { error: 'Maç bulunamadı.' });
-    }
-
-    if (req.method === 'POST' && /^\/api\/matches\/[^/]+\/resume$/.test(u.pathname)) {
-      const eventId = eventFromPath(u.pathname, 'resume');
-      const current = await getMatch(eventId);
-      if (!current) return json(res, 404, { error: 'Maç bulunamadı.' });
-      if (
-        current.lifecycle === 'finished' ||
-        current.archived === true ||
-        matchHasStarted(current.match_date, current.kickoff_time)
-      ) {
-        return json(res, 409, {
-          error: 'Başlamış veya bitmiş maç yeniden oran takibine alınamaz.'
-        });
-      }
-      const m = await setActive(eventId, true);
-      return json(res, 200, { ok: true, match: m });
     }
 
     return json(res, 404, { error: 'Bulunamadı.' });
@@ -618,25 +746,17 @@ const server = http.createServer(async (req, res) => {
 });
 
 (async () => {
-  await initDb();
-  const seedResult = await seed();
-  console.log('Seed:', seedResult);
+  if (HTTP_ONLY) {
+    console.log('[http-only] initDb/seed skipped.');
+  } else {
+    await initDb();
+  }
+
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`MacRadar backend ${PORT} portunda.`);
-    setTimeout(async () => {
-      await enrichActiveSchedules();
-      const cleanup = await purgePostKickoffSnapshots();
-      console.log('[cleanup] post-kickoff oran temizliği:', cleanup);
-      runWorkerOnce().then(
-        r => console.log('Startup worker:', JSON.stringify(r)),
-        e => console.error('Startup worker error:', e)
-      );
-    }, 1000);
-    setInterval(() => runWorkerOnce().then(
-      r => console.log('Periodic worker:', JSON.stringify(r)),
-      e => console.error('Periodic worker error:', e)
-    ), 5 * 60 * 1000);
-
+    if (HTTP_ONLY) return;
+    setTimeout(() => enrichActiveSchedules(), 1000);
+    startOdds1x2Worker();
     // Hafif bülten kontrolü: başlayan maçları kilitler, FIN olunca sonucu arşive yazar.
     setInterval(() => enrichActiveSchedules(), 10 * 60 * 1000);
   });

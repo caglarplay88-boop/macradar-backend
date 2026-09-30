@@ -20,198 +20,15 @@ async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-
-    CREATE TABLE IF NOT EXISTS snapshots (
-      id BIGSERIAL PRIMARY KEY,
-      event_id TEXT NOT NULL,
-      captured_at TIMESTAMPTZ NOT NULL,
-      bookmaker TEXT NOT NULL,
-      bookmaker_rank INTEGER,
-      ms1 DOUBLE PRECISION,
-      msx DOUBLE PRECISION,
-      ms2 DOUBLE PRECISION,
-      ou15_over DOUBLE PRECISION,
-      ou15_under DOUBLE PRECISION,
-      ou25_over DOUBLE PRECISION,
-      ou25_under DOUBLE PRECISION,
-      btts_yes DOUBLE PRECISION,
-      btts_no DOUBLE PRECISION
-    );
-
-    CREATE TABLE IF NOT EXISTS snapshot_meta (
-      event_id TEXT NOT NULL,
-      captured_at TIMESTAMPTZ NOT NULL,
-      source TEXT,
-      tor_source TEXT,
-      tor_country TEXT,
-      tor_circuit INTEGER,
-      coverage JSONB NOT NULL DEFAULT '{}'::jsonb,
-      degraded BOOLEAN NOT NULL DEFAULT FALSE,
-      fallback_checked BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      PRIMARY KEY(event_id, captured_at)
-    );
-
-    ALTER TABLE snapshot_meta
-      ADD COLUMN IF NOT EXISTS tor_country TEXT;
-
-    CREATE TABLE IF NOT EXISTS odds_alerts (
-      id BIGSERIAL PRIMARY KEY,
-      event_id TEXT NOT NULL,
-      captured_at TIMESTAMPTZ NOT NULL,
-      bookmaker TEXT NOT NULL,
-      market TEXT NOT NULL,
-      selection TEXT NOT NULL,
-      previous_odd DOUBLE PRECISION NOT NULL,
-      current_odd DOUBLE PRECISION NOT NULL,
-      drop_pct DOUBLE PRECISION NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(event_id, captured_at, bookmaker, market, selection)
-    );
-
-    CREATE TABLE IF NOT EXISTS worker_runs (
-      id BIGSERIAL PRIMARY KEY,
-      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      finished_at TIMESTAMPTZ,
-      status TEXT NOT NULL DEFAULT 'running',
-      total INTEGER NOT NULL DEFAULT 0,
-      processed INTEGER NOT NULL DEFAULT 0,
-      ok_count INTEGER NOT NULL DEFAULT 0,
-      fail_count INTEGER NOT NULL DEFAULT 0,
-      skipped_count INTEGER NOT NULL DEFAULT 0,
-      error TEXT
-    );
-
-    ALTER TABLE snapshots
-      ADD COLUMN IF NOT EXISTS bookmaker_rank INTEGER;
-
-    ALTER TABLE snapshots
-      ADD COLUMN IF NOT EXISTS status_map JSONB NOT NULL DEFAULT '{}'::jsonb;
-
-    CREATE TABLE IF NOT EXISTS market_state_events (
-      id BIGSERIAL PRIMARY KEY,
-      event_id TEXT NOT NULL,
-      captured_at TIMESTAMPTZ NOT NULL,
-      bookmaker TEXT NOT NULL,
-      market TEXT NOT NULL,
-      selection TEXT NOT NULL,
-      outcome_key TEXT NOT NULL,
-      event_type TEXT NOT NULL,
-      from_status TEXT,
-      to_status TEXT,
-      last_active_at TIMESTAMPTZ,
-      last_active_odd DOUBLE PRECISION,
-      current_odd DOUBLE PRECISION,
-      reopen_gap_pct DOUBLE PRECISION,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(event_id,captured_at,bookmaker,outcome_key,event_type)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_market_state_events_event_time
-      ON market_state_events(event_id,captured_at DESC);
-
-    CREATE TABLE IF NOT EXISTS opening_odds (
-      id BIGSERIAL PRIMARY KEY,
-      event_id TEXT NOT NULL,
-      bookmaker TEXT NOT NULL,
-      market TEXT NOT NULL,
-      selection TEXT NOT NULL,
-      outcome_key TEXT NOT NULL,
-      opening_at TIMESTAMPTZ,
-      opening_odd DOUBLE PRECISION NOT NULL,
-      source TEXT NOT NULL DEFAULT 'betexplorer',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(event_id, bookmaker, outcome_key)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_opening_odds_event
-      ON opening_odds(event_id, bookmaker);
-
-    CREATE TABLE IF NOT EXISTS opening_fetch_meta (
-      event_id TEXT PRIMARY KEY,
-      status TEXT NOT NULL DEFAULT 'pending',
-      requested INTEGER NOT NULL DEFAULT 0,
-      found INTEGER NOT NULL DEFAULT 0,
-      tor_source TEXT,
-      tor_country TEXT,
-      fetched_at TIMESTAMPTZ,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS display_name TEXT;
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS league TEXT;
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS match_date DATE;
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS kickoff_time TEXT;
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE;
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS lifecycle TEXT NOT NULL DEFAULT 'tracking';
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS home_score INTEGER;
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS away_score INTEGER;
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS result_status TEXT;
-      ALTER TABLE matches
-        ADD COLUMN IF NOT EXISTS refresh_minutes INTEGER;
-
-    ALTER TABLE matches
-      ADD COLUMN IF NOT EXISTS tracking_enabled BOOLEAN NOT NULL DEFAULT TRUE;
-
-    UPDATE matches
-    SET refresh_minutes=60
-    WHERE refresh_minutes IS NULL;
-
-    ALTER TABLE matches
-      ALTER COLUMN refresh_minutes SET DEFAULT 60;
-
-    ALTER TABLE matches
-      ALTER COLUMN refresh_minutes SET NOT NULL;
-
-    CREATE TABLE IF NOT EXISTS odds_1x2_snapshots (
-      id BIGSERIAL PRIMARY KEY,
-      event_id TEXT NOT NULL REFERENCES matches(event_id) ON DELETE CASCADE,
-      bookmaker_id TEXT,
-      bookmaker_key TEXT NOT NULL,
-      bookmaker_name TEXT NOT NULL,
-      market TEXT NOT NULL DEFAULT '1X2' CHECK (market='1X2'),
-      home_odd DOUBLE PRECISION NOT NULL CHECK (home_odd > 1),
-      draw_odd DOUBLE PRECISION NOT NULL CHECK (draw_odd > 1),
-      away_odd DOUBLE PRECISION NOT NULL CHECK (away_odd > 1),
-      captured_at TIMESTAMPTZ NOT NULL,
-      capture_sequence BIGINT NOT NULL CHECK (capture_sequence > 0),
-      capture_type TEXT NOT NULL CHECK (capture_type IN ('opening','current','periodic')),
-      source_name TEXT NOT NULL,
-      source_region TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE UNIQUE INDEX IF NOT EXISTS uq_odds_1x2_time
-      ON odds_1x2_snapshots(event_id,bookmaker_key,market,captured_at,capture_type);
-    CREATE UNIQUE INDEX IF NOT EXISTS uq_odds_1x2_sequence
-      ON odds_1x2_snapshots(event_id,bookmaker_key,market,capture_sequence,capture_type);
-    CREATE INDEX IF NOT EXISTS idx_odds_1x2_match_time
-      ON odds_1x2_snapshots(event_id,captured_at DESC);
-
-
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS display_name TEXT;
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS league TEXT;
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS match_date DATE;
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS kickoff_time TEXT;
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS lifecycle TEXT NOT NULL DEFAULT 'tracking';
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS home_score INTEGER;
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS away_score INTEGER;
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS result_status TEXT;
 
     CREATE TABLE IF NOT EXISTS performance_cache (
       event_id TEXT PRIMARY KEY,
@@ -221,32 +38,59 @@ async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-
     CREATE INDEX IF NOT EXISTS idx_performance_cache_status
       ON performance_cache(status, updated_at DESC);
 
-    INSERT INTO app_settings(key,value)
-    VALUES('refresh_minutes','60')
-    ON CONFLICT(key) DO NOTHING;
+    CREATE TABLE IF NOT EXISTS odds_1x2_snapshots (
+      id BIGSERIAL PRIMARY KEY,
+      event_id TEXT NOT NULL REFERENCES matches(event_id) ON DELETE CASCADE,
+      bookmaker_id TEXT,
+      bookmaker_key TEXT NOT NULL,
+      bookmaker_name TEXT NOT NULL,
+      market TEXT NOT NULL DEFAULT '1X2' CHECK (market = '1X2'),
+      home_odd NUMERIC(12,4) NOT NULL CHECK (home_odd > 1),
+      draw_odd NUMERIC(12,4) NOT NULL CHECK (draw_odd > 1),
+      away_odd NUMERIC(12,4) NOT NULL CHECK (away_odd > 1),
+      captured_at TIMESTAMPTZ NOT NULL,
+      capture_sequence BIGINT NOT NULL CHECK (capture_sequence > 0),
+      capture_type TEXT NOT NULL CHECK (capture_type IN ('opening','current','periodic')),
+      source_name TEXT NOT NULL,
+      source_region TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_odds_1x2_time
+      ON odds_1x2_snapshots(event_id, bookmaker_key, market, captured_at, capture_type);
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_odds_1x2_sequence
+      ON odds_1x2_snapshots(event_id, bookmaker_key, market, capture_sequence, capture_type);
+    CREATE INDEX IF NOT EXISTS idx_odds_1x2_match_time
+      ON odds_1x2_snapshots(event_id, captured_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_odds_1x2_bookmaker_history
+      ON odds_1x2_snapshots(
+        event_id, bookmaker_key, captured_at DESC, id DESC
+      );
 
-    UPDATE app_settings
-    SET value='60', updated_at=NOW()
-    WHERE key='refresh_minutes' AND value='50';
+    CREATE TABLE IF NOT EXISTS odds_tracking_settings (
+      event_id TEXT PRIMARY KEY REFERENCES matches(event_id) ON DELETE CASCADE,
+      tracking_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      refresh_minutes INTEGER NOT NULL DEFAULT 60
+        CHECK (refresh_minutes IN (5,15,30,60,120)),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_odds_tracking_enabled
+      ON odds_tracking_settings(tracking_enabled, refresh_minutes);
 
-    CREATE INDEX IF NOT EXISTS idx_snapshots_event_time
-      ON snapshots(event_id, captured_at DESC);
-
-    CREATE INDEX IF NOT EXISTS idx_snapshot_meta_event_time
-      ON snapshot_meta(event_id, captured_at DESC);
-
-    CREATE INDEX IF NOT EXISTS idx_worker_runs_started
-      ON worker_runs(started_at DESC);
-
-    CREATE INDEX IF NOT EXISTS idx_odds_alerts_id
-      ON odds_alerts(id DESC);
-
-    CREATE INDEX IF NOT EXISTS idx_odds_alerts_event_time
-      ON odds_alerts(event_id, captured_at DESC);
+    ALTER TABLE odds_tracking_settings
+      ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMPTZ;
+    ALTER TABLE odds_tracking_settings
+      ADD COLUMN IF NOT EXISTS last_success_at TIMESTAMPTZ;
+    ALTER TABLE odds_tracking_settings
+      ADD COLUMN IF NOT EXISTS next_pull_at TIMESTAMPTZ;
+    ALTER TABLE odds_tracking_settings
+      ADD COLUMN IF NOT EXISTS last_error TEXT;
+    CREATE INDEX IF NOT EXISTS idx_odds_tracking_due
+      ON odds_tracking_settings(tracking_enabled, next_pull_at)
+      WHERE tracking_enabled=TRUE;
   `);
 }
 
@@ -282,589 +126,12 @@ async function upsertMatch({
   ]);
 }
 
-
-function alertCandidates(previous, current) {
-  if (!previous || !current) return [];
-
-  const fields = [
-    ['MS', 'Ev', 'ms1'],
-    ['MS', 'X', 'msx'],
-    ['MS', 'Dep', 'ms2'],
-    ['1.5', 'Alt', 'ou15_under'],
-    ['1.5', 'Üst', 'ou15_over'],
-    ['2.5', 'Alt', 'ou25_under'],
-    ['2.5', 'Üst', 'ou25_over'],
-    ['KG', 'Yok', 'btts_no'],
-    ['KG', 'Var', 'btts_yes']
-  ];
-
-  const alerts = [];
-  for (const [market, selection, key] of fields) {
-    const previousStatus = String(previous.status_map?.[key] || "unknown").toLowerCase();
-    const currentStatus = String(current[key + "_status"] || "unknown").toLowerCase();
-
-    if (previousStatus !== "active" || currentStatus !== "active") continue;
-
-    const before = Number(previous[key]);
-    const after = Number(current[key]);
-    if (!Number.isFinite(before) || !Number.isFinite(after)) continue;
-    if (before <= 0 || after <= 0 || after >= before) continue;
-
-    const absDrop = before - after;
-    const pctDrop = (absDrop / before) * 100;
-    if (absDrop + 1e-9 < 0.10 || pctDrop + 1e-9 < 5.0) continue;
-
-    alerts.push({ market, selection, previousOdd: before, currentOdd: after, dropPct: pctDrop });
-  }
-  return alerts;
-}
-
-function marketStateTransitions(previous, current) {
-  if (!previous || !current) return [];
-
-  const fields = [
-    ["MS","1","ms1"], ["MS","X","msx"], ["MS","2","ms2"],
-    ["1.5","Üst","ou15_over"], ["1.5","Alt","ou15_under"],
-    ["2.5","Üst","ou25_over"], ["2.5","Alt","ou25_under"],
-    ["KG","Var","btts_yes"], ["KG","Yok","btts_no"]
-  ];
-
-  const out = [];
-
-  for (const [market, selection, key] of fields) {
-    const from = String(previous.status_map?.[key] || "unknown").toLowerCase();
-    const to = String(current[key + "_status"] || "unknown").toLowerCase();
-
-    if (!["active","suspended"].includes(from)) continue;
-    if (!["active","suspended"].includes(to)) continue;
-    if (from === to) continue;
-
-    out.push({
-      market,
-      selection,
-      key,
-      eventType: from === "active" && to === "suspended" ? "SUSPEND" : "REOPEN",
-      fromStatus: from,
-      toStatus: to
-    });
-  }
-
-  return out;
-}
-
-async function saveMarketStateEvents(client, eventId, capturedAt, previous, current) {
-  const transitions = marketStateTransitions(previous, current);
-
-  for (const t of transitions) {
-    let lastActive = null;
-
-    if (t.eventType === "REOPEN") {
-      lastActive = (await client.query(
-        "SELECT * FROM snapshots WHERE event_id=$1 AND LOWER(REPLACE(bookmaker, ' ', '')) = LOWER(REPLACE($2, ' ', '')) AND captured_at < $3 AND COALESCE(status_map ->> $4::text, 'unknown') = 'active' ORDER BY captured_at DESC, id DESC LIMIT 1",
-        [eventId, current.bookmaker, capturedAt, t.key]
-      )).rows[0] || null;
-    } else {
-      lastActive = previous;
-    }
-
-    const before = Number(lastActive?.[t.key]);
-    const after = Number(current[t.key]);
-
-    const gapPct =
-      t.eventType === "REOPEN" &&
-      Number.isFinite(before) &&
-      before > 0 &&
-      Number.isFinite(after)
-        ? ((after - before) / before) * 100
-        : null;
-
-    await client.query(
-      "INSERT INTO market_state_events(event_id,captured_at,bookmaker,market,selection,outcome_key,event_type,from_status,to_status,last_active_at,last_active_odd,current_odd,reopen_gap_pct) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING",
-      [
-        eventId,
-        capturedAt,
-        current.bookmaker,
-        t.market,
-        t.selection,
-        t.key,
-        t.eventType,
-        t.fromStatus,
-        t.toStatus,
-        lastActive?.captured_at || null,
-        Number.isFinite(before) ? before : null,
-        Number.isFinite(after) ? after : null,
-        gapPct
-      ]
-    );
-  }
-}
-
-function snapshotStatusMap(row) {
-  const keys = ["ms1","msx","ms2","ou15_over","ou15_under","ou25_over","ou25_under","btts_yes","btts_no"];
-  const out = {};
-  for (const key of keys) {
-    if (!Number.isFinite(Number(row[key]))) continue;
-    const raw = String(row[key + "_status"] || "unknown").toLowerCase();
-    out[key] = raw === "active" || raw === "suspended" ? raw : "unknown";
-  }
-  return out;
-}
-
-async function saveSnapshot({ eventId, url, slug, rows, capturedAt = new Date(), meta = null }) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const previousByBookmaker = new Map();
-
-    for (const current of rows) {
-      const previous = (await client.query(
-        "SELECT * FROM snapshots WHERE event_id=$1 AND LOWER(REPLACE(bookmaker, ' ', '')) = LOWER(REPLACE($2, ' ', '')) AND captured_at < $3 ORDER BY captured_at DESC, id DESC LIMIT 1",
-        [eventId, current.bookmaker, capturedAt]
-      )).rows[0] || null;
-
-      previousByBookmaker.set(
-        String(current.bookmaker || '').toLowerCase().replace(/\s+/g, ''),
-        previous
-      );
-    }
-
-    await client.query(`
-      INSERT INTO matches(event_id,url,match_slug,active,created_at,updated_at)
-      VALUES($1,$2,$3,TRUE,$4,$4)
-      ON CONFLICT(event_id) DO UPDATE SET
-        url=EXCLUDED.url,
-        match_slug=EXCLUDED.match_slug,
-        updated_at=EXCLUDED.updated_at
-    `, [eventId, url, slug, capturedAt]);
-
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      await client.query(`
-        INSERT INTO snapshots(
-          event_id,captured_at,bookmaker,bookmaker_rank,ms1,msx,ms2,
-          ou15_over,ou15_under,ou25_over,ou25_under,btts_yes,btts_no,status_map
-        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)
-      `, [
-        eventId, capturedAt, r.bookmaker, i + 1,
-        r.ms1 ?? null, r.msx ?? null, r.ms2 ?? null,
-        r.ou15_over ?? null, r.ou15_under ?? null,
-        r.ou25_over ?? null, r.ou25_under ?? null,
-        r.btts_yes ?? null, r.btts_no ?? null,
-        JSON.stringify(snapshotStatusMap(r))
-      ]);
-    }
-    for (const current of rows) {
-      const key = String(current.bookmaker || "")
-        .toLowerCase()
-        .replace(/\s+/g, "");
-
-      const previous = previousByBookmaker.get(key);
-
-      if (previous) {
-        await saveMarketStateEvents(
-          client,
-          eventId,
-          capturedAt,
-          previous,
-          current
-        );
-      }
-    }
-
-    await client.query(`
-      INSERT INTO snapshot_meta(
-        event_id,captured_at,source,tor_source,tor_country,tor_circuit,
-        coverage,degraded,fallback_checked
-      )
-      VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)
-      ON CONFLICT(event_id,captured_at) DO UPDATE SET
-        source=EXCLUDED.source,
-        tor_source=EXCLUDED.tor_source,
-        tor_country=EXCLUDED.tor_country,
-        tor_circuit=EXCLUDED.tor_circuit,
-        coverage=EXCLUDED.coverage,
-        degraded=EXCLUDED.degraded,
-        fallback_checked=EXCLUDED.fallback_checked
-    `, [
-      eventId,
-      capturedAt,
-      meta?.source ?? null,
-      meta?.torSource ?? null,
-      meta?.torCountry ?? null,
-      Number.isFinite(Number(meta?.torCircuit)) ? Number(meta.torCircuit) : null,
-      JSON.stringify(meta?.coverage || {}),
-      meta?.degraded === true,
-      meta?.fallbackChecked === true
-    ]);
-
-    const activeRow = (await client.query(
-      'SELECT active FROM matches WHERE event_id=$1',
-      [eventId]
-    )).rows[0];
-
-    if (activeRow?.active) {
-      for (const current of rows) {
-        const key = String(current.bookmaker || '')
-          .toLowerCase()
-          .replace(/\s+/g, '');
-
-        const previous = previousByBookmaker.get(key);
-
-        if (!previous) continue;
-
-        const alerts = alertCandidates(previous, current);
-
-        for (const alert of alerts) {
-          await client.query(
-            'INSERT INTO odds_alerts(event_id,captured_at,bookmaker,market,selection,previous_odd,current_odd,drop_pct) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING',
-            [eventId, capturedAt, current.bookmaker, alert.market, alert.selection, alert.previousOdd, alert.currentOdd, alert.dropPct]
-          );
-        }
-      }
-    }
-
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-}
-
 async function listMatches({ activeOnly = false } = {}) {
-  const q = `
-    SELECT m.*,
-      (SELECT MAX(s.captured_at) FROM snapshots s WHERE s.event_id=m.event_id) AS last_capture,
-      (SELECT COUNT(*)::int FROM snapshots s WHERE s.event_id=m.event_id) AS row_count,
-      (
-        SELECT COUNT(DISTINCT s.captured_at)::int
-        FROM snapshots s
-        WHERE s.event_id=m.event_id
-      ) AS capture_count,
-      EXISTS (
-        SELECT 1
-        FROM (
-          SELECT
-            s.captured_at,
-            s.bookmaker,
-
-            LAG(s.captured_at) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS prev_time,
-
-            s.ms1,
-            LAG(s.ms1) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS p_ms1,
-
-            s.msx,
-            LAG(s.msx) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS p_msx,
-
-            s.ms2,
-            LAG(s.ms2) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS p_ms2,
-
-            s.ou15_under,
-            LAG(s.ou15_under) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS p_15u,
-
-            s.ou15_over,
-            LAG(s.ou15_over) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS p_15o,
-
-            s.ou25_under,
-            LAG(s.ou25_under) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS p_25u,
-
-            s.ou25_over,
-            LAG(s.ou25_over) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS p_25o,
-
-            s.btts_no,
-            LAG(s.btts_no) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS p_kgy,
-
-            s.btts_yes,
-            LAG(s.btts_yes) OVER (
-              PARTITION BY LOWER(REPLACE(s.bookmaker, ' ', ''))
-              ORDER BY s.captured_at
-            ) AS p_kgv
-
-          FROM snapshots s
-          WHERE s.event_id=m.event_id
-        ) z
-        WHERE z.captured_at >= NOW() - INTERVAL '60 minutes'
-          AND z.prev_time IS NOT NULL
-          AND z.captured_at - z.prev_time <= INTERVAL '35 minutes'
-          AND GREATEST(
-            ABS((z.ms1-z.p_ms1) / NULLIF(z.p_ms1,0)),
-            ABS((z.msx-z.p_msx) / NULLIF(z.p_msx,0)),
-            ABS((z.ms2-z.p_ms2) / NULLIF(z.p_ms2,0)),
-            ABS((z.ou15_under-z.p_15u) / NULLIF(z.p_15u,0)),
-            ABS((z.ou15_over-z.p_15o) / NULLIF(z.p_15o,0)),
-            ABS((z.ou25_under-z.p_25u) / NULLIF(z.p_25u,0)),
-            ABS((z.ou25_over-z.p_25o) / NULLIF(z.p_25o,0)),
-            ABS((z.btts_no-z.p_kgy) / NULLIF(z.p_kgy,0)),
-            ABS((z.btts_yes-z.p_kgv) / NULLIF(z.p_kgv,0))
-          ) >= 0.15
-      ) AS sharp_move_alert
-    FROM matches m
-    ${activeOnly ? 'WHERE m.active=TRUE' : ''}
-    ORDER BY
-      CASE WHEN m.match_date IS NULL THEN 1 ELSE 0 END,
-      m.match_date ASC NULLS LAST,
-      CASE
-        WHEN m.kickoff_time ~ '^[0-9]{1,2}:[0-9]{2}$'
-        THEN split_part(m.kickoff_time,':',1)::int * 60
-             + split_part(m.kickoff_time,':',2)::int
-        ELSE 9999
-      END ASC,
-      m.display_name ASC NULLS LAST,
-      COALESCE(
-        (SELECT MAX(s2.captured_at)
-         FROM snapshots s2
-         WHERE s2.event_id=m.event_id),
-        m.updated_at
-      ) DESC
-  `;
-  const { rows } = await pool.query(q);
-  return rows;
-}
-function matchKickoffCutoff(match) {
-  if (!match?.match_date || !match?.kickoff_time) return null;
-
-  const rawDate = match.match_date;
-  const date =
-    rawDate instanceof Date && Number.isFinite(rawDate.getTime())
-      ? rawDate.toISOString().slice(0, 10)
-      : (String(rawDate).match(/\d{4}-\d{2}-\d{2}/)?.[0] || '');
-
-  const tm = String(match.kickoff_time).trim().match(/^(\d{1,2}):(\d{2})$/);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !tm) return null;
-
-  const hh = String(Number(tm[1])).padStart(2, '0');
-  const mm = String(Number(tm[2])).padStart(2, '0');
-  const d = new Date(`${date}T${hh}:${mm}:00+03:00`);
-
-  return Number.isFinite(d.getTime()) ? d : null;
-}
-
-async function getMatch(eventId) {
-  const m = (await pool.query('SELECT * FROM matches WHERE event_id=$1', [eventId])).rows[0];
-  if (!m) return null;
-
-  // Grafik ve "son oranlar" yalnızca maç başlamadan önceki kayıtları gösterir.
-  // Eski sürümün yanlışlıkla kaydettiği live oranlar DB'de kalsa bile uygulamaya dönmez.
-  const cutoff = matchKickoffCutoff(m);
-  const cutoffClause = cutoff ? ' AND captured_at < $2' : '';
-  const params = cutoff ? [eventId, cutoff] : [eventId];
-
-  const latest = (await pool.query(
-    'SELECT MAX(captured_at) AS captured_at FROM snapshots WHERE event_id=$1' + cutoffClause,
-    params
-  )).rows[0]?.captured_at || null;
-
-  let rows = [];
-  if (latest) {
-    rows = (await pool.query(
-      'SELECT * FROM snapshots WHERE event_id=$1 AND captured_at=$2 ORDER BY bookmaker_rank NULLS LAST, id',
-      [eventId, latest]
-    )).rows;
-  }
-
-  const all = (await pool.query(
-    'SELECT * FROM snapshots WHERE event_id=$1' + cutoffClause + ' ORDER BY captured_at,id',
-    params
-  )).rows;
-
-  const allMeta = (await pool.query(
-    'SELECT * FROM snapshot_meta WHERE event_id=$1' + cutoffClause + ' ORDER BY captured_at',
-    params
-  )).rows;
-
-  const marketStateEvents = (await pool.query(
-    'SELECT * FROM market_state_events WHERE event_id=$1' + cutoffClause + ' ORDER BY captured_at,id',
-    params
-  )).rows;
-
-  const openingOdds = (await pool.query(`
-    SELECT
-      bookmaker, market, selection, outcome_key,
-      opening_at, opening_odd, source
-    FROM opening_odds
-    WHERE event_id=$1
-    ORDER BY bookmaker, market, selection
-  `, [eventId])).rows;
-
-
-  const metaByCapturedAt = new Map(
-    allMeta.map(x => [
-      new Date(x.captured_at).toISOString(),
-      {
-        source: x.source,
-        tor_source: x.tor_source,
-        tor_country: x.tor_country,
-        tor_circuit: x.tor_circuit,
-        coverage: x.coverage || {},
-        degraded: x.degraded === true,
-        fallback_checked: x.fallback_checked === true
-      }
-    ])
+  const { rows } = await pool.query(
+    `SELECT * FROM matches ${activeOnly ? 'WHERE active=TRUE' : ''}
+     ORDER BY match_date ASC NULLS LAST, kickoff_time ASC NULLS LAST, display_name ASC NULLS LAST`
   );
-
-  const latestMeta = latest
-    ? metaByCapturedAt.get(new Date(latest).toISOString()) || null
-    : null;
-
-  const groups = new Map();
-  for (const r of all) {
-    const key = new Date(r.captured_at).toISOString();
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(r);
-  }
-
-  const keyOf = name => String(name || '').toLowerCase().replace(/\s+/g, '');
-  const preferred =
-    rows.find(x => keyOf(x.bookmaker).startsWith('1xbet')) ||
-    rows[0] ||
-    null;
-  const preferredKey = keyOf(preferred?.bookmaker);
-
-  const allHistoryGroups = [...groups.entries()].map(([captured_at, a]) => {
-    const ordered = [...a].sort((x, y) =>
-      (x.bookmaker_rank ?? 999) - (y.bookmaker_rank ?? 999) || Number(x.id) - Number(y.id)
-    );
-    return {
-      captured_at,
-      rows: ordered,
-      meta: metaByCapturedAt.get(captured_at) || null
-    };
-  });
-
-  const historyGroups = allHistoryGroups.map(group => ({
-    captured_at: group.captured_at,
-    rows: group.rows.slice(0, 3)
-  }));
-
-  const history = historyGroups.map(group => {
-    const ordered = group.rows;
-    const picked =
-      (preferredKey ? ordered.find(x => keyOf(x.bookmaker) === preferredKey) : null) ||
-      ordered.find(x => keyOf(x.bookmaker).startsWith('1xbet')) ||
-      ordered[0];
-
-    if (!picked) return null;
-
-    return {
-      captured_at: group.captured_at,
-      bookmaker: picked.bookmaker,
-      ms1: picked.ms1,
-      msx: picked.msx,
-      ms2: picked.ms2,
-      ou15_over: picked.ou15_over,
-      ou15_under: picked.ou15_under,
-      ou25_over: picked.ou25_over,
-      ou25_under: picked.ou25_under,
-      btts_yes: picked.btts_yes,
-      btts_no: picked.btts_no
-    };
-  }).filter(Boolean);
-
-  return {
-    ...m,
-    latest_capture: latest,
-    latest_meta: latestMeta,
-    latest_rows: rows.slice(0, 3),
-    all_latest_rows: rows,
-    history_bookmaker: preferred?.bookmaker || null,
-    history,
-    history_groups: historyGroups,
-    all_history_groups: allHistoryGroups,
-    market_state_events: marketStateEvents,
-    opening_odds: openingOdds,
-    prematch_only: true,
-    kickoff_cutoff: cutoff ? cutoff.toISOString() : null
-  };
-}
-
-async function purgePostKickoffSnapshots() {
-  const matches = (await pool.query(
-    'SELECT event_id,match_date,kickoff_time FROM matches WHERE match_date IS NOT NULL AND kickoff_time IS NOT NULL'
-  )).rows;
-
-  let deletedSnapshots = 0;
-  let deletedSnapshotMeta = 0;
-  let deletedAlerts = 0;
-  let deletedMarketStateEvents = 0;
-
-  for (const match of matches) {
-    const cutoff = matchKickoffCutoff(match);
-    if (!cutoff) continue;
-
-    const client = await pool.connect();
-
-    try {
-      await client.query('BEGIN');
-
-      const sm = await client.query(
-        'DELETE FROM snapshot_meta WHERE event_id=$1 AND captured_at >= $2',
-        [match.event_id, cutoff]
-      );
-
-      const s = await client.query(
-        'DELETE FROM snapshots WHERE event_id=$1 AND captured_at >= $2',
-        [match.event_id, cutoff]
-      );
-
-      const a = await client.query(
-        'DELETE FROM odds_alerts WHERE event_id=$1 AND captured_at >= $2',
-        [match.event_id, cutoff]
-      );
-
-      const mse = await client.query(
-        'DELETE FROM market_state_events WHERE event_id=$1 AND captured_at >= $2',
-        [match.event_id, cutoff]
-      );
-
-      await client.query('COMMIT');
-
-      deletedSnapshotMeta += sm.rowCount || 0;
-      deletedSnapshots += s.rowCount || 0;
-      deletedAlerts += a.rowCount || 0;
-      deletedMarketStateEvents += mse.rowCount || 0;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  return {
-    deletedSnapshots,
-    deletedSnapshotMeta,
-    deletedAlerts,
-    deletedMarketStateEvents
-  };
+  return rows;
 }
 
 async function setMatchLifecycle(eventId, {
@@ -934,258 +201,377 @@ async function setActive(eventId, active) {
   return r.rows[0] || null;
 }
 
-async function setMatchRefreshMinutes(eventId, minutes) {
+const ALLOWED_ODDS_REFRESH_MINUTES = new Set([5, 15, 30, 60, 120]);
+
+async function getTrackingSettings(eventId) {
+  const id = String(eventId || '').trim();
+  if (!id) return null;
+
+  await pool.query(`
+    INSERT INTO odds_tracking_settings(event_id)
+    SELECT event_id FROM matches WHERE event_id=$1
+    ON CONFLICT(event_id) DO NOTHING
+  `, [id]);
+
   const r = await pool.query(
-    `UPDATE matches
-     SET refresh_minutes=$2,
-         updated_at=NOW()
-     WHERE event_id=$1
-     RETURNING *`,
-    [eventId, minutes]
+    `SELECT event_id,tracking_enabled,refresh_minutes,
+            last_attempt_at,last_success_at,next_pull_at,last_error,
+            created_at,updated_at
+     FROM odds_tracking_settings
+     WHERE event_id=$1`,
+    [id]
   );
   return r.rows[0] || null;
 }
 
-async function setMatchTrackingSettings(eventId, enabled, minutes) {
-  const r = await pool.query(
-    `UPDATE matches
-     SET tracking_enabled=$2,
-         refresh_minutes=$3,
-         updated_at=NOW()
-     WHERE event_id=$1
-     RETURNING *`,
-    [eventId, enabled, minutes]
-  );
+async function updateTrackingSettings(eventId, enabled, refreshMinutes) {
+  const id = String(eventId || '').trim();
+  const minutes = Number(refreshMinutes);
+
+  if (!id || typeof enabled !== 'boolean') {
+    throw new Error('Geçersiz oran takip ayarı.');
+  }
+  if (!ALLOWED_ODDS_REFRESH_MINUTES.has(minutes)) {
+    throw new Error('Geçersiz oran çekim aralığı.');
+  }
+
+  const r = await pool.query(`
+    INSERT INTO odds_tracking_settings(
+      event_id,tracking_enabled,refresh_minutes,next_pull_at,last_error,
+      created_at,updated_at
+    )
+    SELECT event_id,$2,$3::int,
+           CASE WHEN $2 THEN NOW() + ($3::int * INTERVAL '1 minute') ELSE NULL END,
+           NULL,NOW(),NOW()
+    FROM matches
+    WHERE event_id=$1
+    ON CONFLICT(event_id) DO UPDATE SET
+      tracking_enabled=EXCLUDED.tracking_enabled,
+      refresh_minutes=EXCLUDED.refresh_minutes,
+      next_pull_at=CASE
+        WHEN EXCLUDED.tracking_enabled
+          THEN NOW() + (EXCLUDED.refresh_minutes * INTERVAL '1 minute')
+        ELSE NULL
+      END,
+      last_error=NULL,
+      updated_at=NOW()
+    RETURNING event_id,tracking_enabled,refresh_minutes,
+              last_attempt_at,last_success_at,next_pull_at,last_error,
+              created_at,updated_at
+  `, [id, enabled, minutes]);
+
   return r.rows[0] || null;
 }
 
-function normalizeOdds1x2Bookmaker(value) {
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+async function listDueTrackingJobs(limit = 4) {
+  const safeLimit = Math.max(1, Math.min(20, Number(limit) || 4));
+  const r = await pool.query(`
+    SELECT s.event_id,s.refresh_minutes,s.next_pull_at,
+           m.url,m.active,m.archived,m.lifecycle
+    FROM odds_tracking_settings s
+    JOIN matches m ON m.event_id=s.event_id
+    WHERE s.tracking_enabled=TRUE
+      AND m.active=TRUE
+      AND COALESCE(m.archived,FALSE)=FALSE
+      AND COALESCE(m.lifecycle,'tracking') NOT IN ('started','finished','removed')
+      AND COALESCE(s.next_pull_at,NOW()) <= NOW()
+    ORDER BY COALESCE(s.next_pull_at,NOW()) ASC, s.event_id ASC
+    LIMIT $1
+  `, [safeLimit]);
+  return r.rows;
 }
 
-function validOdds1x2Row(row) {
-  if (!String(row?.bookmaker || row?.bookmakerName || '').trim()) return false;
-  return [row?.ms1 ?? row?.homeOdd, row?.msx ?? row?.drawOdd, row?.ms2 ?? row?.awayOdd]
-    .every(value => Number.isFinite(Number(value)) && Number(value) > 1);
+async function markTrackingAttempt(eventId) {
+  const r = await pool.query(`
+    UPDATE odds_tracking_settings
+    SET last_attempt_at=NOW(),
+        next_pull_at=NOW() + INTERVAL '5 minutes',
+        updated_at=NOW()
+    WHERE event_id=$1 AND tracking_enabled=TRUE
+      AND COALESCE(next_pull_at,NOW()) <= NOW()
+    RETURNING *
+  `, [String(eventId || '').trim()]);
+  return r.rows[0] || null;
+}
+
+async function markTrackingSuccess(eventId) {
+  const r = await pool.query(`
+    UPDATE odds_tracking_settings
+    SET last_success_at=NOW(),
+        next_pull_at=NOW() + (refresh_minutes * INTERVAL '1 minute'),
+        last_error=NULL,
+        updated_at=NOW()
+    WHERE event_id=$1 AND tracking_enabled=TRUE
+    RETURNING *
+  `, [String(eventId || '').trim()]);
+  return r.rows[0] || null;
+}
+
+async function markTrackingFailure(eventId, error) {
+  const message = String(error || 'Bilinmeyen periyodik oran hatası').slice(0, 1200);
+  const r = await pool.query(`
+    UPDATE odds_tracking_settings
+    SET next_pull_at=NOW() + INTERVAL '5 minutes',
+        last_error=$2,
+        updated_at=NOW()
+    WHERE event_id=$1 AND tracking_enabled=TRUE
+    RETURNING *
+  `, [String(eventId || '').trim(), message]);
+  return r.rows[0] || null;
+}
+
+async function getLatestOdds1x2Batch(eventId, captureType) {
+  const id = String(eventId || '').trim();
+  const type = String(captureType || '').trim();
+
+  if (!id || !['opening', 'current', 'periodic'].includes(type)) {
+    throw new Error('Geçersiz 1X2 snapshot sorgusu.');
+  }
+
+  const latest = await pool.query(
+    `SELECT capture_sequence
+     FROM odds_1x2_snapshots
+     WHERE event_id=$1 AND capture_type=$2
+     ORDER BY capture_sequence DESC
+     LIMIT 1`,
+    [id, type]
+  );
+
+  if (!latest.rows[0]) return null;
+
+  const sequence = latest.rows[0].capture_sequence;
+  const rows = await pool.query(
+    `SELECT bookmaker_id,bookmaker_name,home_odd,draw_odd,away_odd,
+            captured_at,capture_sequence,capture_type,source_name,source_region
+     FROM odds_1x2_snapshots
+     WHERE event_id=$1 AND capture_type=$2 AND capture_sequence=$3
+     ORDER BY bookmaker_name ASC`,
+    [id, type, sequence]
+  );
+
+  if (!rows.rows.length) return null;
+
+  const maxCapturedAt = rows.rows.reduce((max, row) => {
+    const ms = new Date(row.captured_at).getTime();
+    return Number.isFinite(ms) && ms > max ? ms : max;
+  }, 0);
+
+  return {
+    capture_sequence: String(sequence),
+    capture_type: type,
+    captured_at: maxCapturedAt ? new Date(maxCapturedAt) : rows.rows[0].captured_at,
+    source_name: rows.rows[0].source_name,
+    source_region: rows.rows[0].source_region,
+    rows: rows.rows
+  };
+}
+
+async function listOdds1x2History({
+  eventId,
+  bookmaker = null,
+  page = 1,
+  pageSize = 50
+}) {
+  const id = String(eventId || '').trim();
+  const safePage = Math.max(1, Math.min(100000, Number(page) || 1));
+  const safePageSize = 50;
+  const bookmakerKey = bookmaker
+    ? normalizeBookmakerKey(bookmaker)
+    : null;
+
+  if (!id) throw new Error('Invalid match id.');
+  if (bookmaker && !bookmakerKey) {
+    throw new Error('Invalid bookmaker.');
+  }
+
+  const where = bookmakerKey
+    ? 'event_id=$1 AND bookmaker_key=$2'
+    : 'event_id=$1';
+  const baseParams = bookmakerKey ? [id, bookmakerKey] : [id];
+
+  const countResult = await pool.query(
+    `SELECT COUNT(*)::int AS total
+     FROM odds_1x2_snapshots
+     WHERE ${where}`,
+    baseParams
+  );
+  const totalRecords = Number(countResult.rows[0]?.total || 0);
+  const totalPages = Math.ceil(totalRecords / safePageSize);
+  const offset = (safePage - 1) * safePageSize;
+
+  const limitParam = baseParams.length + 1;
+  const offsetParam = baseParams.length + 2;
+  const rowsResult = await pool.query(
+    `SELECT id,event_id,bookmaker_id,bookmaker_key,bookmaker_name,market,
+            home_odd,draw_odd,away_odd,captured_at,capture_sequence,
+            capture_type,source_name,source_region
+     FROM odds_1x2_snapshots
+     WHERE ${where}
+     ORDER BY captured_at DESC, capture_sequence DESC, id DESC
+     LIMIT $${limitParam} OFFSET $${offsetParam}`,
+    [...baseParams, safePageSize, offset]
+  );
+
+  return {
+    bookmaker_key: bookmakerKey,
+    page: safePage,
+    page_size: safePageSize,
+    total_records: totalRecords,
+    total_pages: totalPages,
+    has_previous: safePage > 1 && totalRecords > 0,
+    has_next: safePage < totalPages,
+    rows: rowsResult.rows
+  };
+}
+
+function normalizeBookmakerKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+}
+
+function validateOdds1x2Snapshot(snapshot) {
+  const allowedTypes = new Set(['opening', 'current', 'periodic']);
+  const requiredText = [
+    snapshot?.eventId,
+    snapshot?.bookmakerName,
+    snapshot?.sourceName
+  ];
+  if (requiredText.some(value => !String(value || '').trim())) {
+    throw new Error('1X2 snapshot kimlik/kaynak alanları eksik.');
+  }
+  if (!allowedTypes.has(snapshot?.captureType)) {
+    throw new Error('Geçersiz 1X2 captureType.');
+  }
+  const capturedAt = new Date(snapshot?.capturedAt);
+  if (!Number.isFinite(capturedAt.getTime())) {
+    throw new Error('Geçersiz 1X2 capturedAt.');
+  }
+  const sequence = Number(snapshot?.captureSequence);
+  if (!Number.isSafeInteger(sequence) || sequence <= 0) {
+    throw new Error('Geçersiz 1X2 captureSequence.');
+  }
+  for (const value of [snapshot?.homeOdd, snapshot?.drawOdd, snapshot?.awayOdd]) {
+    const odd = Number(value);
+    if (!Number.isFinite(odd) || odd <= 1) {
+      throw new Error('Geçersiz 1X2 oran değeri.');
+    }
+  }
+}
+
+async function saveOdds1x2Snapshot(snapshot) {
+  validateOdds1x2Snapshot(snapshot);
+  const bookmakerKey = normalizeBookmakerKey(snapshot.bookmakerId || snapshot.bookmakerName);
+  if (!bookmakerKey) throw new Error('Bookmaker anahtarı üretilemedi.');
+
+  const r = await pool.query(`
+    INSERT INTO odds_1x2_snapshots(
+      event_id,bookmaker_id,bookmaker_key,bookmaker_name,market,
+      home_odd,draw_odd,away_odd,captured_at,capture_sequence,
+      capture_type,source_name,source_region
+    )
+    VALUES($1,$2,$3,$4,'1X2',$5,$6,$7,$8,$9,$10,$11,$12)
+    ON CONFLICT DO NOTHING
+    RETURNING *
+  `, [
+    String(snapshot.eventId).trim(),
+    snapshot.bookmakerId ? String(snapshot.bookmakerId).trim() : null,
+    bookmakerKey,
+    String(snapshot.bookmakerName).trim(),
+    Number(snapshot.homeOdd),
+    Number(snapshot.drawOdd),
+    Number(snapshot.awayOdd),
+    new Date(snapshot.capturedAt),
+    Number(snapshot.captureSequence),
+    snapshot.captureType,
+    String(snapshot.sourceName).trim(),
+    snapshot.sourceRegion ? String(snapshot.sourceRegion).trim() : null
+  ]);
+
+  return r.rows[0] || null;
 }
 
 async function saveOdds1x2Batch({
   eventId,
   rows,
-  capturedAt = new Date(),
   captureType,
   sourceName,
-  sourceRegion = null
-}) {
-  const allowedTypes = new Set(['opening', 'current', 'periodic']);
-  if (!String(eventId || '').trim()) throw new Error('1X2 eventId missing.');
-  if (!allowedTypes.has(captureType)) throw new Error('Invalid 1X2 capture type.');
-  if (!String(sourceName || '').trim()) throw new Error('1X2 source missing.');
+  sourceRegion = null,
+  captureSequence = Date.now()
+}, externalClient = null) {
+  if (!Array.isArray(rows) || !rows.length) {
+    throw new Error('1X2 batch rows required.');
+  }
+  if (!Number.isSafeInteger(Number(captureSequence)) || Number(captureSequence) <= 0) {
+    throw new Error('Invalid 1X2 batch sequence.');
+  }
 
-  const validRows = (Array.isArray(rows) ? rows : []).filter(validOdds1x2Row);
-  if (!validRows.length) throw new Error('No valid 1X2 bookmaker row.');
+  const ownClient = !externalClient;
+  const client = externalClient || await pool.connect();
+  const saved = [];
 
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    const seqRow = (await client.query(
-      `SELECT COALESCE(MAX(capture_sequence),0)::bigint + 1 AS seq
-       FROM odds_1x2_snapshots
-       WHERE event_id=$1`,
-      [eventId]
-    )).rows[0];
-    const sequence = Number(seqRow?.seq || 1);
-    let saved = 0;
+    if (ownClient) await client.query('BEGIN');
 
-    for (const row of validRows) {
-      const bookmakerName = String(row.bookmaker || row.bookmakerName).trim();
-      const bookmakerKey = normalizeOdds1x2Bookmaker(row.bookmakerId || bookmakerName);
-      if (!bookmakerKey) continue;
+    for (const row of rows) {
+      const snapshot = {
+        eventId,
+        bookmakerId: row.bookmakerId,
+        bookmakerName: row.bookmakerName,
+        homeOdd: row.homeOdd,
+        drawOdd: row.drawOdd,
+        awayOdd: row.awayOdd,
+        capturedAt: row.capturedAt,
+        captureSequence: Number(captureSequence),
+        captureType,
+        sourceName,
+        sourceRegion
+      };
+      validateOdds1x2Snapshot(snapshot);
 
-      const r = await client.query(
-        `INSERT INTO odds_1x2_snapshots(
-          event_id,bookmaker_id,bookmaker_key,bookmaker_name,
+      const bookmakerKey = normalizeBookmakerKey(
+        snapshot.bookmakerId || snapshot.bookmakerName
+      );
+      const result = await client.query(`
+        INSERT INTO odds_1x2_snapshots(
+          event_id,bookmaker_id,bookmaker_key,bookmaker_name,market,
           home_odd,draw_odd,away_odd,captured_at,capture_sequence,
           capture_type,source_name,source_region
         )
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        VALUES($1,$2,$3,$4,'1X2',$5,$6,$7,$8,$9,$10,$11,$12)
         ON CONFLICT DO NOTHING
-        RETURNING id`,
-        [
-          eventId,
-          row.bookmakerId ? String(row.bookmakerId) : null,
-          bookmakerKey,
-          bookmakerName,
-          Number(row.ms1 ?? row.homeOdd),
-          Number(row.msx ?? row.drawOdd),
-          Number(row.ms2 ?? row.awayOdd),
-          new Date(capturedAt),
-          sequence,
-          captureType,
-          String(sourceName),
-          sourceRegion ? String(sourceRegion) : null
-        ]
-      );
-      saved += r.rowCount || 0;
+        RETURNING *
+      `, [
+        String(snapshot.eventId).trim(),
+        snapshot.bookmakerId ? String(snapshot.bookmakerId).trim() : null,
+        bookmakerKey,
+        String(snapshot.bookmakerName).trim(),
+        Number(snapshot.homeOdd),
+        Number(snapshot.drawOdd),
+        Number(snapshot.awayOdd),
+        new Date(snapshot.capturedAt),
+        Number(snapshot.captureSequence),
+        snapshot.captureType,
+        String(snapshot.sourceName).trim(),
+        snapshot.sourceRegion ? String(snapshot.sourceRegion).trim() : null
+      ]);
+
+      if (result.rows[0]) saved.push(result.rows[0]);
     }
 
-    await client.query('COMMIT');
-    return { saved, sequence, accepted: validRows.length };
+    if (ownClient) await client.query('COMMIT');
+    return {
+      captureSequence: Number(captureSequence),
+      inserted: saved.length,
+      rows: saved
+    };
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (ownClient) await client.query('ROLLBACK');
     throw error;
   } finally {
-    client.release();
+    if (ownClient) client.release();
   }
-}
-
-async function getOdds1x2State(eventId) {
-  const match = (await pool.query(
-    `SELECT event_id,tracking_enabled,refresh_minutes,active,archived,lifecycle
-     FROM matches WHERE event_id=$1`,
-    [eventId]
-  )).rows[0];
-  if (!match) return null;
-
-  async function latestBatch(types) {
-    const head = (await pool.query(
-      `SELECT capture_sequence,capture_type,captured_at,source_name,source_region
-       FROM odds_1x2_snapshots
-       WHERE event_id=$1 AND capture_type = ANY($2::text[])
-       ORDER BY captured_at DESC,id DESC LIMIT 1`,
-      [eventId, types]
-    )).rows[0];
-    if (!head) return null;
-
-    const rows = (await pool.query(
-      `SELECT bookmaker_id,bookmaker_name,home_odd,draw_odd,away_odd
-       FROM odds_1x2_snapshots
-       WHERE event_id=$1 AND capture_sequence=$2 AND capture_type=$3
-       ORDER BY bookmaker_name`,
-      [eventId, head.capture_sequence, head.capture_type]
-    )).rows;
-
-    return { ...head, rows };
-  }
-
-  return {
-    ...match,
-    market: '1X2',
-    opening: await latestBatch(['opening']),
-    current: await latestBatch(['current','periodic'])
-  };
-}
-
-async function createWorkerRun(total) {
-  const r = await pool.query(
-    'INSERT INTO worker_runs(total) VALUES($1) RETURNING *',
-    [total]
-  );
-  return r.rows[0];
-}
-
-async function updateWorkerRun(id, fields = {}) {
-  const current = (await pool.query('SELECT * FROM worker_runs WHERE id=$1', [id])).rows[0];
-  if (!current) return null;
-  const next = {
-    processed: fields.processed ?? current.processed,
-    ok_count: fields.ok_count ?? current.ok_count,
-    fail_count: fields.fail_count ?? current.fail_count,
-    skipped_count: fields.skipped_count ?? current.skipped_count,
-    status: fields.status ?? current.status,
-    error: fields.error ?? current.error,
-    finished_at: fields.finished_at ?? current.finished_at
-  };
-  const r = await pool.query(`
-    UPDATE worker_runs
-    SET processed=$2,ok_count=$3,fail_count=$4,skipped_count=$5,status=$6,error=$7,finished_at=$8
-    WHERE id=$1
-    RETURNING *
-  `, [
-    id, next.processed, next.ok_count, next.fail_count, next.skipped_count,
-    next.status, next.error, next.finished_at
-  ]);
-  return r.rows[0];
-}
-
-
-async function listAlerts({ afterId = 0, limit = 30 } = {}) {
-  const safeAfter = Number.isFinite(Number(afterId)) ? Number(afterId) : 0;
-  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 30));
-  const r = await pool.query(
-    'SELECT a.*, m.match_slug FROM odds_alerts a JOIN matches m ON m.event_id=a.event_id WHERE a.id > $1 AND m.active=TRUE ORDER BY a.id ASC LIMIT $2',
-    [safeAfter, safeLimit]
-  );
-  return r.rows;
-}
-
-async function getLatestAlertId() {
-  const r = await pool.query('SELECT COALESCE(MAX(id),0)::bigint AS id FROM odds_alerts');
-  return Number(r.rows[0]?.id || 0);
-}
-
-async function getSetting(key, fallback = null) {
-  const r = await pool.query(
-    'SELECT value FROM app_settings WHERE key=$1',
-    [key]
-  );
-  return r.rows[0]?.value ?? fallback;
-}
-
-async function setSetting(key, value) {
-  const r = await pool.query(`
-    INSERT INTO app_settings(key,value,updated_at)
-    VALUES($1,$2,NOW())
-    ON CONFLICT(key) DO UPDATE SET
-      value=EXCLUDED.value,
-      updated_at=EXCLUDED.updated_at
-    RETURNING *
-  `, [key, String(value)]);
-  return r.rows[0];
-}
-
-async function getRefreshMinutes() {
-  const raw = Number(await getSetting('refresh_minutes', '60'));
-  const allowed = new Set([15, 30, 60, 120]);
-  return allowed.has(raw) ? raw : 60;
-}
-
-async function getWorkerStatus() {
-  const last = (await pool.query(
-    'SELECT * FROM worker_runs ORDER BY started_at DESC LIMIT 1'
-  )).rows[0] || null;
-  const active = Number((await pool.query(
-    'SELECT COUNT(*)::int AS c FROM matches WHERE active=TRUE'
-  )).rows[0].c);
-  const snapshots = Number((await pool.query(
-    'SELECT COUNT(*)::int AS c FROM snapshots'
-  )).rows[0].c);
-  const refreshMinutes = await getRefreshMinutes();
-
-  const lastSnapshot = (await pool.query(
-    'SELECT MAX(captured_at) AS captured_at FROM snapshots'
-  )).rows[0]?.captured_at || null;
-
-  const lastSnapshotMs = lastSnapshot
-    ? new Date(lastSnapshot).getTime()
-    : null;
-
-  const snapshotAgeMinutes =
-    Number.isFinite(lastSnapshotMs)
-      ? Math.max(0, Math.floor((Date.now() - lastSnapshotMs) / 60000))
-      : null;
-
-  return {
-    last_run: last,
-    active_matches: active,
-    snapshot_rows: snapshots,
-    refresh_minutes: refreshMinutes,
-    last_successful_capture: lastSnapshot,
-    last_successful_capture_age_minutes: snapshotAgeMinutes,
-    stale: snapshotAgeMinutes != null
-      ? snapshotAgeMinutes > refreshMinutes + 5
-      : true
-  };
 }
 
 async function getPerformanceCache(eventId) {
@@ -1238,155 +624,12 @@ async function failPerformanceCache(eventId, error) {
   return r.rows[0];
 }
 
-
-
-async function saveOpeningOdds(eventId, rows) {
-  if (!Array.isArray(rows) || !rows.length) return 0;
-
-  const client = await pool.connect();
-  let saved = 0;
-
-  try {
-    await client.query('BEGIN');
-
-    for (const row of rows) {
-      const odd = Number(row.opening_odd);
-      if (!Number.isFinite(odd) || odd <= 1) continue;
-
-      await client.query(`
-        INSERT INTO opening_odds(
-          event_id, bookmaker, market, selection, outcome_key,
-          opening_at, opening_odd, source
-        )
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-        ON CONFLICT(event_id, bookmaker, outcome_key) DO UPDATE SET
-          market=EXCLUDED.market,
-          selection=EXCLUDED.selection,
-          opening_at=COALESCE(opening_odds.opening_at, EXCLUDED.opening_at),
-          opening_odd=opening_odds.opening_odd,
-          source=opening_odds.source
-      `, [
-        eventId,
-        row.bookmaker,
-        row.market,
-        row.selection,
-        row.outcome_key,
-        row.opening_at || null,
-        odd,
-        row.source || 'betexplorer'
-      ]);
-
-      saved++;
-    }
-
-    await client.query('COMMIT');
-    return saved;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-async function getOpeningOdds(eventId) {
-  const r = await pool.query(`
-    SELECT
-      bookmaker, market, selection, outcome_key,
-      opening_at, opening_odd, source
-    FROM opening_odds
-    WHERE event_id=$1
-    ORDER BY bookmaker, market, selection
-  `, [eventId]);
-
-  return r.rows;
-}
-
-async function countOpeningOdds(eventId) {
-  const r = await pool.query(
-    `SELECT COUNT(*)::int AS count FROM opening_odds WHERE event_id=$1`,
-    [eventId]
-  );
-
-  return Number(r.rows[0]?.count || 0);
-}
-
-
-async function getOpeningFetchMeta(eventId) {
-  const r = await pool.query(`
-    SELECT *
-    FROM opening_fetch_meta
-    WHERE event_id=$1
-  `, [eventId]);
-
-  return r.rows[0] || null;
-}
-
-async function saveOpeningFetchMeta(eventId, {
-  status,
-  requested = 0,
-  found = 0,
-  torSource = null,
-  torCountry = null
-}) {
-  const r = await pool.query(`
-    INSERT INTO opening_fetch_meta(
-      event_id, status, requested, found,
-      tor_source, tor_country, fetched_at, updated_at
-    )
-    VALUES($1,$2,$3,$4,$5,$6,NOW(),NOW())
-    ON CONFLICT(event_id) DO UPDATE SET
-      status=EXCLUDED.status,
-      requested=EXCLUDED.requested,
-      found=EXCLUDED.found,
-      tor_source=EXCLUDED.tor_source,
-      tor_country=EXCLUDED.tor_country,
-      fetched_at=EXCLUDED.fetched_at,
-      updated_at=NOW()
-    RETURNING *
-  `, [
-    eventId,
-    status,
-    Number(requested) || 0,
-    Number(found) || 0,
-    torSource,
-    torCountry
-  ]);
-
-  return r.rows[0];
-}
-
 module.exports = {
-  pool,
-  initDb,
-  upsertMatch,
-  saveSnapshot,
-  listMatches,
-  getMatch,
-  setActive,
-  setMatchRefreshMinutes,
-  setMatchTrackingSettings,
-  saveOdds1x2Batch,
-  getOdds1x2State,
-  createWorkerRun,
-  updateWorkerRun,
-  getWorkerStatus,
-  listAlerts,
-  getLatestAlertId,
-  getSetting,
-  setSetting,
-  getRefreshMinutes,
-  purgePostKickoffSnapshots,
-  setMatchLifecycle,
-  archiveStartedMatch,
-  finishMatch,
-  getPerformanceCache,
-  markPerformancePreparing,
-  savePerformanceCache,
-  failPerformanceCache,
-  saveOpeningOdds,
-  getOpeningOdds,
-  countOpeningOdds,
-  getOpeningFetchMeta,
-  saveOpeningFetchMeta
+  pool, initDb, upsertMatch, listMatches, setActive,
+  setMatchLifecycle, archiveStartedMatch, finishMatch,
+  saveOdds1x2Snapshot, saveOdds1x2Batch,
+  getTrackingSettings, updateTrackingSettings, getLatestOdds1x2Batch,
+  listOdds1x2History,
+  listDueTrackingJobs, markTrackingAttempt, markTrackingSuccess, markTrackingFailure,
+  getPerformanceCache, markPerformancePreparing, savePerformanceCache, failPerformanceCache
 };

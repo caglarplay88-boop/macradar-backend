@@ -97,8 +97,8 @@ function parseDailyFootball(html) {
     while ((row = rowRe.exec(block))) {
       const eventId = row[1];
       const body = row[2];
-      const link = body.match(/<a href="(\/football\/[^"]+\/([A-Za-z0-9]{6,12})\/)"[^>]*data-live-cell="matchlink"[^>]*>([\s\S]*?)<\/a>/i)
-        || body.match(/<a[^>]*data-live-cell="matchlink"[^>]*href="(\/football\/[^"]+\/([A-Za-z0-9]{6,12})\/)"[^>]*>([\s\S]*?)<\/a>/i);
+      const link = body.match(/<a href="((?:\/[a-z]{2})?\/football\/[^"]+\/([A-Za-z0-9]{6,12})\/)"[^>]*data-live-cell="matchlink"[^>]*>([\s\S]*?)<\/a>/i)
+        || body.match(/<a[^>]*data-live-cell="matchlink"[^>]*href="((?:\/[a-z]{2})?\/football\/[^"]+\/([A-Za-z0-9]{6,12})\/)"[^>]*>([\s\S]*?)<\/a>/i);
       if (!link) continue;
       const timeM = body.match(/data-live-cell="time"[^>]*>\s*([^<\n]+)/i);
       const rawTime = decodeHtml(timeM?.[1] || '');

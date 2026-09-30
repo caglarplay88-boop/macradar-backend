@@ -701,9 +701,10 @@ const server = http.createServer(async (req, res) => {
         refresh_minutes: Number(settings.refresh_minutes),
         initial_capture: initialCapture
           ? {
-              opening_inserted: initialCapture.opening.inserted,
+              opening_inserted: initialCapture.opening?.inserted || 0,
               current_inserted: initialCapture.current.inserted,
-              opening_source: initialCapture.opening.sourceName,
+              opening_source: initialCapture.opening?.sourceName || null,
+              opening_error: initialCapture.openingError || null,
               current_source: initialCapture.current.sourceName
             }
           : null

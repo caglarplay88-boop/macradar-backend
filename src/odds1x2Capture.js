@@ -19,19 +19,27 @@ function captureSequences(seed = Date.now()) {
 async function pullInitial1x2(rawUrl) {
   const parsed = parseBetExplorerUrl(rawUrl);
 
-  const opening = await pullOpening1x2WithFailover(rawUrl);
-  if (opening.eventId !== parsed.eventId) {
-    throw new Error('Opening 1X2 event mismatch.');
-  }
-
   const current = await pull1x2WithFailover(rawUrl);
   if (current.eventId !== parsed.eventId) {
     throw new Error('Current 1X2 event mismatch.');
   }
 
+  let opening = null;
+  let openingError = null;
+  try {
+    opening = await pullOpening1x2WithFailover(rawUrl);
+    if (opening.eventId !== parsed.eventId) {
+      throw new Error('Opening 1X2 event mismatch.');
+    }
+  } catch (error) {
+    opening = null;
+    openingError = String(error?.message || error);
+  }
+
   return {
     eventId: parsed.eventId,
     opening,
+    openingError,
     current
   };
 }
@@ -57,14 +65,17 @@ async function captureInitial1x2(rawUrl, eventId, externalClient = null) {
   try {
     if (ownClient) await client.query('BEGIN');
 
-    const openingSaved = await saveOdds1x2Batch({
-      eventId: expectedEventId,
-      rows: pulled.opening.rows,
-      captureType: 'opening',
-      sourceName: pulled.opening.sourceName,
-      sourceRegion: pulled.opening.sourceRegion,
-      captureSequence: sequences.opening
-    }, client);
+    let openingSaved = null;
+    if (pulled.opening) {
+      openingSaved = await saveOdds1x2Batch({
+        eventId: expectedEventId,
+        rows: pulled.opening.rows,
+        captureType: 'opening',
+        sourceName: pulled.opening.sourceName,
+        sourceRegion: pulled.opening.sourceRegion,
+        captureSequence: sequences.opening
+      }, client);
+    }
 
     const currentSaved = await saveOdds1x2Batch({
       eventId: expectedEventId,
@@ -79,13 +90,14 @@ async function captureInitial1x2(rawUrl, eventId, externalClient = null) {
 
     return {
       eventId: expectedEventId,
-      opening: {
+      opening: pulled.opening ? {
         fetched: pulled.opening.rows.length,
         inserted: openingSaved.inserted,
         sourceName: pulled.opening.sourceName,
         sourceRegion: pulled.opening.sourceRegion,
         captureSequence: sequences.opening
-      },
+      } : null,
+      openingError: pulled.openingError,
       current: {
         fetched: pulled.current.rows.length,
         inserted: currentSaved.inserted,

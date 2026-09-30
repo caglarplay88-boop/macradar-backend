@@ -282,6 +282,13 @@ async function listDueTrackingJobs(limit = 4) {
       AND m.active=TRUE
       AND COALESCE(m.archived,FALSE)=FALSE
       AND COALESCE(m.lifecycle,'tracking') NOT IN ('started','finished','removed')
+      AND (
+        m.match_date IS NULL OR
+        m.kickoff_time IS NULL OR
+        m.kickoff_time !~ '^\d{1,2}:\d{2}$' OR
+        ((m.match_date::text || ' ' || m.kickoff_time)::timestamp
+          AT TIME ZONE 'Europe/Istanbul') > NOW()
+      )
       AND COALESCE(s.next_pull_at,NOW()) <= NOW()
     ORDER BY COALESCE(s.next_pull_at,NOW()) ASC, s.event_id ASC
     LIMIT $1

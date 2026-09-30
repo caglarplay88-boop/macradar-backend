@@ -16,7 +16,7 @@ const DEFAULT_REMOTE_SOURCE_SECRET =
 
 const MIN_HEALTHY_BOOKMAKERS = Math.max(
   1,
-  Math.min(50, Number(process.env.ODDS_MIN_HEALTHY_BOOKMAKERS) || 12)
+  Math.min(50, Number(process.env.ODDS_MIN_HEALTHY_BOOKMAKERS) || 7)
 );
 
 const MIN_OPENING_BOOKMAKERS = Math.max(
@@ -487,10 +487,10 @@ async function fetchOpening1x2Source(rawUrl, source) {
   }
 
   const detailed = parse1x2Detailed(payload.odds);
-  if (detailed.length < MIN_HEALTHY_BOOKMAKERS) {
+  if (detailed.length < MIN_OPENING_BOOKMAKERS) {
     throw new Error(
       'Insufficient opening market coverage: ' +
-      detailed.length + ' < ' + MIN_HEALTHY_BOOKMAKERS
+      detailed.length + ' < ' + MIN_OPENING_BOOKMAKERS
     );
   }
 

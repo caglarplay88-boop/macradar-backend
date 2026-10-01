@@ -2602,6 +2602,11 @@ class _MatchDetailState extends State<MatchDetail> {
             continue;
           }
 
+          final candidateType = candidate['capture_type']?.toString();
+          if (candidateType != 'current' && candidateType != 'periodic') {
+            continue;
+          }
+
           final candidateId =
               candidate['bookmaker_id']?.toString().trim() ?? '';
           final candidateName =

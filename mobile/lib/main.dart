@@ -476,7 +476,7 @@ class _HomeState extends State<Home> {
 
   @override
   Widget build(BuildContext context) {
-    const names = ['Bülten', 'Performans', 'Düşüş'];
+    const names = ['Bülten', 'Takip', 'Düşüş'];
     const pages = [
       BulletinPage(),
       TrackedPage(),
@@ -507,7 +507,7 @@ class _HomeState extends State<Home> {
           NavigationDestination(
             icon: Icon(Icons.bookmark_border),
             selectedIcon: Icon(Icons.bookmark),
-            label: 'Performans',
+            label: 'Takip',
           ),
           NavigationDestination(
             icon: Icon(Icons.trending_down_outlined),
@@ -2804,19 +2804,26 @@ class _MatchDetailState extends State<MatchDetail> {
     bool homeClosed,
     bool drawClosed,
     bool awayClosed,
+    VoidCallback onTap,
   ) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 7),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: scheme.outlineVariant.withOpacity(0.34),
-        ),
-      ),
-      child: Row(
-        children: [
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: scheme.outlineVariant.withOpacity(0.34),
+              ),
+            ),
+            child: Row(
+              children: [
           Expanded(
             flex: 16,
             child: Padding(
@@ -2854,7 +2861,28 @@ class _MatchDetailState extends State<MatchDetail> {
               ],
             ),
           ),
-        ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openBookmaker(Map<String, dynamic> row) {
+    final bookmakerName = row['bookmaker_name']?.toString().trim() ?? '';
+    final bookmakerId = row['bookmaker_id']?.toString().trim() ?? '';
+    if (bookmakerName.isEmpty && bookmakerId.isEmpty) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BookmakerOddsDetail(
+          eventId: widget.eventId,
+          matchTitle: widget.title,
+          bookmakerName: bookmakerName.isEmpty ? 'Bookmaker' : bookmakerName,
+          bookmakerId: bookmakerId,
+        ),
       ),
     );
   }
@@ -2972,6 +3000,7 @@ class _MatchDetailState extends State<MatchDetail> {
                                   row['home_closed'] == true,
                                   row['draw_closed'] == true,
                                   row['away_closed'] == true,
+                                  () => _openBookmaker(row),
                                 ),
                             ],
                           ),
@@ -3021,6 +3050,1008 @@ class _MatchDetailState extends State<MatchDetail> {
         ],
       ),
     );
+  }
+}
+
+
+class BookmakerOddsDetail extends StatefulWidget {
+  final String eventId;
+  final String matchTitle;
+  final String bookmakerName;
+  final String bookmakerId;
+
+  const BookmakerOddsDetail({
+    super.key,
+    required this.eventId,
+    required this.matchTitle,
+    required this.bookmakerName,
+    required this.bookmakerId,
+  });
+
+  @override
+  State<BookmakerOddsDetail> createState() => _BookmakerOddsDetailState();
+}
+
+class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
+  bool _loading = true;
+  String _error = '';
+  int _tab = 0;
+  List<Map<String, dynamic>> _history = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final payload = await api.get(
+        '/api/matches/' +
+            Uri.encodeComponent(widget.eventId) +
+            '/odds/1x2/history?page=1',
+      );
+      final raw = payload['rows'];
+      final rows = raw is List
+          ? raw
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .where(_sameBookmaker)
+              .toList()
+          : <Map<String, dynamic>>[];
+
+      if (!mounted) return;
+      setState(() {
+        _history = rows;
+        _loading = false;
+        _error = '';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  bool _sameBookmaker(Map<String, dynamic> row) {
+    final id = row['bookmaker_id']?.toString().trim() ?? '';
+    final name = row['bookmaker_name']?.toString().trim().toLowerCase() ?? '';
+    if (widget.bookmakerId.isNotEmpty && id.isNotEmpty) {
+      return widget.bookmakerId == id;
+    }
+    return name == widget.bookmakerName.trim().toLowerCase();
+  }
+
+  String _odd(dynamic value) {
+    final number = value is num
+        ? value.toDouble()
+        : double.tryParse(value?.toString() ?? '');
+    return number == null ? '\u2014' : number.toStringAsFixed(2);
+  }
+
+  String _time(Map<String, dynamic> row) {
+    final raw = row['captured_at'] ??
+        row['capture_time'] ??
+        row['created_at'] ??
+        row['updated_at'];
+    final dt = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
+    if (dt == null) return raw?.toString() ?? '\u2014';
+    return dt.day.toString().padLeft(2, '0') +
+        '/' +
+        dt.month.toString().padLeft(2, '0') +
+        ' ' +
+        dt.hour.toString().padLeft(2, '0') +
+        ':' +
+        dt.minute.toString().padLeft(2, '0');
+  }
+
+  Widget _tabButton(String label, int index) {
+    final scheme = Theme.of(context).colorScheme;
+    final selected = _tab == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _tab = index),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? scheme.primaryContainer
+                : scheme.surfaceContainerHighest.withOpacity(0.72),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: selected
+                  ? scheme.onPrimaryContainer
+                  : scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _oddsList() {
+    final scheme = Theme.of(context).colorScheme;
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text(
+            _error,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w700, color: scheme.error),
+          ),
+        ),
+      );
+    }
+    if (_history.isEmpty) {
+      return const Center(
+        child: Text('Bu bookmaker i\u00e7in ge\u00e7mi\u015f oran bulunamad\u0131.'),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      itemCount: _history.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 7),
+      itemBuilder: (_, index) {
+        final row = _history[index];
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: scheme.outlineVariant.withOpacity(0.34)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 18,
+                child: Text(
+                  _time(row),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Expanded(child: _historyOdd('1', _odd(row['home_odd']))),
+              Expanded(child: _historyOdd('X', _odd(row['draw_odd']))),
+              Expanded(child: _historyOdd('2', _odd(row['away_odd']))),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _historyOdd(String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.bookmakerName,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            Text(
+              widget.matchTitle,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            child: Row(
+              children: [
+                _tabButton('Oranlar', 0),
+                const SizedBox(width: 8),
+                _tabButton('Grafik', 1),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _tab == 0
+                ? _oddsList()
+                : BookmakerOddsChart(
+                    history: _history,
+                    bookmakerName: widget.bookmakerName,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _OddsGraphSample {
+  final DateTime time;
+  final double? home;
+  final double? draw;
+  final double? away;
+
+  const _OddsGraphSample({
+    required this.time,
+    required this.home,
+    required this.draw,
+    required this.away,
+  });
+}
+
+class BookmakerOddsChart extends StatefulWidget {
+  final List<Map<String, dynamic>> history;
+  final String bookmakerName;
+  final bool fullScreen;
+  final int initialRangeMinutes;
+  final bool initialHome;
+  final bool initialDraw;
+  final bool initialAway;
+
+  const BookmakerOddsChart({
+    super.key,
+    required this.history,
+    required this.bookmakerName,
+    this.fullScreen = false,
+    this.initialRangeMinutes = 1440,
+    this.initialHome = true,
+    this.initialDraw = true,
+    this.initialAway = true,
+  });
+
+  @override
+  State<BookmakerOddsChart> createState() => _BookmakerOddsChartState();
+}
+
+class _BookmakerOddsChartState extends State<BookmakerOddsChart> {
+  late int _rangeMinutes;
+  late bool _showHome;
+  late bool _showDraw;
+  late bool _showAway;
+  int? _selectedIndex;
+
+  static const _homeColor = Color(0xFF2563EB);
+  static const _drawColor = Color(0xFFEC4899);
+  static const _awayColor = Color(0xFF8B5CF6);
+
+  @override
+  void initState() {
+    super.initState();
+    _rangeMinutes = widget.initialRangeMinutes;
+    _showHome = widget.initialHome;
+    _showDraw = widget.initialDraw;
+    _showAway = widget.initialAway;
+  }
+
+  double? _number(dynamic raw) {
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw?.toString() ?? '');
+  }
+
+  DateTime? _date(Map<String, dynamic> row) {
+    final raw = row['captured_at'] ??
+        row['capture_time'] ??
+        row['created_at'] ??
+        row['updated_at'];
+    return DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
+  }
+
+  List<_OddsGraphSample> _allSamples() {
+    final out = <_OddsGraphSample>[];
+    for (final row in widget.history) {
+      final time = _date(row);
+      if (time == null) continue;
+      final item = _OddsGraphSample(
+        time: time,
+        home: _number(row['home_odd']),
+        draw: _number(row['draw_odd']),
+        away: _number(row['away_odd']),
+      );
+      if (item.home != null || item.draw != null || item.away != null) {
+        out.add(item);
+      }
+    }
+    out.sort((a, b) => a.time.compareTo(b.time));
+    return out;
+  }
+
+  List<_OddsGraphSample> _visibleSamples() {
+    final all = _allSamples();
+    if (all.isEmpty) return const [];
+    final start = all.last.time.subtract(Duration(minutes: _rangeMinutes));
+    final visible = all.where((e) => !e.time.isBefore(start)).toList();
+    return visible.isEmpty ? [all.last] : visible;
+  }
+
+  String _stamp(DateTime t) {
+    return t.day.toString().padLeft(2, '0') +
+        '/' +
+        t.month.toString().padLeft(2, '0') +
+        ' ' +
+        t.hour.toString().padLeft(2, '0') +
+        ':' +
+        t.minute.toString().padLeft(2, '0');
+  }
+
+  Widget _rangeChip(String label, int minutes) {
+    final selected = _rangeMinutes == minutes;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+        ),
+        selected: selected,
+        visualDensity: VisualDensity.compact,
+        onSelected: (_) {
+          setState(() {
+            _rangeMinutes = minutes;
+            _selectedIndex = null;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _seriesChip(
+    String label,
+    bool selected,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 7),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? color.withOpacity(0.14) : scheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? color.withOpacity(0.75) : scheme.outlineVariant,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: selected ? color : scheme.onSurfaceVariant.withOpacity(0.35),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: selected ? color : scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _badge(String label, double? value, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(left: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label + ' ' + (value?.toStringAsFixed(2) ?? '\u2014'),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _selectedValues(List<_OddsGraphSample> samples) {
+    if (samples.isEmpty) return const SizedBox.shrink();
+    final index = (_selectedIndex ?? samples.length - 1)
+        .clamp(0, samples.length - 1)
+        .toInt();
+    final item = samples[index];
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outlineVariant.withOpacity(0.45)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _stamp(item.time),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          if (_showHome) _badge('1', item.home, _homeColor),
+          if (_showDraw) _badge('X', item.draw, _drawColor),
+          if (_showAway) _badge('2', item.away, _awayColor),
+        ],
+      ),
+    );
+  }
+
+  void _updateSelection(double dx, double width, int count) {
+    if (count <= 0 || width <= 54) return;
+    const left = 42.0;
+    const right = 12.0;
+    final usable = math.max(1.0, width - left - right);
+    final ratio = ((dx - left) / usable).clamp(0.0, 1.0);
+    final index = count == 1 ? 0 : (ratio * (count - 1)).round();
+    if (_selectedIndex != index) {
+      setState(() => _selectedIndex = index);
+    }
+  }
+
+  Future<void> _openFullScreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _BookmakerGraphFullscreenPage(
+          history: widget.history,
+          bookmakerName: widget.bookmakerName,
+          rangeMinutes: _rangeMinutes,
+          showHome: _showHome,
+          showDraw: _showDraw,
+          showAway: _showAway,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final samples = _visibleSamples();
+
+    return Container(
+      color: scheme.surface,
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              widget.fullScreen ? 18 : 12,
+              widget.fullScreen ? 8 : 4,
+              widget.fullScreen ? 18 : 12,
+              4,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.bookmakerName + '  \u2022  1X2',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (!widget.fullScreen)
+                  IconButton(
+                    tooltip: 'Tam ekran',
+                    onPressed: _openFullScreen,
+                    icon: const Icon(Icons.open_in_full_rounded),
+                  ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.fullScreen ? 18 : 12,
+            ),
+            child: Row(
+              children: [
+                _rangeChip('24 saat', 1440),
+                _rangeChip('12 saat', 720),
+                _rangeChip('6 saat', 360),
+                _rangeChip('120 dk', 120),
+                _rangeChip('6 dk', 6),
+              ],
+            ),
+          ),
+          const SizedBox(height: 5),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.fullScreen ? 18 : 12,
+            ),
+            child: Row(
+              children: [
+                _seriesChip(
+                  '1',
+                  _showHome,
+                  _homeColor,
+                  () => setState(() => _showHome = !_showHome),
+                ),
+                _seriesChip(
+                  'X',
+                  _showDraw,
+                  _drawColor,
+                  () => setState(() => _showDraw = !_showDraw),
+                ),
+                _seriesChip(
+                  '2',
+                  _showAway,
+                  _awayColor,
+                  () => setState(() => _showAway = !_showAway),
+                ),
+              ],
+            ),
+          ),
+          _selectedValues(samples),
+          Expanded(
+            child: samples.isEmpty
+                ? Center(
+                    child: Text(
+                      'Bu zaman aral\u0131\u011f\u0131nda grafik verisi yok.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapDown: (d) => _updateSelection(
+                          d.localPosition.dx,
+                          constraints.maxWidth,
+                          samples.length,
+                        ),
+                        onHorizontalDragStart: (d) => _updateSelection(
+                          d.localPosition.dx,
+                          constraints.maxWidth,
+                          samples.length,
+                        ),
+                        onHorizontalDragUpdate: (d) => _updateSelection(
+                          d.localPosition.dx,
+                          constraints.maxWidth,
+                          samples.length,
+                        ),
+                        child: CustomPaint(
+                          size: Size.infinite,
+                          painter: _OddsAreaChartPainter(
+                            samples: samples,
+                            showHome: _showHome,
+                            showDraw: _showDraw,
+                            showAway: _showAway,
+                            homeColor: _homeColor,
+                            drawColor: _drawColor,
+                            awayColor: _awayColor,
+                            selectedIndex: _selectedIndex,
+                            surfaceColor: scheme.surfaceContainerLow,
+                            gridColor: scheme.outlineVariant.withOpacity(0.45),
+                            textColor: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BookmakerGraphFullscreenPage extends StatefulWidget {
+  final List<Map<String, dynamic>> history;
+  final String bookmakerName;
+  final int rangeMinutes;
+  final bool showHome;
+  final bool showDraw;
+  final bool showAway;
+
+  const _BookmakerGraphFullscreenPage({
+    required this.history,
+    required this.bookmakerName,
+    required this.rangeMinutes,
+    required this.showHome,
+    required this.showDraw,
+    required this.showAway,
+  });
+
+  @override
+  State<_BookmakerGraphFullscreenPage> createState() =>
+      _BookmakerGraphFullscreenPageState();
+}
+
+class _BookmakerGraphFullscreenPageState
+    extends State<_BookmakerGraphFullscreenPage> {
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations(
+      const [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
+    );
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations(
+      const [DeviceOrientation.portraitUp],
+    );
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Stack(
+          children: [
+            BookmakerOddsChart(
+              history: widget.history,
+              bookmakerName: widget.bookmakerName,
+              fullScreen: true,
+              initialRangeMinutes: widget.rangeMinutes,
+              initialHome: widget.showHome,
+              initialDraw: widget.showDraw,
+              initialAway: widget.showAway,
+            ),
+            Positioned(
+              top: 4,
+              right: 6,
+              child: IconButton.filledTonal(
+                tooltip: 'Kapat',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close_fullscreen_rounded),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OddsAreaChartPainter extends CustomPainter {
+  final List<_OddsGraphSample> samples;
+  final bool showHome;
+  final bool showDraw;
+  final bool showAway;
+  final Color homeColor;
+  final Color drawColor;
+  final Color awayColor;
+  final int? selectedIndex;
+  final Color surfaceColor;
+  final Color gridColor;
+  final Color textColor;
+
+  const _OddsAreaChartPainter({
+    required this.samples,
+    required this.showHome,
+    required this.showDraw,
+    required this.showAway,
+    required this.homeColor,
+    required this.drawColor,
+    required this.awayColor,
+    required this.selectedIndex,
+    required this.surfaceColor,
+    required this.gridColor,
+    required this.textColor,
+  });
+
+  double? _value(_OddsGraphSample s, int series) {
+    if (series == 0) return s.home;
+    if (series == 1) return s.draw;
+    return s.away;
+  }
+
+  String _clock(DateTime t) {
+    return t.hour.toString().padLeft(2, '0') +
+        ':' +
+        t.minute.toString().padLeft(2, '0');
+  }
+
+  void _text(
+    Canvas canvas,
+    String value,
+    Offset offset, {
+    TextAlign align = TextAlign.left,
+  }) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: value,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: align,
+    )..layout();
+    var dx = offset.dx;
+    if (align == TextAlign.center) dx -= tp.width / 2;
+    if (align == TextAlign.right) dx -= tp.width;
+    tp.paint(canvas, Offset(dx, offset.dy));
+  }
+
+  List<Offset> _points(
+    Rect plot,
+    int series,
+    double minValue,
+    double maxValue,
+  ) {
+    final points = <Offset>[];
+    final span = math.max(0.001, maxValue - minValue);
+    for (var i = 0; i < samples.length; i++) {
+      final value = _value(samples[i], series);
+      if (value == null) continue;
+      final x = samples.length == 1
+          ? plot.center.dx
+          : plot.left + plot.width * i / (samples.length - 1);
+      final y = plot.bottom - ((value - minValue) / span) * plot.height;
+      points.add(Offset(x, y));
+    }
+    return points;
+  }
+
+  Path _smoothPath(List<Offset> points) {
+    final path = Path();
+    if (points.isEmpty) return path;
+    path.moveTo(points.first.dx, points.first.dy);
+    for (var i = 1; i < points.length; i++) {
+      final a = points[i - 1];
+      final b = points[i];
+      final mid = (a.dx + b.dx) / 2;
+      path.cubicTo(mid, a.dy, mid, b.dy, b.dx, b.dy);
+    }
+    return path;
+  }
+
+  void _drawSeries(
+    Canvas canvas,
+    Rect plot,
+    int series,
+    Color color,
+    double minValue,
+    double maxValue,
+  ) {
+    final points = _points(plot, series, minValue, maxValue);
+    if (points.isEmpty) return;
+
+    final path = _smoothPath(points);
+    if (points.length > 1) {
+      final fill = Path.from(path)
+        ..lineTo(points.last.dx, plot.bottom)
+        ..lineTo(points.first.dx, plot.bottom)
+        ..close();
+      canvas.drawPath(
+        fill,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              color.withOpacity(0.22),
+              color.withOpacity(0.025),
+            ],
+          ).createShader(plot),
+      );
+    }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.35
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    for (final p in points) {
+      canvas.drawCircle(p, 3.0, Paint()..color = color);
+      canvas.drawCircle(
+        p,
+        3.0,
+        Paint()
+          ..color = surfaceColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5,
+      );
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const left = 42.0;
+    const right = 12.0;
+    const top = 12.0;
+    const bottom = 28.0;
+    final plot = Rect.fromLTRB(
+      left,
+      top,
+      math.max(left + 1, size.width - right),
+      math.max(top + 1, size.height - bottom),
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          8,
+          2,
+          math.max(1, size.width - 16),
+          math.max(1, size.height - 8),
+        ),
+        const Radius.circular(16),
+      ),
+      Paint()..color = surfaceColor,
+    );
+
+    final values = <double>[];
+    for (final e in samples) {
+      if (showHome && e.home != null) values.add(e.home!);
+      if (showDraw && e.draw != null) values.add(e.draw!);
+      if (showAway && e.away != null) values.add(e.away!);
+    }
+
+    if (values.isEmpty) {
+      _text(
+        canvas,
+        '1 / X / 2 se\u00e7imi yap\u0131n',
+        Offset(plot.center.dx, plot.center.dy),
+        align: TextAlign.center,
+      );
+      return;
+    }
+
+    var minValue = values.reduce(math.min);
+    var maxValue = values.reduce(math.max);
+    if ((maxValue - minValue).abs() < 0.01) {
+      minValue -= 0.05;
+      maxValue += 0.05;
+    } else {
+      final pad = (maxValue - minValue) * 0.12;
+      minValue -= pad;
+      maxValue += pad;
+    }
+
+    final grid = Paint()
+      ..color = gridColor
+      ..strokeWidth = 0.8;
+
+    for (var i = 0; i <= 4; i++) {
+      final y = plot.top + plot.height * i / 4;
+      canvas.drawLine(Offset(plot.left, y), Offset(plot.right, y), grid);
+      final value = maxValue - (maxValue - minValue) * i / 4;
+      _text(
+        canvas,
+        value.toStringAsFixed(2),
+        Offset(plot.left - 5, y - 5),
+        align: TextAlign.right,
+      );
+    }
+
+    for (var i = 0; i <= 4; i++) {
+      final x = plot.left + plot.width * i / 4;
+      canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), grid);
+    }
+
+    if (showHome) _drawSeries(canvas, plot, 0, homeColor, minValue, maxValue);
+    if (showDraw) _drawSeries(canvas, plot, 1, drawColor, minValue, maxValue);
+    if (showAway) _drawSeries(canvas, plot, 2, awayColor, minValue, maxValue);
+
+    if (samples.isNotEmpty) {
+      _text(canvas, _clock(samples.first.time), Offset(plot.left, plot.bottom + 7));
+      _text(
+        canvas,
+        _clock(samples[samples.length ~/ 2].time),
+        Offset(plot.center.dx, plot.bottom + 7),
+        align: TextAlign.center,
+      );
+      _text(
+        canvas,
+        _clock(samples.last.time),
+        Offset(plot.right, plot.bottom + 7),
+        align: TextAlign.right,
+      );
+    }
+
+    if (selectedIndex != null && samples.isNotEmpty) {
+      final index = selectedIndex!.clamp(0, samples.length - 1).toInt();
+      final x = samples.length == 1
+          ? plot.center.dx
+          : plot.left + plot.width * index / (samples.length - 1);
+
+      canvas.drawLine(
+        Offset(x, plot.top),
+        Offset(x, plot.bottom),
+        Paint()
+          ..color = textColor.withOpacity(0.8)
+          ..strokeWidth = 1.2,
+      );
+
+      final span = math.max(0.001, maxValue - minValue);
+      void selected(double? value, Color color) {
+        if (value == null) return;
+        final y = plot.bottom - ((value - minValue) / span) * plot.height;
+        canvas.drawCircle(Offset(x, y), 6, Paint()..color = surfaceColor);
+        canvas.drawCircle(Offset(x, y), 4, Paint()..color = color);
+      }
+
+      if (showHome) selected(samples[index].home, homeColor);
+      if (showDraw) selected(samples[index].draw, drawColor);
+      if (showAway) selected(samples[index].away, awayColor);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OddsAreaChartPainter old) {
+    return old.samples != samples ||
+        old.showHome != showHome ||
+        old.showDraw != showDraw ||
+        old.showAway != showAway ||
+        old.selectedIndex != selectedIndex ||
+        old.surfaceColor != surfaceColor ||
+        old.gridColor != gridColor ||
+        old.textColor != textColor;
   }
 }
 

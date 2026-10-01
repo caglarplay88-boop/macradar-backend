@@ -2656,25 +2656,22 @@ class _MatchDetailState extends State<MatchDetail> {
   }
 
   Future<void> _loadMatchInfo({bool silent = false}) async {
-    if (!silent && mounted) {
-      setState(() => _matchLoading = true);
-    }
-
+    if (!silent && mounted) setState(() => _matchLoading = true);
     try {
-      final match = await api.get(
-        '/api/matches/' + Uri.encodeComponent(widget.eventId),
-      );
-
-      int? systemMinutes;
+      final eventPath = Uri.encodeComponent(widget.eventId);
+      final match = await api.get('/api/matches/' + eventPath);
+      Map<String, dynamic> tracking = <String, dynamic>{};
       try {
-        final status = await api.get('/api/system/status');
-        systemMinutes = (status['refresh_minutes'] as num?)?.toInt();
+        tracking = await api.get('/api/matches/' + eventPath + '/odds/1x2');
       } catch (_) {}
-
       if (!mounted) return;
       setState(() {
         _matchData = Map<String, dynamic>.from(match);
-        _systemRefreshMinutes = systemMinutes ?? _systemRefreshMinutes;
+        if (tracking.isNotEmpty) {
+          _matchData['tracking_enabled'] = tracking['tracking_enabled'] == true;
+          final minutes = (tracking['refresh_minutes'] as num?)?.toInt();
+          if (minutes != null) _matchData['refresh_minutes'] = minutes;
+        }
         _matchLoading = false;
       });
     } catch (_) {
@@ -2684,23 +2681,21 @@ class _MatchDetailState extends State<MatchDetail> {
   }
 
   int _effectiveRefreshMinutes() {
-    return (_matchData['refresh_minutes'] as num?)?.toInt() ??
-        _systemRefreshMinutes ??
-        5;
+    return (_matchData['refresh_minutes'] as num?)?.toInt() ?? 60;
   }
 
   Future<void> _setMatchInterval(int minutes) async {
     if (_intervalSaving) return;
     setState(() => _intervalSaving = true);
     try {
+      final enabled = _matchData['tracking_enabled'] == true;
       final result = await api.post(
-        '/api/matches/' +
-            Uri.encodeComponent(widget.eventId) +
-            '/refresh-interval',
-        {'minutes': minutes},
+        '/api/matches/' + Uri.encodeComponent(widget.eventId) + '/tracking',
+        {'enabled': enabled, 'minutes': minutes},
       );
       if (!mounted) return;
       setState(() {
+        _matchData['tracking_enabled'] = result['tracking_enabled'] == true;
         _matchData['refresh_minutes'] =
             (result['refresh_minutes'] as num?)?.toInt() ?? minutes;
         _intervalSaving = false;
@@ -2709,9 +2704,7 @@ class _MatchDetailState extends State<MatchDetail> {
       if (!mounted) return;
       setState(() => _intervalSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-        ),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
   }
@@ -2720,35 +2713,23 @@ class _MatchDetailState extends State<MatchDetail> {
     if (_trackingBusy) return;
     setState(() => _trackingBusy = true);
     try {
-      final active = _matchData['active'] == true;
-      final result = active
-          ? await api.delete(
-              '/api/matches/' + Uri.encodeComponent(widget.eventId),
-            )
-          : await api.post(
-              '/api/matches/' +
-                  Uri.encodeComponent(widget.eventId) +
-                  '/resume',
-              <String, dynamic>{},
-            );
-
+      final enabled = _matchData['tracking_enabled'] == true;
+      final result = await api.post(
+        '/api/matches/' + Uri.encodeComponent(widget.eventId) + '/tracking',
+        {'enabled': !enabled, 'minutes': _effectiveRefreshMinutes()},
+      );
       if (!mounted) return;
-      final match = result['match'];
       setState(() {
-        if (match is Map) {
-          _matchData = Map<String, dynamic>.from(match);
-        } else {
-          _matchData['active'] = !active;
-        }
+        _matchData['tracking_enabled'] = result['tracking_enabled'] == true;
+        _matchData['refresh_minutes'] =
+            (result['refresh_minutes'] as num?)?.toInt() ?? _effectiveRefreshMinutes();
         _trackingBusy = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _trackingBusy = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-        ),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
   }
@@ -2943,7 +2924,7 @@ class _MatchDetailState extends State<MatchDetail> {
 
   Widget _trackingControls() {
     final scheme = Theme.of(context).colorScheme;
-    final active = _matchData['active'] == true;
+    final active = _matchData['tracking_enabled'] == true;
 
     return Column(
       children: [
@@ -3496,52 +3477,42 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
 
   Future<void> _load() async {
     try {
-      final encoded = Uri.encodeComponent(widget.eventId);
-      final results = await Future.wait<Map<String, dynamic>>([
-        api.get('/api/matches/' + encoded + '/odds/1x2/history?page=1'),
-        api.get('/api/matches/' + encoded),
-      ]);
-      final payload = results[0];
-      final detail = results[1];
-      final raw = payload['rows'];
-      final rows = raw is List
-          ? raw.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).where(_sameBookmaker).toList()
-          : <Map<String, dynamic>>[];
-      final opening = <String, dynamic>{
-        '_opening': true,
-        'captured_at': null,
-        'home_odd': null,
-        'draw_odd': null,
-        'away_odd': null,
-      };
-      var hasOpening = false;
-      final openingRaw = detail['opening_odds'];
-      if (openingRaw is List) {
-        for (final item in openingRaw.whereType<Map>()) {
-          final row = Map<String, dynamic>.from(item);
-          final bookmaker = row['bookmaker']?.toString() ?? '';
-          if (_bookmakerKey(bookmaker) != _bookmakerKey(widget.bookmakerName)) continue;
-          final key = row['outcome_key']?.toString() ?? '';
-          final odd = row['opening_odd'];
-          if (key == 'ms1') {
-            opening['home_odd'] = odd;
-            hasOpening = true;
-          } else if (key == 'msx') {
-            opening['draw_odd'] = odd;
-            hasOpening = true;
-          } else if (key == 'ms2') {
-            opening['away_odd'] = odd;
-            hasOpening = true;
-          } else {
-            continue;
+      final eventPath = Uri.encodeComponent(widget.eventId);
+      final bookmakerQuery = Uri.encodeQueryComponent(widget.bookmakerName);
+      final rows = <Map<String, dynamic>>[];
+      var page = 1;
+      while (true) {
+        final payload = await api.get(
+          '/api/matches/' + eventPath +
+              '/odds/1x2/history?bookmaker=' + bookmakerQuery +
+              '&page=' + page.toString(),
+        );
+        final raw = payload['rows'];
+        if (raw is List) {
+          rows.addAll(raw.whereType<Map>().map((r) => Map<String, dynamic>.from(r)));
+        }
+        if (payload['has_next'] != true || page >= 20) break;
+        page++;
+      }
+      final live = await api.get('/api/matches/' + eventPath + '/odds/1x2');
+      final openingRows = <Map<String, dynamic>>[];
+      final opening = live['opening'];
+      final rawOpening = opening is Map ? opening['rows'] : null;
+      if (rawOpening is List) {
+        for (final raw in rawOpening.whereType<Map>()) {
+          final row = Map<String, dynamic>.from(raw);
+          if (_sameBookmaker(row)) {
+            row['_opening'] = true;
+            row['captured_at'] ??= opening is Map ? opening['captured_at'] : null;
+            openingRows.add(row);
+            break;
           }
-          opening['captured_at'] ??= row['opening_at'];
         }
       }
       if (!mounted) return;
       setState(() {
-        _history = rows;
-        _openingRows = hasOpening ? [opening] : const [];
+        _history = rows.where(_sameBookmaker).toList();
+        _openingRows = openingRows;
         _loading = false;
         _error = '';
       });

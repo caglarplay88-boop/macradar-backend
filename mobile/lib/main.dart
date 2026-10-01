@@ -2544,6 +2544,7 @@ class _MatchDetailState extends State<MatchDetail> {
   int _trackingMinutes = 60;
   List<int> _allowedTrackingMinutes = const [5, 15, 30, 60, 120];
   String _oddsError = '';
+  String _lastCheckedAtText = '';
   List<Map<String, dynamic>> _oddsRows = const [];
   Timer? _oddsRefreshTimer;
 
@@ -2586,6 +2587,7 @@ class _MatchDetailState extends State<MatchDetail> {
       );
       final current = payload['current'];
       final trackingEnabled = payload['tracking_enabled'] == true;
+      final lastCheckedAtText = _formatLastCheckedAt(payload['last_checked_at']);
       final trackingMinutes =
           (payload['refresh_minutes'] as num?)?.toInt() ?? _trackingMinutes;
       final allowedRaw = payload['allowed_refresh_minutes'];
@@ -2664,6 +2666,7 @@ class _MatchDetailState extends State<MatchDetail> {
         _trackingEnabled = trackingEnabled;
         _trackingMinutes = trackingMinutes;
         _trackingSettingsLoaded = true;
+        _lastCheckedAtText = lastCheckedAtText;
         if (allowedTrackingMinutes.isNotEmpty) {
           _allowedTrackingMinutes = allowedTrackingMinutes;
         }
@@ -2681,6 +2684,17 @@ class _MatchDetailState extends State<MatchDetail> {
     } finally {
       _oddsRequestRunning = false;
     }
+  }
+
+  String _formatLastCheckedAt(dynamic value) {
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) return '';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return '';
+    final local = parsed.toLocal();
+    return local.hour.toString().padLeft(2, '0') +
+        ':' +
+        local.minute.toString().padLeft(2, '0');
   }
 
   Future<void> _saveTracking({
@@ -2993,6 +3007,17 @@ class _MatchDetailState extends State<MatchDetail> {
               ),
             ],
           ),
+          if (_trackingSettingsLoaded && _lastCheckedAtText.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              'Son kontrol: ' + _lastCheckedAtText,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: 9),
           Row(
             children: [

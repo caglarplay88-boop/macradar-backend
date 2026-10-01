@@ -2523,6 +2523,449 @@ class MatchDetail extends StatefulWidget {
 }
 
 class _MatchDetailState extends State<MatchDetail> {
+  bool _showOdds = true;
+  bool _oddsLoading = true;
+  bool _oddsRequestRunning = false;
+  String _oddsError = '';
+  List<Map<String, dynamic>> _oddsRows = const [];
+  Timer? _oddsRefreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOdds1x2();
+    _oddsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) {
+        if (mounted && _showOdds) {
+          _loadOdds1x2(silent: true);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _oddsRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadOdds1x2({bool silent = false}) async {
+    if (_oddsRequestRunning) return;
+    _oddsRequestRunning = true;
+
+    if (mounted && !silent) {
+      setState(() {
+        _oddsLoading = true;
+        _oddsError = '';
+      });
+    }
+
+    try {
+      final payload = await api.get(
+        '/api/matches/' +
+            Uri.encodeComponent(widget.eventId) +
+            '/odds/1x2',
+      );
+      final current = payload['current'];
+      final rawRows = current is Map ? current['rows'] : null;
+      final currentSequence =
+          current is Map ? current['capture_sequence']?.toString() : null;
+      final rows = rawRows is List
+          ? rawRows
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+          : <Map<String, dynamic>>[];
+
+      final historyPayload = await api.get(
+        '/api/matches/' +
+            Uri.encodeComponent(widget.eventId) +
+            '/odds/1x2/history?page=1',
+      );
+      final historyRaw = historyPayload['rows'];
+      final historyRows = historyRaw is List
+          ? historyRaw
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+          : <Map<String, dynamic>>[];
+
+      for (final row in rows) {
+        final bookmakerId = row['bookmaker_id']?.toString().trim() ?? '';
+        final bookmakerName =
+            row['bookmaker_name']?.toString().trim().toLowerCase() ?? '';
+
+        Map<String, dynamic>? previous;
+        for (final candidate in historyRows) {
+          if (candidate['capture_sequence']?.toString() == currentSequence) {
+            continue;
+          }
+
+          final candidateId =
+              candidate['bookmaker_id']?.toString().trim() ?? '';
+          final candidateName =
+              candidate['bookmaker_name']?.toString().trim().toLowerCase() ??
+                  '';
+          final sameBookmaker = bookmakerId.isNotEmpty && candidateId.isNotEmpty
+              ? bookmakerId == candidateId
+              : bookmakerName.isNotEmpty && bookmakerName == candidateName;
+
+          if (sameBookmaker) {
+            previous = candidate;
+            break;
+          }
+        }
+
+        row['_home_trend'] =
+            _oddTrend(row['home_odd'], previous?['home_odd']);
+        row['_draw_trend'] =
+            _oddTrend(row['draw_odd'], previous?['draw_odd']);
+        row['_away_trend'] =
+            _oddTrend(row['away_odd'], previous?['away_odd']);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _oddsRows = rows;
+        _oddsLoading = false;
+        _oddsError = '';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      if (!silent || _oddsRows.isEmpty) {
+        setState(() {
+          _oddsLoading = false;
+          _oddsError = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    } finally {
+      _oddsRequestRunning = false;
+    }
+  }
+
+  String _oddText(dynamic value) {
+    final number = value is num
+        ? value.toDouble()
+        : double.tryParse(value?.toString() ?? '');
+    if (number == null) return '—';
+    return number.toStringAsFixed(2);
+  }
+
+  String _oddTrend(dynamic current, dynamic previous) {
+    final currentValue = current is num
+        ? current.toDouble()
+        : double.tryParse(current?.toString() ?? '');
+    final previousValue = previous is num
+        ? previous.toDouble()
+        : double.tryParse(previous?.toString() ?? '');
+
+    if (currentValue == null || previousValue == null) return 'none';
+    if (currentValue > previousValue) return 'up';
+    if (currentValue < previousValue) return 'down';
+    return 'none';
+  }
+
+  Widget _detailTab({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          decoration: BoxDecoration(
+            color: selected
+                ? const Color(0xFFDC2626)
+                : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: selected
+                  ? Colors.white
+                  : const Color(0xFF475569),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _marketTab(String label, {bool active = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: active
+            ? const Color(0xFFDC2626)
+            : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          color: active
+              ? Colors.white
+              : const Color(0xFF94A3B8),
+        ),
+      ),
+    );
+  }
+
+  Widget _trendIcon(String trend) {
+    if (trend == 'up') {
+      return const Icon(
+        Icons.arrow_upward_rounded,
+        size: 15,
+        color: Color(0xFF22C55E),
+      );
+    }
+    if (trend == 'down') {
+      return const Icon(
+        Icons.arrow_downward_rounded,
+        size: 15,
+        color: Color(0xFFDC2626),
+      );
+    }
+    return const SizedBox(width: 15);
+  }
+
+  Widget _oddValue(
+    String value, {
+    bool header = false,
+    String trend = 'none',
+    bool closed = false,
+  }) {
+    return Expanded(
+      child: Container(
+        alignment: Alignment.center,
+        padding: EdgeInsets.symmetric(vertical: header ? 8 : 13),
+        child: header
+            ? Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF64748B),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  closed ? const SizedBox(width: 15) : _trendIcon(trend),
+                  const SizedBox(width: 3),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: closed
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF1E293B),
+                      decoration: closed
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                      decorationThickness: 2,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _bookmakerRow(
+    String name,
+    String home,
+    String draw,
+    String away,
+    String homeTrend,
+    String drawTrend,
+    String awayTrend,
+    bool homeClosed,
+    bool drawClosed,
+    bool awayClosed,
+  ) {
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 16,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+              child: Text(
+                name,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 21,
+            child: Row(
+              children: [
+                _oddValue(
+                  home,
+                  trend: homeTrend,
+                  closed: homeClosed,
+                ),
+                _oddValue(
+                  draw,
+                  trend: drawTrend,
+                  closed: drawClosed,
+                ),
+                _oddValue(
+                  away,
+                  trend: awayTrend,
+                  closed: awayClosed,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _oddsSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+          child: Row(
+            children: [
+              _marketTab('1X2', active: true),
+              const SizedBox(width: 8),
+              _marketTab('Alt/Üst'),
+              const SizedBox(width: 8),
+              _marketTab('Asian'),
+              const SizedBox(width: 8),
+              _marketTab('KG'),
+            ],
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            children: [
+              const Expanded(
+                flex: 16,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text(
+                    'BOOKMAKER',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 21,
+                child: Row(
+                  children: [
+                    _oddValue('1', header: true),
+                    _oddValue('X', header: true),
+                    _oddValue('2', header: true),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(12),
+              ),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: _oddsLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _oddsError.isNotEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(
+                            _oddsError,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFDC2626),
+                            ),
+                          ),
+                        ),
+                      )
+                    : _oddsRows.isEmpty
+                        ? const Center(
+                            child: Text(
+                              '1X2 oranı bulunamadı.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          )
+                        : ListView(
+                            padding: EdgeInsets.zero,
+                            children: [
+                              for (final row in _oddsRows)
+                                _bookmakerRow(
+                                  row['bookmaker_name']?.toString() ?? '—',
+                                  _oddText(row['home_odd']),
+                                  _oddText(row['draw_odd']),
+                                  _oddText(row['away_odd']),
+                                  row['_home_trend']?.toString() ?? 'none',
+                                  row['_draw_trend']?.toString() ?? 'none',
+                                  row['_away_trend']?.toString() ?? 'none',
+                                  row['home_closed'] == true,
+                                  row['draw_closed'] == true,
+                                  row['away_closed'] == true,
+                                ),
+                            ],
+                          ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2532,9 +2975,35 @@ class _MatchDetailState extends State<MatchDetail> {
           overflow: TextOverflow.ellipsis,
         ),
       ),
-      body: PerformanceV83Panel(
-        eventId: widget.eventId,
-        title: widget.title,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            child: Row(
+              children: [
+                _detailTab(
+                  label: 'Oran',
+                  selected: _showOdds,
+                  onTap: () => setState(() => _showOdds = true),
+                ),
+                const SizedBox(width: 8),
+                _detailTab(
+                  label: 'Performans',
+                  selected: !_showOdds,
+                  onTap: () => setState(() => _showOdds = false),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _showOdds
+                ? _oddsSkeleton()
+                : PerformanceV83Panel(
+                    eventId: widget.eventId,
+                    title: widget.title,
+                  ),
+          ),
+        ],
       ),
     );
   }

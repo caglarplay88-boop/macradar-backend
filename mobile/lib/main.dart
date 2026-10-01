@@ -1791,6 +1791,9 @@ class _TrackedPageState extends State<TrackedPage> {
         builder: (_) => MatchDetail(
           eventId: m['event_id'].toString(),
           title: _trackTitle(m),
+          league: m['league']?.toString() ?? '',
+          matchDate: m['match_date']?.toString() ?? '',
+          kickoffTime: m['kickoff_time']?.toString() ?? '',
         ),
       ),
     );
@@ -2154,6 +2157,9 @@ class _FinishedMatchesPageState extends State<FinishedMatchesPage> {
         builder: (_) => MatchDetail(
           eventId: m['event_id'].toString(),
           title: _trackTitle(m),
+          league: m['league']?.toString() ?? '',
+          matchDate: m['match_date']?.toString() ?? '',
+          kickoffTime: m['kickoff_time']?.toString() ?? '',
         ),
       ),
     );
@@ -2511,11 +2517,17 @@ class _FinishedMatchesPageState extends State<FinishedMatchesPage> {
 class MatchDetail extends StatefulWidget {
   final String eventId;
   final String title;
+  final String league;
+  final String matchDate;
+  final String kickoffTime;
 
   const MatchDetail({
     super.key,
     required this.eventId,
     required this.title,
+    required this.league,
+    required this.matchDate,
+    required this.kickoffTime,
   });
 
   @override
@@ -2526,6 +2538,10 @@ class _MatchDetailState extends State<MatchDetail> {
   bool _showOdds = true;
   bool _oddsLoading = true;
   bool _oddsRequestRunning = false;
+  bool _trackingSaving = false;
+  bool _trackingEnabled = false;
+  int _trackingMinutes = 60;
+  List<int> _allowedTrackingMinutes = const [5, 15, 30, 60, 120];
   String _oddsError = '';
   List<Map<String, dynamic>> _oddsRows = const [];
   Timer? _oddsRefreshTimer;
@@ -2568,6 +2584,17 @@ class _MatchDetailState extends State<MatchDetail> {
             '/odds/1x2',
       );
       final current = payload['current'];
+      final trackingEnabled = payload['tracking_enabled'] == true;
+      final trackingMinutes =
+          (payload['refresh_minutes'] as num?)?.toInt() ?? _trackingMinutes;
+      final allowedRaw = payload['allowed_refresh_minutes'];
+      final allowedTrackingMinutes = allowedRaw is List
+          ? allowedRaw
+              .whereType<num>()
+              .map((value) => value.toInt())
+              .where((value) => value > 0)
+              .toList()
+          : _allowedTrackingMinutes;
       final rawRows = current is Map ? current['rows'] : null;
       final currentSequence =
           current is Map ? current['capture_sequence']?.toString() : null;
@@ -2633,6 +2660,11 @@ class _MatchDetailState extends State<MatchDetail> {
       if (!mounted) return;
       setState(() {
         _oddsRows = rows;
+        _trackingEnabled = trackingEnabled;
+        _trackingMinutes = trackingMinutes;
+        if (allowedTrackingMinutes.isNotEmpty) {
+          _allowedTrackingMinutes = allowedTrackingMinutes;
+        }
         _oddsLoading = false;
         _oddsError = '';
       });
@@ -2646,6 +2678,41 @@ class _MatchDetailState extends State<MatchDetail> {
       }
     } finally {
       _oddsRequestRunning = false;
+    }
+  }
+
+  Future<void> _saveTracking({
+    required bool enabled,
+    required int minutes,
+  }) async {
+    if (_trackingSaving) return;
+    if (!_allowedTrackingMinutes.contains(minutes)) return;
+
+    setState(() => _trackingSaving = true);
+
+    try {
+      final payload = await api.post(
+        '/api/matches/' +
+            Uri.encodeComponent(widget.eventId) +
+            '/tracking',
+        {
+          'enabled': enabled,
+          'minutes': minutes,
+        },
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _trackingEnabled = payload['tracking_enabled'] == true;
+        _trackingMinutes =
+            (payload['refresh_minutes'] as num?)?.toInt() ?? minutes;
+        _trackingSaving = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _trackingSaving = false);
+      rethrow;
     }
   }
 
@@ -2699,6 +2766,409 @@ class _MatchDetailState extends State<MatchDetail> {
               color: selected
                   ? scheme.onPrimaryContainer
                   : scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _matchDateTimeText() {
+    final rawDate = widget.matchDate.trim();
+    final rawTime = widget.kickoffTime.trim();
+    String dateText = rawDate;
+
+    if (rawDate.length >= 10) {
+      final ymd = rawDate.substring(0, 10).split('-');
+      if (ymd.length == 3) {
+        dateText = ymd[2] + '.' + ymd[1] + '.' + ymd[0];
+      }
+    }
+
+    if (dateText.isNotEmpty && rawTime.isNotEmpty) {
+      return dateText + ' · ' + rawTime;
+    }
+    if (dateText.isNotEmpty) return dateText;
+    if (rawTime.isNotEmpty) return rawTime;
+    return 'Tarih / saat bilgisi yok';
+  }
+
+  Widget _matchIdentityCard() {
+    final scheme = Theme.of(context).colorScheme;
+    final teams = widget.title.split(' - ');
+    final home = teams.isNotEmpty ? teams.first.trim() : widget.title.trim();
+    final away =
+        teams.length > 1 ? teams.sublist(1).join(' - ').trim() : '';
+    final league =
+        widget.league.trim().isEmpty ? 'Lig bilgisi yok' : widget.league.trim();
+
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      tween: Tween<double>(begin: 0, end: 1),
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, 6 * (1 - value)),
+          child: child,
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+        padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: scheme.outlineVariant.withOpacity(0.42),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.10),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.emoji_events_outlined,
+                  size: 15,
+                  color: scheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    league,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.schedule_rounded,
+                      size: 13,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _matchDateTimeText(),
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 11),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    home.isEmpty ? 'Ev sahibi' : home,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.left,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.15,
+                      fontWeight: FontWeight.w900,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer.withOpacity(0.72),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'VS',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    away.isEmpty ? 'Deplasman' : away,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.15,
+                      fontWeight: FontWeight.w900,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _trackingIntervalSelector() {
+    final scheme = Theme.of(context).colorScheme;
+    const options = <int>[120, 60, 30, 15, 5];
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: scheme.outlineVariant.withOpacity(0.42),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.timer_outlined,
+                size: 15,
+                color: scheme.primary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'ORAN ÇEKİM ARALIĞI',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.6,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const Spacer(),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                child: _trackingSaving
+                    ? SizedBox(
+                        key: const ValueKey('tracking-saving'),
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.8,
+                          color: scheme.primary,
+                        ),
+                      )
+                    : const SizedBox(
+                        key: ValueKey('tracking-idle'),
+                        width: 14,
+                        height: 14,
+                      ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Row(
+            children: [
+              for (final minutes in options) ...[
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: minutes == options.last ? 0 : 5,
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: _trackingSaving ||
+                              !_allowedTrackingMinutes.contains(minutes)
+                          ? null
+                          : () async {
+                              try {
+                                await _saveTracking(
+                                  enabled: _trackingEnabled,
+                                  minutes: minutes,
+                                );
+                              } catch (e) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      e.toString().replaceFirst(
+                                            'Exception: ',
+                                            '',
+                                          ),
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutCubic,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _trackingMinutes == minutes
+                              ? scheme.primaryContainer
+                              : scheme.surfaceContainerHighest.withOpacity(0.55),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            width: _trackingMinutes == minutes ? 1.3 : 1,
+                            color: _trackingMinutes == minutes
+                                ? scheme.primary
+                                : scheme.outlineVariant.withOpacity(0.44),
+                          ),
+                          boxShadow: _trackingMinutes == minutes
+                              ? [
+                                  BoxShadow(
+                                    color: scheme.primary.withOpacity(0.14),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : const [],
+                        ),
+                        child: Text(
+                          minutes.toString() + ' dk',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: _trackingMinutes == minutes
+                                ? FontWeight.w900
+                                : FontWeight.w700,
+                            color: _trackingMinutes == minutes
+                                ? scheme.onPrimaryContainer
+                                : scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _trackingToggleButton() {
+    final scheme = Theme.of(context).colorScheme;
+    final active = _trackingEnabled;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: _trackingSaving
+              ? null
+              : () async {
+                  try {
+                    await _saveTracking(
+                      enabled: !active,
+                      minutes: _trackingMinutes,
+                    );
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          e.toString().replaceFirst('Exception: ', ''),
+                        ),
+                      ),
+                    );
+                  }
+                },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            height: 50,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: active
+                  ? const Color(0xFF7F1D1D).withOpacity(0.28)
+                  : scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                width: 1.2,
+                color: active
+                    ? const Color(0xFFEF4444).withOpacity(0.72)
+                    : scheme.primary.withOpacity(0.72),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: (active ? const Color(0xFFEF4444) : scheme.primary)
+                      .withOpacity(0.12),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: _trackingSaving
+                      ? SizedBox(
+                          key: const ValueKey('tracking-toggle-saving'),
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: active
+                                ? const Color(0xFFFCA5A5)
+                                : scheme.onPrimaryContainer,
+                          ),
+                        )
+                      : Icon(
+                          active
+                              ? Icons.stop_circle_outlined
+                              : Icons.play_circle_outline_rounded,
+                          key: ValueKey(active),
+                          size: 21,
+                          color: active
+                              ? const Color(0xFFFCA5A5)
+                              : scheme.onPrimaryContainer,
+                        ),
+                ),
+                const SizedBox(width: 9),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: Text(
+                    active ? 'Takibi Durdur' : 'Takibi Başlat',
+                    key: ValueKey(active),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2,
+                      color: active
+                          ? const Color(0xFFFCA5A5)
+                          : scheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -2864,6 +3334,9 @@ class _MatchDetailState extends State<MatchDetail> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _matchIdentityCard(),
+        _trackingIntervalSelector(),
+        _trackingToggleButton(),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),

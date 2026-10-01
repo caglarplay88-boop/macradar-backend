@@ -1980,6 +1980,9 @@ class _TrackedPageState extends State<TrackedPage> {
         builder: (_) => MatchDetail(
           eventId: m['event_id'].toString(),
           title: _trackTitle(m),
+          league: m['league']?.toString() ?? '',
+          matchDate: m['match_date']?.toString() ?? '',
+          kickoffTime: m['kickoff_time']?.toString() ?? '',
         ),
       ),
     );
@@ -2343,6 +2346,9 @@ class _FinishedMatchesPageState extends State<FinishedMatchesPage> {
         builder: (_) => MatchDetail(
           eventId: m['event_id'].toString(),
           title: _trackTitle(m),
+          league: m['league']?.toString() ?? '',
+          matchDate: m['match_date']?.toString() ?? '',
+          kickoffTime: m['kickoff_time']?.toString() ?? '',
         ),
       ),
     );
@@ -2700,11 +2706,17 @@ class _FinishedMatchesPageState extends State<FinishedMatchesPage> {
 class MatchDetail extends StatefulWidget {
   final String eventId;
   final String title;
+  final String league;
+  final String matchDate;
+  final String kickoffTime;
 
   const MatchDetail({
     super.key,
     required this.eventId,
     required this.title,
+    required this.league,
+    required this.matchDate,
+    required this.kickoffTime,
   });
 
   @override
@@ -4029,7 +4041,7 @@ class _MatchDetailState extends State<MatchDetail> {
                 )),
                 Expanded(child: _PerformanceTabButtonV83(
                   icon: Icons.analytics_outlined,
-                  label: 'Performans v$performanceEngineVersion',
+                  label: 'Takip',
                   selected: showPerformanceV83,
                   onTap: () => setState(() => showPerformanceV83 = true),
                 )),
@@ -4042,6 +4054,9 @@ class _MatchDetailState extends State<MatchDetail> {
           ? PerformanceV83Panel(
               eventId: widget.eventId,
               title: widget.title,
+              league: widget.league,
+              matchDate: widget.matchDate,
+              kickoffTime: widget.kickoffTime,
             )
           : loading
           ? const Center(child: CircularProgressIndicator())
@@ -4301,11 +4316,17 @@ class _PerformanceTabButtonV83 extends StatelessWidget {
 class PerformanceV83Panel extends StatefulWidget {
   final String eventId;
   final String title;
+  final String league;
+  final String matchDate;
+  final String kickoffTime;
 
   const PerformanceV83Panel({
     super.key,
     required this.eventId,
     required this.title,
+    required this.league,
+    required this.matchDate,
+    required this.kickoffTime,
   });
 
   @override
@@ -4316,6 +4337,11 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
   bool loading = true;
   bool refreshing = false;
   bool loadedFromCache = false;
+  bool trackingSettingsLoading = true;
+  bool trackingSettingsReady = false;
+  bool trackingSettingsSaving = false;
+  bool trackingEnabled = false;
+  int trackingMinutes = 60;
   String error = '';
   String refreshError = '';
   Map<String, dynamic> data = {};
@@ -4327,6 +4353,7 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
   void initState() {
     super.initState();
     load();
+    _loadTrackingSettings();
   }
 
   Map<String, dynamic> _map(dynamic v) {
@@ -4352,6 +4379,537 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
 
   String _confidenceText(dynamic value) {
     return value == null ? 'Hesaplanmadı' : _v(value);
+  }
+
+  Future<void> _loadTrackingSettings() async {
+    if (mounted) {
+      setState(() {
+        trackingSettingsLoading = true;
+      });
+    }
+
+    try {
+      final d = await api.get(
+        '/api/matches/' + widget.eventId + '/odds/1x2',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        trackingEnabled = d['tracking_enabled'] == true;
+        trackingMinutes =
+            (d['refresh_minutes'] as num?)?.toInt() ?? trackingMinutes;
+        trackingSettingsReady = true;
+        trackingSettingsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        trackingSettingsReady = false;
+        trackingSettingsLoading = false;
+      });
+    }
+  }
+
+  Future<void> _saveTrackingMinutes(int minutes) async {
+    if (!trackingSettingsReady ||
+        trackingSettingsSaving ||
+        trackingMinutes == minutes) {
+      return;
+    }
+
+    setState(() => trackingSettingsSaving = true);
+
+    try {
+      final d = await api.post(
+        '/api/matches/' + widget.eventId + '/tracking',
+        {
+          'enabled': trackingEnabled,
+          'minutes': minutes,
+        },
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        trackingEnabled = d['tracking_enabled'] == true;
+        trackingMinutes =
+            (d['refresh_minutes'] as num?)?.toInt() ?? minutes;
+        trackingSettingsReady = true;
+        trackingSettingsSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Oran çekme aralığı ' + trackingMinutes.toString() + ' dakika oldu.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => trackingSettingsSaving = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _toggleTracking() async {
+    if (!trackingSettingsReady || trackingSettingsSaving) return;
+
+    final nextEnabled = !trackingEnabled;
+    setState(() => trackingSettingsSaving = true);
+
+    try {
+      final d = await api.post(
+        '/api/matches/' + widget.eventId + '/tracking',
+        {
+          'enabled': nextEnabled,
+          'minutes': trackingMinutes,
+        },
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        trackingEnabled = d['tracking_enabled'] == true;
+        trackingMinutes =
+            (d['refresh_minutes'] as num?)?.toInt() ?? trackingMinutes;
+        trackingSettingsReady = true;
+        trackingSettingsSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            trackingEnabled
+                ? 'Oran takibi başlatıldı.'
+                : 'Oran takibi durduruldu.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => trackingSettingsSaving = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _trackingToggleButton() {
+    final active = trackingEnabled;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(13),
+          onTap: !trackingSettingsReady || trackingSettingsSaving
+              ? null
+              : _toggleTracking,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: active
+                    ? const [Color(0xFF37201E), Color(0xFF241715)]
+                    : const [Color(0xFF294D35), Color(0xFF173020)],
+              ),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: active
+                    ? const Color(0xFFB85B4F)
+                    : const Color(0xFF4F9C68),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: active
+                      ? const Color(0x224A1712)
+                      : const Color(0x223E8E59),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  transitionBuilder: (child, animation) => ScaleTransition(
+                    scale: animation,
+                    child: child,
+                  ),
+                  child: trackingSettingsSaving
+                      ? const SizedBox(
+                          key: ValueKey('tracking-saving'),
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFFF1F5F2),
+                          ),
+                        )
+                      : Icon(
+                          active
+                              ? Icons.stop_circle_outlined
+                              : Icons.play_circle_outline_rounded,
+                          key: ValueKey(active),
+                          size: 20,
+                          color: active
+                              ? const Color(0xFFFF9B8D)
+                              : const Color(0xFF9BE2B0),
+                        ),
+                ),
+                const SizedBox(width: 8),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: Text(
+                    active ? 'Takibi Durdur' : 'Takibi Başlat',
+                    key: ValueKey(active),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2,
+                      color: active
+                          ? const Color(0xFFFFD3CD)
+                          : const Color(0xFFD9F5E1),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _trackingIntervalSelector() {
+    const options = <int>[120, 60, 30, 15, 5];
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111A14),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF2A3A30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.timer_outlined,
+                size: 16,
+                color: Color(0xFFFFCA57),
+              ),
+              const SizedBox(width: 7),
+              const Expanded(
+                child: Text(
+                  'ORAN ÇEKİM ARALIĞI',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.7,
+                    color: Color(0xFFDDE7E0),
+                  ),
+                ),
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: trackingSettingsLoading || trackingSettingsSaving
+                    ? const SizedBox(
+                        key: ValueKey('loading'),
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 1.8),
+                      )
+                    : const SizedBox(
+                        key: ValueKey('idle'),
+                        width: 14,
+                        height: 14,
+                      ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Row(
+            children: [
+              for (final minutes in options) ...[
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: minutes == options.last ? 0 : 5,
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: !trackingSettingsReady ||
+                                trackingSettingsLoading ||
+                                trackingSettingsSaving
+                            ? null
+                            : () => _saveTrackingMinutes(minutes),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          height: 38,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: trackingMinutes == minutes
+                                ? const Color(0x2AFFCA57)
+                                : const Color(0xFF0C130F),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              width: trackingMinutes == minutes ? 1.3 : 1,
+                              color: trackingMinutes == minutes
+                                  ? const Color(0xFFFFCA57)
+                                  : const Color(0xFF2C3931),
+                            ),
+                            boxShadow: trackingMinutes == minutes
+                                ? const [
+                                    BoxShadow(
+                                      color: Color(0x22FFCA57),
+                                      blurRadius: 8,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ]
+                                : const [],
+                          ),
+                          child: Text(
+                            minutes.toString() + ' dk',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: trackingMinutes == minutes
+                                  ? FontWeight.w900
+                                  : FontWeight.w700,
+                              color: trackingMinutes == minutes
+                                  ? const Color(0xFFFFD36A)
+                                  : const Color(0xFFB8C4BC),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _trackingTopBlock() {
+    return Column(
+      children: [
+        _trackingMatchIdentityCard(),
+        const SizedBox(height: 9),
+        _trackingIntervalSelector(),
+        const SizedBox(height: 9),
+        _trackingToggleButton(),
+      ],
+    );
+  }
+
+  String _trackingDateTime() {
+    final rawDate = widget.matchDate.trim();
+    final rawTime = widget.kickoffTime.trim();
+    String date = '';
+
+    final ymd = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+    final parts = ymd.split('-');
+    if (parts.length == 3) {
+      date = parts[2].padLeft(2, '0') +
+          '.' +
+          parts[1].padLeft(2, '0') +
+          '.' +
+          parts[0];
+    } else {
+      date = rawDate;
+    }
+
+    if (date.isNotEmpty && rawTime.isNotEmpty) return date + ' · ' + rawTime;
+    if (date.isNotEmpty) return date;
+    if (rawTime.isNotEmpty) return rawTime;
+    return 'Tarih / saat bilgisi yok';
+  }
+
+  Widget _trackingMatchIdentityCard() {
+    final parts = widget.title.split(' - ');
+    final home = parts.isNotEmpty ? parts.first.trim() : widget.title.trim();
+    final away = parts.length > 1 ? parts.sublist(1).join(' - ').trim() : '';
+    final league = widget.league.trim().isEmpty ? 'Lig bilgisi yok' : widget.league.trim();
+
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 280),
+      tween: Tween<double>(begin: 0, end: 1),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, 8 * (1 - value)),
+          child: child,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF18251D), Color(0xFF101713)],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF34473A)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33000000),
+              blurRadius: 14,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: const Color(0x1FFFCA57),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: const Color(0x55FFCA57)),
+                  ),
+                  child: const Icon(
+                    Icons.sports_soccer_rounded,
+                    size: 17,
+                    color: Color(0xFFFFCA57),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    league,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFFFD477),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D1410),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: const Color(0xFF2B3930)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 13,
+                        color: Color(0xFF9FB0A5),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _trackingDateTime(),
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFD7E0DA),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    home.isEmpty ? 'Ev sahibi' : home,
+                    textAlign: TextAlign.left,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.15,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFFF1F5F2),
+                    ),
+                  ),
+                ),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0x1FFFCA57),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'VS',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      color: Color(0xFFFFCA57),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    away.isEmpty ? 'Deplasman' : away,
+                    textAlign: TextAlign.right,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.15,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFFF1F5F2),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _date(dynamic raw) {
@@ -4997,21 +5555,54 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
   Widget build(BuildContext context) {
     super.build(context);
     if (loading) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 12),
-          Text('v$performanceEngineVersion Performans verileri hazırlanıyor…',
-              style: const TextStyle(fontSize: 11, color: Color(0xFF97A39C))),
-        ]),
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: _trackingTopBlock(),
+          ),
+          Expanded(
+            child: Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 12),
+                Text('v$performanceEngineVersion Performans verileri hazırlanıyor…',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF97A39C))),
+              ]),
+            ),
+          ),
+        ],
       );
     }
-    if (error.isNotEmpty) return ErrorPane(message: error, retry: load);
+    if (error.isNotEmpty) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: _trackingTopBlock(),
+          ),
+          Expanded(child: ErrorPane(message: error, retry: load)),
+        ],
+      );
+    }
 
     final home = _map(data['evTakimi']);
     final away = _map(data['deplasmanTakimi']);
     if (home.isEmpty || away.isEmpty) {
-      return ErrorPane(message: 'v$performanceEngineVersion Performans verisi eksik geldi.', retry: load);
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: _trackingTopBlock(),
+          ),
+          Expanded(
+            child: ErrorPane(
+              message: 'v$performanceEngineVersion Performans verisi eksik geldi.',
+              retry: load,
+            ),
+          ),
+        ],
+      );
     }
 
     return RefreshIndicator(
@@ -5020,6 +5611,8 @@ class _PerformanceV83PanelState extends State<PerformanceV83Panel>
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 28),
         children: [
+          _trackingTopBlock(),
+          const SizedBox(height: 10),
           _banner(),
           const SizedBox(height: 8),
           _teamHeader(home, away),

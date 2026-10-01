@@ -28,7 +28,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: true
+          cache: false
 
       - name: Create Android project
         run: |
@@ -356,7 +356,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "$GITHUB_REF" == "refs/heads/codex/takip-preview-fix-20261001" ]]; then
-            gh release create preview-takip-fix-20261001 release/MacRadar.apk --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MacRadar Takip İnceleme 2" --notes "60 dakika otomatik takip görünümü ve kompakt maç detayı." --prerelease
+            gh release create preview-takip-fix-20261001-v2 release/MacRadar.apk --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MacRadar Takip İnceleme 2" --notes "60 dakika otomatik takip görünümü ve kompakt maç detayı." --prerelease
           else
             gh release create "$GITHUB_REF_NAME" release/MacRadar.apk --repo "$GITHUB_REPOSITORY" --title "MacRadar $GITHUB_REF_NAME" --generate-notes --verify-tag
           fi

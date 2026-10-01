@@ -476,7 +476,7 @@ class _HomeState extends State<Home> {
 
   @override
   Widget build(BuildContext context) {
-    const names = ['Bülten', 'Performans', 'Düşüş'];
+    const names = ['Bülten', 'Takip', 'Düşüş'];
     const pages = [
       BulletinPage(),
       TrackedPage(),
@@ -507,7 +507,7 @@ class _HomeState extends State<Home> {
           NavigationDestination(
             icon: Icon(Icons.bookmark_border),
             selectedIcon: Icon(Icons.bookmark),
-            label: 'Performans',
+            label: 'Takip',
           ),
           NavigationDestination(
             icon: Icon(Icons.trending_down_outlined),
@@ -3606,19 +3606,27 @@ class _BookmakerOddsHistoryPageState extends State<BookmakerOddsHistoryPage> {
     });
 
     try {
-      final payload = await api.get(
-        '/api/matches/' +
-            Uri.encodeComponent(widget.eventId) +
-            '/odds/1x2/history?page=1&bookmaker=' +
-            Uri.encodeQueryComponent(widget.bookmakerKey),
-      );
-      final raw = payload['rows'];
-      final loaded = raw is List
-          ? raw
-              .whereType<Map>()
-              .map((row) => Map<String, dynamic>.from(row))
-              .toList()
-          : <Map<String, dynamic>>[];
+      final loaded = <Map<String, dynamic>>[];
+      int page = 1;
+
+      while (page <= 20) {
+        final payload = await api.get(
+          '/api/matches/' +
+              Uri.encodeComponent(widget.eventId) +
+              '/odds/1x2/history?page=' +
+              page.toString() +
+              '&bookmaker=' +
+              Uri.encodeQueryComponent(widget.bookmakerKey),
+        );
+        final raw = payload['rows'];
+        if (raw is List) {
+          loaded.addAll(
+            raw.whereType<Map>().map((row) => Map<String, dynamic>.from(row)),
+          );
+        }
+        if (payload['has_next'] != true) break;
+        page++;
+      }
 
       loaded.sort((a, b) {
         final aType = a['capture_type']?.toString() ?? '';
@@ -3670,147 +3678,786 @@ class _BookmakerOddsHistoryPageState extends State<BookmakerOddsHistoryPage> {
         dt.minute.toString().padLeft(2, '0');
   }
 
+  Widget _oddCell(ColorScheme scheme, dynamic value) {
+    return Expanded(
+      child: Text(
+        _odd(value),
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
+          color: scheme.onSurface,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(ColorScheme scheme) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+      itemCount: rows.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final row = rows[index];
+        final opening = row['capture_type']?.toString() == 'opening';
+
+        return Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+          decoration: BoxDecoration(
+            color: opening
+                ? scheme.primaryContainer.withOpacity(0.72)
+                : scheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: opening
+                  ? scheme.primary.withOpacity(0.55)
+                  : scheme.outlineVariant.withOpacity(0.35),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 17,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      opening ? 'Açılış' : _time(row['captured_at']),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: opening
+                            ? scheme.onPrimaryContainer
+                            : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (opening) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _time(row['captured_at']),
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(
+                flex: 15,
+                child: Row(
+                  children: [
+                    _oddCell(scheme, row['home_odd']),
+                    _oddCell(scheme, row['draw_odd']),
+                    _oddCell(scheme, row['away_odd']),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.bookmakerName,
-          overflow: TextOverflow.ellipsis,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.bookmakerName,
+            overflow: TextOverflow.ellipsis,
+          ),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Oranlar'),
+              Tab(text: 'Grafik'),
+            ],
+          ),
         ),
-      ),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : error.isNotEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text(
-                      error,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: scheme.error,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                )
-              : rows.isEmpty
-                  ? Center(
+        body: loading
+            ? const Center(child: CircularProgressIndicator())
+            : error.isNotEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
                       child: Text(
-                        'Bu bookmaker için oran geçmişi yok.',
+                        error,
+                        textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: scheme.onSurfaceVariant,
+                          color: scheme.error,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
-                      itemCount: rows.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final row = rows[index];
-                        final opening =
-                            row['capture_type']?.toString() == 'opening';
-
-                        return Container(
-                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
-                          decoration: BoxDecoration(
-                            color: opening
-                                ? scheme.primaryContainer.withOpacity(0.72)
-                                : scheme.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(13),
-                            border: Border.all(
-                              color: opening
-                                  ? scheme.primary.withOpacity(0.55)
-                                  : scheme.outlineVariant.withOpacity(0.35),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 17,
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      opening
-                                          ? 'Açılış'
-                                          : _time(row['captured_at']),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w900,
-                                        color: opening
-                                            ? scheme.onPrimaryContainer
-                                            : scheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                    if (opening) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _time(row['captured_at']),
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: scheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                flex: 15,
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        _odd(row['home_odd']),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w900,
-                                          color: scheme.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        _odd(row['draw_odd']),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w900,
-                                          color: scheme.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        _odd(row['away_odd']),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w900,
-                                          color: scheme.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
                     ),
+                  )
+                : rows.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Bu bookmaker için oran geçmişi yok.',
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      )
+                    : TabBarView(
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _buildList(scheme),
+                          _OddsChartTab(rows: rows, title: widget.bookmakerName),
+                        ],
+                      ),
+      ),
     );
   }
+}
+
+const List<Color> _oddsSeriesColors = [
+  Color(0xFF4FC3F7),
+  Color(0xFFFFD54F),
+  Color(0xFF81C784),
+];
+const List<String> _oddsSeriesNames = ['1', 'X', '2'];
+const List<String> _chartRangeLabels = [
+  '24 saat',
+  '12 saat',
+  '6 saat',
+  '120 dk',
+  '6 dk',
+];
+const List<Duration> _chartRangeDurations = [
+  Duration(hours: 24),
+  Duration(hours: 12),
+  Duration(hours: 6),
+  Duration(minutes: 120),
+  Duration(minutes: 6),
+];
+
+class _OddsPoint {
+  final DateTime time;
+  final List<double?> values;
+
+  const _OddsPoint(this.time, this.values);
+}
+
+List<_OddsPoint> _oddsPointsFromRows(List<Map<String, dynamic>> rows) {
+  double? toOdd(dynamic v) =>
+      v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+
+  final out = <_OddsPoint>[];
+  for (final row in rows) {
+    final t = DateTime.tryParse(row['captured_at']?.toString() ?? '')?.toLocal();
+    if (t == null) continue;
+    out.add(
+      _OddsPoint(t, [
+        toOdd(row['home_odd']),
+        toOdd(row['draw_odd']),
+        toOdd(row['away_odd']),
+      ]),
+    );
+  }
+  out.sort((a, b) => a.time.compareTo(b.time));
+  return out;
+}
+
+class _OddsChartTab extends StatefulWidget {
+  final List<Map<String, dynamic>> rows;
+  final String title;
+
+  const _OddsChartTab({required this.rows, required this.title});
+
+  @override
+  State<_OddsChartTab> createState() => _OddsChartTabState();
+}
+
+class _OddsChartTabState extends State<_OddsChartTab> {
+  late final List<_OddsPoint> points = _oddsPointsFromRows(widget.rows);
+  int range = 0;
+  List<bool> show = [true, true, true];
+  int rev = 0;
+
+  void _changed(int r, List<bool> s) {
+    range = r;
+    show = List<bool>.from(s);
+  }
+
+  Future<void> _openFullscreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _OddsChartFullscreenPage(
+          title: widget.title,
+          points: points,
+          initialRange: range,
+          initialShow: show,
+          onChanged: _changed,
+        ),
+      ),
+    );
+    if (mounted) setState(() => rev++);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: _OddsChartPanel(
+        key: ValueKey(rev),
+        points: points,
+        fullscreen: false,
+        initialRange: range,
+        initialShow: show,
+        onChanged: _changed,
+        onFullscreen: _openFullscreen,
+      ),
+    );
+  }
+}
+
+class _OddsChartFullscreenPage extends StatefulWidget {
+  final String title;
+  final List<_OddsPoint> points;
+  final int initialRange;
+  final List<bool> initialShow;
+  final void Function(int range, List<bool> show) onChanged;
+
+  const _OddsChartFullscreenPage({
+    required this.title,
+    required this.points,
+    required this.initialRange,
+    required this.initialShow,
+    required this.onChanged,
+  });
+
+  @override
+  State<_OddsChartFullscreenPage> createState() =>
+      _OddsChartFullscreenPageState();
+}
+
+class _OddsChartFullscreenPageState extends State<_OddsChartFullscreenPage> {
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+          child: _OddsChartPanel(
+            points: widget.points,
+            fullscreen: true,
+            title: widget.title,
+            initialRange: widget.initialRange,
+            initialShow: widget.initialShow,
+            onChanged: widget.onChanged,
+            onFullscreen: () => Navigator.pop(context),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OddsChartPanel extends StatefulWidget {
+  final List<_OddsPoint> points;
+  final bool fullscreen;
+  final String title;
+  final int initialRange;
+  final List<bool> initialShow;
+  final void Function(int range, List<bool> show) onChanged;
+  final VoidCallback onFullscreen;
+
+  const _OddsChartPanel({
+    super.key,
+    required this.points,
+    required this.fullscreen,
+    this.title = '',
+    required this.initialRange,
+    required this.initialShow,
+    required this.onChanged,
+    required this.onFullscreen,
+  });
+
+  @override
+  State<_OddsChartPanel> createState() => _OddsChartPanelState();
+}
+
+class _OddsChartPanelState extends State<_OddsChartPanel> {
+  late int range = widget.initialRange;
+  late List<bool> show = List<bool>.from(widget.initialShow);
+  late DateTime end = DateTime.now();
+  DateTime? cursor;
+
+  void _setRange(int i) {
+    setState(() {
+      range = i;
+      end = DateTime.now();
+      cursor = null;
+    });
+    widget.onChanged(range, show);
+  }
+
+  void _toggle(int i) {
+    final next = List<bool>.from(show);
+    next[i] = !next[i];
+    if (!next.contains(true)) return;
+    setState(() => show = next);
+    widget.onChanged(range, show);
+  }
+
+  Widget _rangeChips() {
+    return Row(
+      children: [
+        for (int i = 0; i < _chartRangeLabels.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: ChoiceChip(
+              label: Text(_chartRangeLabels[i]),
+              selected: range == i,
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) => _setRange(i),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _seriesChips() {
+    return Row(
+      children: [
+        for (int i = 0; i < 3; i++)
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: FilterChip(
+              label: Text(
+                _oddsSeriesNames[i],
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              avatar: CircleAvatar(
+                radius: 5,
+                backgroundColor: _oddsSeriesColors[i],
+              ),
+              selected: show[i],
+              showCheckmark: false,
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) => _toggle(i),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _fullscreenButton() {
+    return IconButton(
+      tooltip: widget.fullscreen ? 'Küçült' : 'Büyüt',
+      icon: Icon(
+        widget.fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+      ),
+      onPressed: widget.onFullscreen,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final duration = _chartRangeDurations[range];
+    final start = end.subtract(duration);
+
+    final controls = widget.fullscreen
+        ? Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (widget.title.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: Text(
+                            widget.title,
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      _rangeChips(),
+                      const SizedBox(width: 6),
+                      _seriesChips(),
+                    ],
+                  ),
+                ),
+              ),
+              _fullscreenButton(),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: _rangeChips(),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: _seriesChips(),
+                    ),
+                  ),
+                  _fullscreenButton(),
+                ],
+              ),
+            ],
+          );
+
+    return Column(
+      children: [
+        controls,
+        const SizedBox(height: 6),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final size = Size(c.maxWidth, c.maxHeight);
+
+              void setCursor(double dx) {
+                final w = size.width -
+                    _OddsChartPainter.leftPad -
+                    _OddsChartPainter.rightPad;
+                if (w <= 0) return;
+                final f = ((dx - _OddsChartPainter.leftPad) / w).clamp(0.0, 1.0);
+                setState(() {
+                  cursor = start.add(
+                    Duration(
+                      milliseconds: (duration.inMilliseconds * f).round(),
+                    ),
+                  );
+                });
+              }
+
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (d) => setCursor(d.localPosition.dx),
+                onPanStart: (d) => setCursor(d.localPosition.dx),
+                onPanUpdate: (d) => setCursor(d.localPosition.dx),
+                child: CustomPaint(
+                  size: size,
+                  painter: _OddsChartPainter(
+                    points: widget.points,
+                    start: start,
+                    end: end,
+                    show: show,
+                    cursor: cursor,
+                    textColor: scheme.onSurface,
+                    mutedColor: scheme.onSurfaceVariant,
+                    gridColor: scheme.outlineVariant.withOpacity(0.35),
+                    surfaceColor: scheme.surfaceContainerHigh,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OddsChartPainter extends CustomPainter {
+  static const double leftPad = 46;
+  static const double rightPad = 10;
+  static const double topPad = 10;
+  static const double bottomPad = 26;
+
+  final List<_OddsPoint> points;
+  final DateTime start;
+  final DateTime end;
+  final List<bool> show;
+  final DateTime? cursor;
+  final Color textColor;
+  final Color mutedColor;
+  final Color gridColor;
+  final Color surfaceColor;
+
+  const _OddsChartPainter({
+    required this.points,
+    required this.start,
+    required this.end,
+    required this.show,
+    required this.cursor,
+    required this.textColor,
+    required this.mutedColor,
+    required this.gridColor,
+    required this.surfaceColor,
+  });
+
+  double? _valueAt(int s, DateTime t) {
+    double? v;
+    for (final p in points) {
+      if (p.time.isAfter(t)) break;
+      final x = p.values[s];
+      if (x != null) v = x;
+    }
+    return v;
+  }
+
+  TextPainter _tp(String text, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    return tp;
+  }
+
+  String _two(int n) => n.toString().padLeft(2, '0');
+
+  String _clock(DateTime t, {bool withDate = false}) {
+    final hm = _two(t.hour) + ':' + _two(t.minute);
+    if (!withDate) return hm;
+    return _two(t.day) + '.' + _two(t.month) + ' ' + hm;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final plot = Rect.fromLTRB(
+      leftPad,
+      topPad,
+      size.width - rightPad,
+      size.height - bottomPad,
+    );
+    if (plot.width <= 0 || plot.height <= 0) return;
+
+    final totalMs = end.difference(start).inMilliseconds.toDouble();
+    final withDate = totalMs >= const Duration(hours: 12).inMilliseconds;
+
+    double xOf(DateTime t) {
+      final f = (t.difference(start).inMilliseconds / totalMs).clamp(0.0, 1.0);
+      return plot.left + plot.width * f;
+    }
+
+    double minV = double.infinity;
+    double maxV = -double.infinity;
+
+    void take(double? v) {
+      if (v == null) return;
+      minV = math.min(minV, v);
+      maxV = math.max(maxV, v);
+    }
+
+    for (int s = 0; s < 3; s++) {
+      if (!show[s]) continue;
+      take(_valueAt(s, start));
+      for (final p in points) {
+        if (p.time.isBefore(start)) continue;
+        if (p.time.isAfter(end)) break;
+        take(p.values[s]);
+      }
+    }
+
+    final labelStyle = TextStyle(fontSize: 10, color: mutedColor);
+
+    if (minV.isInfinite) {
+      final tp = _tp(
+        'Bu aralıkta veri yok',
+        TextStyle(fontSize: 13, color: mutedColor, fontWeight: FontWeight.w700),
+      );
+      tp.paint(
+        canvas,
+        Offset((size.width - tp.width) / 2, (size.height - tp.height) / 2),
+      );
+      return;
+    }
+
+    final span = maxV - minV;
+    final pad = span <= 0 ? math.max(maxV * 0.05, 0.05) : span * 0.12;
+    final lo = minV - pad;
+    final hi = maxV + pad;
+
+    double yOf(double v) => plot.bottom - (v - lo) / (hi - lo) * plot.height;
+
+    final gridPaint = Paint()
+      ..color = gridColor
+      ..strokeWidth = 1;
+
+    for (int i = 0; i <= 4; i++) {
+      final y = plot.bottom - plot.height * i / 4;
+      canvas.drawLine(Offset(plot.left, y), Offset(plot.right, y), gridPaint);
+      final tp = _tp((lo + (hi - lo) * i / 4).toStringAsFixed(2), labelStyle);
+      tp.paint(canvas, Offset(plot.left - tp.width - 5, y - tp.height / 2));
+    }
+
+    for (int i = 0; i <= 3; i++) {
+      final x = plot.left + plot.width * i / 3;
+      canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint);
+      final t = start.add(
+        Duration(milliseconds: (totalMs * i / 3).round()),
+      );
+      final tp = _tp(_clock(t, withDate: withDate), labelStyle);
+      double dx = x - tp.width / 2;
+      dx = dx.clamp(0.0, math.max(0.0, size.width - tp.width));
+      tp.paint(canvas, Offset(dx, plot.bottom + 6));
+    }
+
+    canvas.save();
+    canvas.clipRect(plot.inflate(6));
+
+    for (int s = 0; s < 3; s++) {
+      if (!show[s]) continue;
+
+      final color = _oddsSeriesColors[s];
+      final path = Path();
+      final dots = <Offset>[];
+      bool started = false;
+      double prev = 0;
+
+      final v0 = _valueAt(s, start);
+      if (v0 != null) {
+        path.moveTo(plot.left, yOf(v0));
+        started = true;
+        prev = v0;
+      }
+
+      for (final p in points) {
+        final v = p.values[s];
+        if (v == null) continue;
+        if (p.time.isBefore(start)) continue;
+        if (p.time.isAfter(end)) break;
+
+        final x = xOf(p.time);
+        if (!started) {
+          path.moveTo(x, yOf(v));
+          dots.add(Offset(x, yOf(v)));
+          started = true;
+          prev = v;
+          continue;
+        }
+        if (v != prev) {
+          path.lineTo(x, yOf(prev));
+          path.lineTo(x, yOf(v));
+          dots.add(Offset(x, yOf(v)));
+          prev = v;
+        }
+      }
+
+      if (!started) continue;
+      path.lineTo(plot.right, yOf(prev));
+
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2
+          ..strokeJoin = StrokeJoin.round,
+      );
+
+      for (final d in dots) {
+        canvas.drawCircle(d, 5, Paint()..color = surfaceColor);
+        canvas.drawCircle(d, 3.6, Paint()..color = color);
+      }
+    }
+
+    canvas.restore();
+
+    final c = cursor;
+    if (c != null) {
+      final cx = xOf(c);
+      canvas.drawLine(
+        Offset(cx, plot.top),
+        Offset(cx, plot.bottom),
+        Paint()
+          ..color = textColor.withOpacity(0.75)
+          ..strokeWidth = 1.4,
+      );
+
+      final spans = <TextSpan>[
+        TextSpan(
+          text: _clock(c, withDate: true),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: textColor,
+          ),
+        ),
+      ];
+
+      for (int s = 0; s < 3; s++) {
+        if (!show[s]) continue;
+        final v = _valueAt(s, c);
+        if (v == null) continue;
+        canvas.drawCircle(Offset(cx, yOf(v)), 5, Paint()..color = _oddsSeriesColors[s]);
+        spans.add(
+          TextSpan(
+            text: '\n' + _oddsSeriesNames[s] + '  ',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: _oddsSeriesColors[s],
+            ),
+          ),
+        );
+        spans.add(
+          TextSpan(
+            text: v.toStringAsFixed(2),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: textColor,
+            ),
+          ),
+        );
+      }
+
+      final tip = TextPainter(
+        text: TextSpan(children: spans),
+        textDirection: TextDirection.ltr,
+      );
+      tip.layout();
+
+      final boxW = tip.width + 16;
+      final boxH = tip.height + 12;
+      double bx = cx + 12;
+      if (bx + boxW > plot.right) bx = cx - 12 - boxW;
+      bx = math.max(bx, plot.left);
+      final box = RRect.fromRectAndRadius(
+        Rect.fromLTWH(bx, plot.top + 4, boxW, boxH),
+        const Radius.circular(8),
+      );
+      canvas.drawRRect(box, Paint()..color = surfaceColor.withOpacity(0.96));
+      canvas.drawRRect(
+        box,
+        Paint()
+          ..color = gridColor
+          ..style = PaintingStyle.stroke,
+      );
+      tip.paint(canvas, Offset(bx + 8, plot.top + 10));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OddsChartPainter oldDelegate) => true;
 }
 
 class PerformanceV83Panel extends StatefulWidget {

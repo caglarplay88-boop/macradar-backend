@@ -2529,10 +2529,16 @@ class _MatchDetailState extends State<MatchDetail> {
   String _oddsError = '';
   List<Map<String, dynamic>> _oddsRows = const [];
   Timer? _oddsRefreshTimer;
+  Map<String, dynamic> _matchData = <String, dynamic>{};
+  bool _matchLoading = true;
+  bool _trackingBusy = false;
+  bool _intervalSaving = false;
+  int? _systemRefreshMinutes;
 
   @override
   void initState() {
     super.initState();
+    _loadMatchInfo();
     _loadOdds1x2();
     _oddsRefreshTimer = Timer.periodic(
       const Duration(seconds: 15),
@@ -2647,6 +2653,403 @@ class _MatchDetailState extends State<MatchDetail> {
     } finally {
       _oddsRequestRunning = false;
     }
+  }
+
+  Future<void> _loadMatchInfo({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() => _matchLoading = true);
+    }
+
+    try {
+      final match = await api.get(
+        '/api/matches/' + Uri.encodeComponent(widget.eventId),
+      );
+
+      int? systemMinutes;
+      try {
+        final status = await api.get('/api/system/status');
+        systemMinutes = (status['refresh_minutes'] as num?)?.toInt();
+      } catch (_) {}
+
+      if (!mounted) return;
+      setState(() {
+        _matchData = Map<String, dynamic>.from(match);
+        _systemRefreshMinutes = systemMinutes ?? _systemRefreshMinutes;
+        _matchLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _matchLoading = false);
+    }
+  }
+
+  int _effectiveRefreshMinutes() {
+    return (_matchData['refresh_minutes'] as num?)?.toInt() ??
+        _systemRefreshMinutes ??
+        5;
+  }
+
+  Future<void> _setMatchInterval(int minutes) async {
+    if (_intervalSaving) return;
+    setState(() => _intervalSaving = true);
+    try {
+      final result = await api.post(
+        '/api/matches/' +
+            Uri.encodeComponent(widget.eventId) +
+            '/refresh-interval',
+        {'minutes': minutes},
+      );
+      if (!mounted) return;
+      setState(() {
+        _matchData['refresh_minutes'] =
+            (result['refresh_minutes'] as num?)?.toInt() ?? minutes;
+        _intervalSaving = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _intervalSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _toggleTracking() async {
+    if (_trackingBusy) return;
+    setState(() => _trackingBusy = true);
+    try {
+      final active = _matchData['active'] == true;
+      final result = active
+          ? await api.delete(
+              '/api/matches/' + Uri.encodeComponent(widget.eventId),
+            )
+          : await api.post(
+              '/api/matches/' +
+                  Uri.encodeComponent(widget.eventId) +
+                  '/resume',
+              <String, dynamic>{},
+            );
+
+      if (!mounted) return;
+      final match = result['match'];
+      setState(() {
+        if (match is Map) {
+          _matchData = Map<String, dynamic>.from(match);
+        } else {
+          _matchData['active'] = !active;
+        }
+        _trackingBusy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _trackingBusy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  String _matchDateTimeText() {
+    final date = _matchData['match_date']?.toString().trim() ?? '';
+    final time = _matchData['kickoff_time']?.toString().trim() ?? '';
+    String dateText = date;
+    final parsed = DateTime.tryParse(date);
+    if (parsed != null) {
+      dateText = parsed.day.toString().padLeft(2, '0') +
+          '.' +
+          parsed.month.toString().padLeft(2, '0') +
+          '.' +
+          parsed.year.toString();
+    }
+    if (dateText.isEmpty) return time;
+    if (time.isEmpty) return dateText;
+    return dateText + ' · ' + time;
+  }
+
+  String _lastControlText() {
+    final raw = _matchData['latest_capture']?.toString() ?? '';
+    final dt = DateTime.tryParse(raw)?.toLocal();
+    if (dt == null) return '—';
+    return dt.hour.toString().padLeft(2, '0') +
+        ':' +
+        dt.minute.toString().padLeft(2, '0');
+  }
+
+  List<String> _teamNames() {
+    final title =
+        (_matchData['display_name']?.toString().trim().isNotEmpty ?? false)
+            ? _matchData['display_name'].toString().trim()
+            : widget.title.trim();
+    final parts = title.split(RegExp(r'\s+-\s+'));
+    if (parts.length >= 2) {
+      return [parts.first.trim(), parts.sublist(1).join(' - ').trim()];
+    }
+    return [title, ''];
+  }
+
+  Widget _matchInfoCard() {
+    final scheme = Theme.of(context).colorScheme;
+    final teams = _teamNames();
+    final league = _matchData['league']?.toString().trim() ?? '';
+    final dateTime = _matchDateTimeText();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: scheme.outlineVariant.withOpacity(0.42),
+        ),
+      ),
+      child: _matchLoading
+          ? const SizedBox(
+              height: 74,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          : Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.emoji_events_outlined,
+                      size: 17,
+                      color: scheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        league.isEmpty ? 'Maç' : league,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    if (dateTime.isNotEmpty) ...[
+                      Icon(
+                        Icons.schedule_rounded,
+                        size: 16,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        dateTime,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        teams[0],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        'VS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: scheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        teams[1],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _intervalChoice(int minutes) {
+    final scheme = Theme.of(context).colorScheme;
+    final selected = _effectiveRefreshMinutes() == minutes;
+    return Expanded(
+      child: InkWell(
+        onTap: _intervalSaving ? null : () => _setMatchInterval(minutes),
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 54,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? scheme.primaryContainer
+                : scheme.surfaceContainerHighest.withOpacity(0.62),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? scheme.primary.withOpacity(0.9)
+                  : scheme.outlineVariant.withOpacity(0.45),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Text(
+            '$minutes dk',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: selected
+                  ? scheme.onPrimaryContainer
+                  : scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _trackingControls() {
+    final scheme = Theme.of(context).colorScheme;
+    final active = _matchData['active'] == true;
+
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: scheme.outlineVariant.withOpacity(0.42),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.timer_outlined,
+                    size: 19,
+                    color: scheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'ORAN ÇEKİM ARALIĞI',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Son kontrol: ${_lastControlText()}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _intervalChoice(120),
+                  const SizedBox(width: 7),
+                  _intervalChoice(60),
+                  const SizedBox(width: 7),
+                  _intervalChoice(30),
+                  const SizedBox(width: 7),
+                  _intervalChoice(15),
+                  const SizedBox(width: 7),
+                  _intervalChoice(5),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          child: SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: FilledButton.icon(
+              onPressed: _trackingBusy ? null : _toggleTracking,
+              style: FilledButton.styleFrom(
+                backgroundColor: active
+                    ? const Color(0xFF4B171D)
+                    : scheme.primaryContainer,
+                foregroundColor: active
+                    ? const Color(0xFFFFA7B0)
+                    : scheme.onPrimaryContainer,
+                side: BorderSide(
+                  color: active
+                      ? const Color(0xFFEF4444)
+                      : scheme.primary.withOpacity(0.7),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: _trackingBusy
+                  ? const SizedBox(
+                      width: 17,
+                      height: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      active
+                          ? Icons.stop_circle_outlined
+                          : Icons.play_circle_outline_rounded,
+                    ),
+              label: Text(
+                active ? 'Takibi Durdur' : 'Takibi Başlat',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   String _oddText(dynamic value) {
@@ -3041,7 +3444,13 @@ class _MatchDetailState extends State<MatchDetail> {
           ),
           Expanded(
             child: _showOdds
-                ? _oddsSkeleton()
+                ? Column(
+                    children: [
+                      _matchInfoCard(),
+                      _trackingControls(),
+                      Expanded(child: _oddsSkeleton()),
+                    ],
+                  )
                 : PerformanceV83Panel(
                     eventId: widget.eventId,
                     title: widget.title,
@@ -3077,6 +3486,7 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
   String _error = '';
   int _tab = 0;
   List<Map<String, dynamic>> _history = const [];
+  List<Map<String, dynamic>> _openingRows = const [];
 
   @override
   void initState() {
@@ -3086,23 +3496,52 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
 
   Future<void> _load() async {
     try {
-      final payload = await api.get(
-        '/api/matches/' +
-            Uri.encodeComponent(widget.eventId) +
-            '/odds/1x2/history?page=1',
-      );
+      final encoded = Uri.encodeComponent(widget.eventId);
+      final results = await Future.wait<Map<String, dynamic>>([
+        api.get('/api/matches/' + encoded + '/odds/1x2/history?page=1'),
+        api.get('/api/matches/' + encoded),
+      ]);
+      final payload = results[0];
+      final detail = results[1];
       final raw = payload['rows'];
       final rows = raw is List
-          ? raw
-              .whereType<Map>()
-              .map((row) => Map<String, dynamic>.from(row))
-              .where(_sameBookmaker)
-              .toList()
+          ? raw.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).where(_sameBookmaker).toList()
           : <Map<String, dynamic>>[];
-
+      final opening = <String, dynamic>{
+        '_opening': true,
+        'captured_at': null,
+        'home_odd': null,
+        'draw_odd': null,
+        'away_odd': null,
+      };
+      var hasOpening = false;
+      final openingRaw = detail['opening_odds'];
+      if (openingRaw is List) {
+        for (final item in openingRaw.whereType<Map>()) {
+          final row = Map<String, dynamic>.from(item);
+          final bookmaker = row['bookmaker']?.toString() ?? '';
+          if (_bookmakerKey(bookmaker) != _bookmakerKey(widget.bookmakerName)) continue;
+          final key = row['outcome_key']?.toString() ?? '';
+          final odd = row['opening_odd'];
+          if (key == 'ms1') {
+            opening['home_odd'] = odd;
+            hasOpening = true;
+          } else if (key == 'msx') {
+            opening['draw_odd'] = odd;
+            hasOpening = true;
+          } else if (key == 'ms2') {
+            opening['away_odd'] = odd;
+            hasOpening = true;
+          } else {
+            continue;
+          }
+          opening['captured_at'] ??= row['opening_at'];
+        }
+      }
       if (!mounted) return;
       setState(() {
         _history = rows;
+        _openingRows = hasOpening ? [opening] : const [];
         _loading = false;
         _error = '';
       });
@@ -3115,13 +3554,16 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
     }
   }
 
+  String _bookmakerKey(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
   bool _sameBookmaker(Map<String, dynamic> row) {
     final id = row['bookmaker_id']?.toString().trim() ?? '';
     final name = row['bookmaker_name']?.toString().trim().toLowerCase() ?? '';
     if (widget.bookmakerId.isNotEmpty && id.isNotEmpty) {
       return widget.bookmakerId == id;
     }
-    return name == widget.bookmakerName.trim().toLowerCase();
+    return _bookmakerKey(name) == _bookmakerKey(widget.bookmakerName);
   }
 
   String _odd(dynamic value) {
@@ -3193,7 +3635,8 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
         ),
       );
     }
-    if (_history.isEmpty) {
+    final displayRows = <Map<String, dynamic>>[..._openingRows, ..._history];
+    if (displayRows.isEmpty) {
       return const Center(
         child: Text('Bu bookmaker i\u00e7in ge\u00e7mi\u015f oran bulunamad\u0131.'),
       );
@@ -3201,10 +3644,11 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
 
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-      itemCount: _history.length,
+      itemCount: displayRows.length,
       separatorBuilder: (_, __) => const SizedBox(height: 7),
       itemBuilder: (_, index) {
-        final row = _history[index];
+        final row = displayRows[index];
+        final isOpening = row['_opening'] == true;
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
@@ -3215,9 +3659,10 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
           child: Row(
             children: [
               Expanded(
-                flex: 18,
                 child: Text(
-                  _time(row),
+                  isOpening ? 'AÇILIŞ\n${_time(row)}' : _time(row),
+                  maxLines: isOpening ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -3225,9 +3670,18 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
                   ),
                 ),
               ),
-              Expanded(child: _historyOdd('1', _odd(row['home_odd']))),
-              Expanded(child: _historyOdd('X', _odd(row['draw_odd']))),
-              Expanded(child: _historyOdd('2', _odd(row['away_odd']))),
+              SizedBox(
+                width: 58,
+                child: _historyOdd('1', _odd(row['home_odd'])),
+              ),
+              SizedBox(
+                width: 58,
+                child: _historyOdd('X', _odd(row['draw_odd'])),
+              ),
+              SizedBox(
+                width: 58,
+                child: _historyOdd('2', _odd(row['away_odd'])),
+              ),
             ],
           ),
         );
@@ -3391,6 +3845,7 @@ class _BookmakerOddsChartState extends State<BookmakerOddsChart> {
   List<_OddsGraphSample> _visibleSamples() {
     final all = _allSamples();
     if (all.isEmpty) return const [];
+    if (_rangeMinutes <= 0) return all;
     final start = all.last.time.subtract(Duration(minutes: _rangeMinutes));
     final visible = all.where((e) => !e.time.isBefore(start)).toList();
     return visible.isEmpty ? [all.last] : visible;
@@ -3601,11 +4056,11 @@ class _BookmakerOddsChartState extends State<BookmakerOddsChart> {
             ),
             child: Row(
               children: [
+                _rangeChip('Tümü', 0),
                 _rangeChip('24 saat', 1440),
                 _rangeChip('12 saat', 720),
                 _rangeChip('6 saat', 360),
                 _rangeChip('120 dk', 120),
-                _rangeChip('6 dk', 6),
               ],
             ),
           ),

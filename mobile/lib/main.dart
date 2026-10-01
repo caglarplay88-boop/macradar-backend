@@ -2891,7 +2891,7 @@ class _MatchDetailState extends State<MatchDetail> {
           clipBehavior: Clip.antiAlias,
           child: Row(
             children: [
-              const Expanded(
+              Expanded(
                 flex: 16,
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2947,7 +2947,7 @@ class _MatchDetailState extends State<MatchDetail> {
                         ),
                       )
                     : _oddsRows.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
                               '1X2 oranı bulunamadı.',
                               style: TextStyle(

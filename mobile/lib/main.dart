@@ -2676,6 +2676,7 @@ class _MatchDetailState extends State<MatchDetail> {
     required bool selected,
     required VoidCallback onTap,
   }) {
+    final scheme = Theme.of(context).colorScheme;
     return Expanded(
       child: InkWell(
         onTap: onTap,
@@ -2685,8 +2686,8 @@ class _MatchDetailState extends State<MatchDetail> {
           padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
             color: selected
-                ? const Color(0xFFDC2626)
-                : const Color(0xFFF1F5F9),
+                ? scheme.primaryContainer
+                : scheme.surfaceContainerHighest.withOpacity(0.72),
             borderRadius: BorderRadius.circular(10),
           ),
           alignment: Alignment.center,
@@ -2696,8 +2697,8 @@ class _MatchDetailState extends State<MatchDetail> {
               fontSize: 13,
               fontWeight: FontWeight.w900,
               color: selected
-                  ? Colors.white
-                  : const Color(0xFF475569),
+                  ? scheme.onPrimaryContainer
+                  : scheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -2706,12 +2707,13 @@ class _MatchDetailState extends State<MatchDetail> {
   }
 
   Widget _marketTab(String label, {bool active = false}) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: active
-            ? const Color(0xFFDC2626)
-            : const Color(0xFFF1F5F9),
+            ? scheme.primary
+            : scheme.surfaceContainerHighest.withOpacity(0.58),
         borderRadius: BorderRadius.circular(9),
       ),
       child: Text(
@@ -2720,8 +2722,8 @@ class _MatchDetailState extends State<MatchDetail> {
           fontSize: 12,
           fontWeight: FontWeight.w900,
           color: active
-              ? Colors.white
-              : const Color(0xFF94A3B8),
+              ? scheme.onPrimary
+              : scheme.onSurfaceVariant,
         ),
       ),
     );
@@ -2751,17 +2753,18 @@ class _MatchDetailState extends State<MatchDetail> {
     String trend = 'none',
     bool closed = false,
   }) {
+    final scheme = Theme.of(context).colorScheme;
     return Expanded(
       child: Container(
         alignment: Alignment.center,
-        padding: EdgeInsets.symmetric(vertical: header ? 8 : 13),
+        padding: EdgeInsets.symmetric(vertical: header ? 8 : 12),
         child: header
             ? Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF64748B),
+                  color: scheme.onSurfaceVariant,
                 ),
               )
             : Row(
@@ -2776,8 +2779,8 @@ class _MatchDetailState extends State<MatchDetail> {
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                       color: closed
-                          ? const Color(0xFF94A3B8)
-                          : const Color(0xFF1E293B),
+                          ? scheme.onSurfaceVariant.withOpacity(0.62)
+                          : scheme.onSurface,
                       decoration: closed
                           ? TextDecoration.lineThrough
                           : TextDecoration.none,
@@ -2802,10 +2805,14 @@ class _MatchDetailState extends State<MatchDetail> {
     bool drawClosed,
     bool awayClosed,
   ) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0)),
+      margin: const EdgeInsets.only(bottom: 7),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: scheme.outlineVariant.withOpacity(0.34),
         ),
       ),
       child: Row(
@@ -2817,10 +2824,10 @@ class _MatchDetailState extends State<MatchDetail> {
               child: Text(
                 name,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF0F172A),
+                  color: scheme.onSurface,
                 ),
               ),
             ),
@@ -2853,6 +2860,7 @@ class _MatchDetailState extends State<MatchDetail> {
   }
 
   Widget _oddsSkeleton() {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2874,9 +2882,11 @@ class _MatchDetailState extends State<MatchDetail> {
         Container(
           margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: scheme.surfaceContainerHighest.withOpacity(0.54),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(
+              color: scheme.outlineVariant.withOpacity(0.35),
+            ),
           ),
           clipBehavior: Clip.antiAlias,
           child: Row(
@@ -2890,7 +2900,7 @@ class _MatchDetailState extends State<MatchDetail> {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF64748B),
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -2912,11 +2922,11 @@ class _MatchDetailState extends State<MatchDetail> {
           child: Container(
             margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Colors.transparent,
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(12),
               ),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: Colors.transparent),
             ),
             clipBehavior: Clip.antiAlias,
             child: _oddsLoading
@@ -2928,10 +2938,10 @@ class _MatchDetailState extends State<MatchDetail> {
                           child: Text(
                             _oddsError,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFFDC2626),
+                              color: scheme.error,
                             ),
                           ),
                         ),
@@ -2943,12 +2953,12 @@ class _MatchDetailState extends State<MatchDetail> {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF64748B),
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
                           )
                         : ListView(
-                            padding: EdgeInsets.zero,
+                            padding: const EdgeInsets.only(top: 7),
                             children: [
                               for (final row in _oddsRows)
                                 _bookmakerRow(

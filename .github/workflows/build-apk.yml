@@ -334,7 +334,7 @@ jobs:
           retention-days: 30
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/codex/takip-preview-fix-20261001'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -355,4 +355,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release/MacRadar.apk --repo "$GITHUB_REPOSITORY" --title "MacRadar $GITHUB_REF_NAME" --generate-notes --verify-tag
+          if [[ "$GITHUB_REF" == "refs/heads/codex/takip-preview-fix-20261001" ]]; then
+            gh release create preview-takip-fix-20261001 release/MacRadar.apk --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MacRadar Takip İnceleme 2" --notes "60 dakika otomatik takip görünümü ve kompakt maç detayı." --prerelease
+          else
+            gh release create "$GITHUB_REF_NAME" release/MacRadar.apk --repo "$GITHUB_REPOSITORY" --title "MacRadar $GITHUB_REF_NAME" --generate-notes --verify-tag
+          fi

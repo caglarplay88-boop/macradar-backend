@@ -1806,6 +1806,7 @@ class _TrackedPageState extends State<TrackedPage> {
         builder: (_) => MatchDetail(
           eventId: m['event_id'].toString(),
           title: _trackTitle(m),
+          match: m,
         ),
       ),
     );
@@ -2169,6 +2170,7 @@ class _FinishedMatchesPageState extends State<FinishedMatchesPage> {
         builder: (_) => MatchDetail(
           eventId: m['event_id'].toString(),
           title: _trackTitle(m),
+          match: m,
         ),
       ),
     );
@@ -2526,11 +2528,13 @@ class _FinishedMatchesPageState extends State<FinishedMatchesPage> {
 class MatchDetail extends StatefulWidget {
   final String eventId;
   final String title;
+  final Map<String, dynamic> match;
 
   const MatchDetail({
     super.key,
     required this.eventId,
     required this.title,
+    required this.match,
   });
 
   @override
@@ -2546,7 +2550,8 @@ class _MatchDetailState extends State<MatchDetail> {
   List<Map<String, dynamic>> _oddsRows = const [];
   Timer? _oddsRefreshTimer;
   Map<String, dynamic> _matchData = <String, dynamic>{};
-  bool _matchLoading = true;
+  bool _trackingSettingsLoaded = false;
+  String _trackingError = '';
   bool _trackingBusy = false;
   bool _intervalSaving = false;
   int? _systemRefreshMinutes;
@@ -2554,6 +2559,7 @@ class _MatchDetailState extends State<MatchDetail> {
   @override
   void initState() {
     super.initState();
+    _matchData = Map<String, dynamic>.from(widget.match);
     _loadMatchInfo();
     _loadOdds1x2();
     _oddsRefreshTimer = Timer.periodic(
@@ -2589,6 +2595,9 @@ class _MatchDetailState extends State<MatchDetail> {
             Uri.encodeComponent(widget.eventId) +
             '/odds/1x2',
       );
+      if (mounted) {
+        setState(() => _updateTrackingData(payload));
+      }
       final current = payload['current'];
       final rawRows = current is Map ? current['rows'] : null;
       final currentSequence =
@@ -2672,28 +2681,34 @@ class _MatchDetailState extends State<MatchDetail> {
   }
 
   Future<void> _loadMatchInfo({bool silent = false}) async {
-    if (!silent && mounted) setState(() => _matchLoading = true);
     try {
       final eventPath = Uri.encodeComponent(widget.eventId);
-      final match = await api.get('/api/matches/' + eventPath);
-      Map<String, dynamic> tracking = <String, dynamic>{};
-      try {
-        tracking = await api.get('/api/matches/' + eventPath + '/odds/1x2');
-      } catch (_) {}
+      final tracking = await api.get(
+        '/api/matches/' + eventPath + '/odds/1x2',
+      );
       if (!mounted) return;
       setState(() {
-        _matchData = Map<String, dynamic>.from(match);
-        if (tracking.isNotEmpty) {
-          _matchData['tracking_enabled'] = tracking['tracking_enabled'] == true;
-          final minutes = (tracking['refresh_minutes'] as num?)?.toInt();
-          if (minutes != null) _matchData['refresh_minutes'] = minutes;
-        }
-        _matchLoading = false;
+        _updateTrackingData(tracking);
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      setState(() => _matchLoading = false);
+      if (!silent || !_trackingSettingsLoaded) {
+        setState(() {
+          _trackingError = error.toString().replaceFirst('Exception: ', '');
+        });
+      }
     }
+  }
+
+  void _updateTrackingData(Map<String, dynamic> tracking) {
+    final current = tracking['current'];
+    _matchData['tracking_enabled'] = tracking['tracking_enabled'] == true;
+    _matchData['refresh_minutes'] =
+        (tracking['refresh_minutes'] as num?)?.toInt() ?? 60;
+    _matchData['latest_capture'] = tracking['last_checked_at'] ??
+        (current is Map ? current['captured_at'] : null);
+    _trackingSettingsLoaded = true;
+    _trackingError = '';
   }
 
   int _effectiveRefreshMinutes() {
@@ -2701,7 +2716,7 @@ class _MatchDetailState extends State<MatchDetail> {
   }
 
   Future<void> _setMatchInterval(int minutes) async {
-    if (_intervalSaving) return;
+    if (_intervalSaving || !_trackingSettingsLoaded) return;
     setState(() => _intervalSaving = true);
     try {
       final enabled = _matchData['tracking_enabled'] == true;
@@ -2726,7 +2741,7 @@ class _MatchDetailState extends State<MatchDetail> {
   }
 
   Future<void> _toggleTracking() async {
-    if (_trackingBusy) return;
+    if (_trackingBusy || !_trackingSettingsLoaded) return;
     setState(() => _trackingBusy = true);
     try {
       final enabled = _matchData['tracking_enabled'] == true;
@@ -2795,8 +2810,8 @@ class _MatchDetailState extends State<MatchDetail> {
     final dateTime = _matchDateTimeText();
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      padding: const EdgeInsets.fromLTRB(13, 10, 13, 11),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
@@ -2804,13 +2819,8 @@ class _MatchDetailState extends State<MatchDetail> {
           color: scheme.outlineVariant.withOpacity(0.42),
         ),
       ),
-      child: _matchLoading
-          ? const SizedBox(
-              height: 74,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          : Column(
-              children: [
+      child: Column(
+        children: [
                 Row(
                   children: [
                     Icon(
@@ -2821,10 +2831,10 @@ class _MatchDetailState extends State<MatchDetail> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        league.isEmpty ? 'Maç' : league,
+                        league.isEmpty ? 'Lig bilgisi yok' : league,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w800,
                           color: scheme.onSurfaceVariant,
                         ),
@@ -2840,7 +2850,7 @@ class _MatchDetailState extends State<MatchDetail> {
                       Text(
                         dateTime,
                         style: TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: scheme.onSurfaceVariant,
                         ),
@@ -2848,7 +2858,7 @@ class _MatchDetailState extends State<MatchDetail> {
                     ],
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
@@ -2857,16 +2867,16 @@ class _MatchDetailState extends State<MatchDetail> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
                     Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 7,
+                        horizontal: 9,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
                         color: scheme.primaryContainer,
@@ -2888,34 +2898,37 @@ class _MatchDetailState extends State<MatchDetail> {
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
                         style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+        ],
+      ),
     );
   }
 
   Widget _intervalChoice(int minutes) {
     final scheme = Theme.of(context).colorScheme;
-    final selected = _effectiveRefreshMinutes() == minutes;
+    final selected = _trackingSettingsLoaded &&
+        _effectiveRefreshMinutes() == minutes;
     return Expanded(
       child: InkWell(
-        onTap: _intervalSaving ? null : () => _setMatchInterval(minutes),
-        borderRadius: BorderRadius.circular(12),
+        onTap: !_trackingSettingsLoaded || _intervalSaving
+            ? null
+            : () => _setMatchInterval(minutes),
+        borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          height: 54,
+          height: 42,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected
                 ? scheme.primaryContainer
                 : scheme.surfaceContainerHighest.withOpacity(0.62),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: selected
                   ? scheme.primary.withOpacity(0.9)
@@ -2926,7 +2939,7 @@ class _MatchDetailState extends State<MatchDetail> {
           child: Text(
             '$minutes dk',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10.5,
               fontWeight: FontWeight.w900,
               color: selected
                   ? scheme.onPrimaryContainer
@@ -2945,8 +2958,8 @@ class _MatchDetailState extends State<MatchDetail> {
     return Column(
       children: [
         Container(
-          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 9),
+          padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
           decoration: BoxDecoration(
             color: scheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(14),
@@ -2975,7 +2988,7 @@ class _MatchDetailState extends State<MatchDetail> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 5),
               Text(
                 'Son kontrol: ${_lastControlText()}',
                 style: TextStyle(
@@ -2984,20 +2997,28 @@ class _MatchDetailState extends State<MatchDetail> {
                   color: scheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   _intervalChoice(120),
-                  const SizedBox(width: 7),
+                  const SizedBox(width: 5),
                   _intervalChoice(60),
-                  const SizedBox(width: 7),
+                  const SizedBox(width: 5),
                   _intervalChoice(30),
-                  const SizedBox(width: 7),
+                  const SizedBox(width: 5),
                   _intervalChoice(15),
-                  const SizedBox(width: 7),
+                  const SizedBox(width: 5),
                   _intervalChoice(5),
                 ],
               ),
+              if (_trackingError.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => _loadMatchInfo(),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text('Takip durumunu yeniden yükle'),
+                ),
+              ],
             ],
           ),
         ),
@@ -3005,9 +3026,11 @@ class _MatchDetailState extends State<MatchDetail> {
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
           child: SizedBox(
             width: double.infinity,
-            height: 54,
+            height: 50,
             child: FilledButton.icon(
-              onPressed: _trackingBusy ? null : _toggleTracking,
+              onPressed: !_trackingSettingsLoaded || _trackingBusy
+                  ? null
+                  : _toggleTracking,
               style: FilledButton.styleFrom(
                 backgroundColor: active
                     ? const Color(0xFF4B171D)
@@ -3021,7 +3044,7 @@ class _MatchDetailState extends State<MatchDetail> {
                       : scheme.primary.withOpacity(0.7),
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
               icon: _trackingBusy
@@ -3036,7 +3059,11 @@ class _MatchDetailState extends State<MatchDetail> {
                           : Icons.play_circle_outline_rounded,
                     ),
               label: Text(
-                active ? 'Takibi Durdur' : 'Takibi Başlat',
+                !_trackingSettingsLoaded
+                    ? 'Takip durumu yükleniyor'
+                    : active
+                        ? 'Takibi Durdur'
+                        : 'Takibi Başlat',
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
@@ -3101,6 +3128,31 @@ class _MatchDetailState extends State<MatchDetail> {
                   : scheme.onSurfaceVariant,
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _marketChip(String label, {bool selected = false}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      height: 37,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 11),
+      decoration: BoxDecoration(
+        color: selected
+            ? scheme.primaryContainer
+            : scheme.surfaceContainerHighest.withOpacity(0.68),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: selected
+              ? scheme.onPrimaryContainer
+              : scheme.onSurfaceVariant.withOpacity(0.65),
         ),
       ),
     );
@@ -3293,45 +3345,29 @@ class _MatchDetailState extends State<MatchDetail> {
           _matchInfoCard(),
           _trackingControls(),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 5, 14, 4),
+            padding: const EdgeInsets.fromLTRB(12, 3, 12, 8),
             child: Row(
               children: [
-                const Expanded(
-                  child: Text('1X2 ORANLARI',
-                      style: TextStyle(fontSize: 13,
-                          fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                _marketChip('1X2', selected: true),
+                const SizedBox(width: 7),
+                _marketChip('Alt/Üst'),
+                const SizedBox(width: 7),
+                _marketChip('Asian'),
+                const SizedBox(width: 7),
+                _marketChip('KG'),
+                const Spacer(),
+                PopupMenuButton<String>(
+                  tooltip: 'Oranları sırala',
+                  icon: const Icon(Icons.sort_rounded, size: 22),
+                  onSelected: (value) => setState(() => _oddsSort = value),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'bookmaker', child: Text('Bookmaker A–Z')),
+                    PopupMenuItem(value: 'home_odd', child: Text('1 oranı yüksekten')),
+                    PopupMenuItem(value: 'draw_odd', child: Text('X oranı yüksekten')),
+                    PopupMenuItem(value: 'away_odd', child: Text('2 oranı yüksekten')),
+                  ],
                 ),
-                Text(rows.length.toString() + ' bookmaker',
-                    style: TextStyle(fontSize: 10,
-                        color: scheme.onSurfaceVariant)),
               ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Text('Bir bookmaker’a dokunarak oran geçmişini ve grafiğini aç.',
-                style: TextStyle(fontSize: 10,
-                    color: scheme.onSurfaceVariant)),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: DropdownButtonFormField<String>(
-              value: _oddsSort,
-              decoration: const InputDecoration(
-                labelText: 'Sıralama',
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'bookmaker', child: Text('Bookmaker A–Z')),
-                DropdownMenuItem(value: 'home_odd', child: Text('1 oranı yüksekten')),
-                DropdownMenuItem(value: 'draw_odd', child: Text('X oranı yüksekten')),
-                DropdownMenuItem(value: 'away_odd', child: Text('2 oranı yüksekten')),
-              ],
-              onChanged: (value) {
-                if (value != null) setState(() => _oddsSort = value);
-              },
             ),
           ),
           Container(
@@ -3347,7 +3383,7 @@ class _MatchDetailState extends State<MatchDetail> {
                 Expanded(
                   flex: 16,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     child: Text('BOOKMAKER',
                         style: TextStyle(fontSize: 10,
                             fontWeight: FontWeight.w900,

@@ -2540,6 +2540,7 @@ class _MatchDetailState extends State<MatchDetail> {
   bool _oddsRequestRunning = false;
   bool _trackingSaving = false;
   bool _trackingEnabled = false;
+  bool _trackingSettingsLoaded = false;
   int _trackingMinutes = 60;
   List<int> _allowedTrackingMinutes = const [5, 15, 30, 60, 120];
   String _oddsError = '';
@@ -2662,6 +2663,7 @@ class _MatchDetailState extends State<MatchDetail> {
         _oddsRows = rows;
         _trackingEnabled = trackingEnabled;
         _trackingMinutes = trackingMinutes;
+        _trackingSettingsLoaded = true;
         if (allowedTrackingMinutes.isNotEmpty) {
           _allowedTrackingMinutes = allowedTrackingMinutes;
         }
@@ -2687,6 +2689,11 @@ class _MatchDetailState extends State<MatchDetail> {
   }) async {
     if (_trackingSaving) return;
     if (!_allowedTrackingMinutes.contains(minutes)) return;
+    if (_trackingSettingsLoaded &&
+        _trackingEnabled == enabled &&
+        _trackingMinutes == minutes) {
+      return;
+    }
 
     setState(() => _trackingSaving = true);
 
@@ -2707,6 +2714,7 @@ class _MatchDetailState extends State<MatchDetail> {
         _trackingEnabled = payload['tracking_enabled'] == true;
         _trackingMinutes =
             (payload['refresh_minutes'] as num?)?.toInt() ?? minutes;
+        _trackingSettingsLoaded = true;
         _trackingSaving = false;
       });
     } catch (_) {
@@ -2997,7 +3005,9 @@ class _MatchDetailState extends State<MatchDetail> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(10),
                       onTap: _trackingSaving ||
-                              !_allowedTrackingMinutes.contains(minutes)
+                              !_trackingSettingsLoaded ||
+                              !_allowedTrackingMinutes.contains(minutes) ||
+                              _trackingMinutes == minutes
                           ? null
                           : () async {
                               try {
@@ -3025,17 +3035,23 @@ class _MatchDetailState extends State<MatchDetail> {
                         height: 38,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: _trackingMinutes == minutes
+                          color: _trackingSettingsLoaded &&
+                                  _trackingMinutes == minutes
                               ? scheme.primaryContainer
                               : scheme.surfaceContainerHighest.withOpacity(0.55),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            width: _trackingMinutes == minutes ? 1.3 : 1,
-                            color: _trackingMinutes == minutes
+                            width: _trackingSettingsLoaded &&
+                                    _trackingMinutes == minutes
+                                ? 1.3
+                                : 1,
+                            color: _trackingSettingsLoaded &&
+                                    _trackingMinutes == minutes
                                 ? scheme.primary
                                 : scheme.outlineVariant.withOpacity(0.44),
                           ),
-                          boxShadow: _trackingMinutes == minutes
+                          boxShadow: _trackingSettingsLoaded &&
+                                  _trackingMinutes == minutes
                               ? [
                                   BoxShadow(
                                     color: scheme.primary.withOpacity(0.14),
@@ -3049,10 +3065,12 @@ class _MatchDetailState extends State<MatchDetail> {
                           minutes.toString() + ' dk',
                           style: TextStyle(
                             fontSize: 10,
-                            fontWeight: _trackingMinutes == minutes
+                            fontWeight: _trackingSettingsLoaded &&
+                                    _trackingMinutes == minutes
                                 ? FontWeight.w900
                                 : FontWeight.w700,
-                            color: _trackingMinutes == minutes
+                            color: _trackingSettingsLoaded &&
+                                    _trackingMinutes == minutes
                                 ? scheme.onPrimaryContainer
                                 : scheme.onSurfaceVariant,
                           ),
@@ -3080,7 +3098,7 @@ class _MatchDetailState extends State<MatchDetail> {
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: _trackingSaving
+          onTap: _trackingSaving || !_trackingSettingsLoaded
               ? null
               : () async {
                   try {

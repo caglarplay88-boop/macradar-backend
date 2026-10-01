@@ -3263,7 +3263,27 @@ class _MatchDetailState extends State<MatchDetail> {
     );
   }
 
+  Future<void> _openBookmakerHistory(
+    String bookmakerKey,
+    String bookmakerName,
+  ) async {
+    final key = bookmakerKey.trim();
+    if (key.isEmpty) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BookmakerOddsHistoryPage(
+          eventId: widget.eventId,
+          bookmakerKey: key,
+          bookmakerName: bookmakerName,
+        ),
+      ),
+    );
+  }
+
   Widget _bookmakerRow(
+    String bookmakerKey,
     String name,
     String home,
     String draw,
@@ -3276,17 +3296,23 @@ class _MatchDetailState extends State<MatchDetail> {
     bool awayClosed,
   ) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 7),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: scheme.outlineVariant.withOpacity(0.34),
-        ),
-      ),
-      child: Row(
-        children: [
+        onTap: () => _openBookmakerHistory(bookmakerKey, name),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 7),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: scheme.outlineVariant.withOpacity(0.34),
+            ),
+          ),
+          child: Row(
+            children: [
           Expanded(
             flex: 16,
             child: Padding(
@@ -3324,7 +3350,9 @@ class _MatchDetailState extends State<MatchDetail> {
               ],
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -3435,6 +3463,9 @@ class _MatchDetailState extends State<MatchDetail> {
                             children: [
                               for (final row in _oddsRows)
                                 _bookmakerRow(
+                                  row['bookmaker_id']?.toString().trim().isNotEmpty == true
+                                      ? row['bookmaker_id'].toString()
+                                      : row['bookmaker_name']?.toString() ?? '',
                                   row['bookmaker_name']?.toString() ?? '—',
                                   _oddText(row['home_odd']),
                                   _oddText(row['draw_odd']),
@@ -3493,6 +3524,248 @@ class _MatchDetailState extends State<MatchDetail> {
           ),
         ],
       ),
+    );
+  }
+}
+
+
+class BookmakerOddsHistoryPage extends StatefulWidget {
+  final String eventId;
+  final String bookmakerKey;
+  final String bookmakerName;
+
+  const BookmakerOddsHistoryPage({
+    super.key,
+    required this.eventId,
+    required this.bookmakerKey,
+    required this.bookmakerName,
+  });
+
+  @override
+  State<BookmakerOddsHistoryPage> createState() => _BookmakerOddsHistoryPageState();
+}
+
+class _BookmakerOddsHistoryPageState extends State<BookmakerOddsHistoryPage> {
+  bool loading = true;
+  String error = '';
+  List<Map<String, dynamic>> rows = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      loading = true;
+      error = '';
+    });
+
+    try {
+      final payload = await api.get(
+        '/api/matches/' +
+            Uri.encodeComponent(widget.eventId) +
+            '/odds/1x2/history?page=1&bookmaker=' +
+            Uri.encodeQueryComponent(widget.bookmakerKey),
+      );
+      final raw = payload['rows'];
+      final loaded = raw is List
+          ? raw
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+          : <Map<String, dynamic>>[];
+
+      loaded.sort((a, b) {
+        final aType = a['capture_type']?.toString() ?? '';
+        final bType = b['capture_type']?.toString() ?? '';
+        if (aType == 'opening' && bType != 'opening') return 1;
+        if (bType == 'opening' && aType != 'opening') return -1;
+
+        final aTime =
+            DateTime.tryParse(a['captured_at']?.toString() ?? '') ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime =
+            DateTime.tryParse(b['captured_at']?.toString() ?? '') ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+
+      if (!mounted) return;
+      setState(() {
+        rows = loaded;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  String _odd(dynamic value) {
+    final n = value is num
+        ? value.toDouble()
+        : double.tryParse(value?.toString() ?? '');
+    return n == null ? '—' : n.toStringAsFixed(2);
+  }
+
+  String _time(dynamic value) {
+    final dt = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    if (dt == null) return '—';
+    return dt.day.toString().padLeft(2, '0') +
+        '.' +
+        dt.month.toString().padLeft(2, '0') +
+        '.' +
+        dt.year.toString() +
+        '  ' +
+        dt.hour.toString().padLeft(2, '0') +
+        ':' +
+        dt.minute.toString().padLeft(2, '0');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.bookmakerName,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : error.isNotEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      error,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: scheme.error,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                )
+              : rows.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Bu bookmaker için oran geçmişi yok.',
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        final opening =
+                            row['capture_type']?.toString() == 'opening';
+
+                        return Container(
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+                          decoration: BoxDecoration(
+                            color: opening
+                                ? scheme.primaryContainer.withOpacity(0.72)
+                                : scheme.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(13),
+                            border: Border.all(
+                              color: opening
+                                  ? scheme.primary.withOpacity(0.55)
+                                  : scheme.outlineVariant.withOpacity(0.35),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 17,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      opening
+                                          ? 'Açılış'
+                                          : _time(row['captured_at']),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w900,
+                                        color: opening
+                                            ? scheme.onPrimaryContainer
+                                            : scheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    if (opening) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _time(row['captured_at']),
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                flex: 15,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _odd(row['home_odd']),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w900,
+                                          color: scheme.onSurface,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        _odd(row['draw_odd']),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w900,
+                                          color: scheme.onSurface,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        _odd(row['away_odd']),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w900,
+                                          color: scheme.onSurface,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
     );
   }
 }

@@ -30,7 +30,7 @@ function crc32(bytes){
 }
 function zip(files,{maxUncompressedBytes=64*1024*1024}={}){
  if(!Number.isSafeInteger(maxUncompressedBytes)||maxUncompressedBytes<1||
-    maxUncompressedBytes>512*1024*1024) throw Error('EXPORT_SIZE_LIMIT_INVALID');
+    maxUncompressedBytes>1024*1024*1024) throw Error('EXPORT_SIZE_LIMIT_INVALID');
  const locals=[],centrals=[];let offset=0,total=0;
  for(const file of files){
   const name=Buffer.from(file.name,'utf8');
@@ -107,7 +107,7 @@ async function buildMatchExport(pool,eventId,options={}){
  const maxUncompressedBytes=Number(options.maxExportUncompressedBytes??
   process.env.MACRADAR_EXPORT_MAX_UNCOMPRESSED_BYTES??128*1024*1024);
  if(!Number.isSafeInteger(maxUncompressedBytes)||maxUncompressedBytes<1||
-    maxUncompressedBytes>512*1024*1024) throw Error('EXPORT_SIZE_LIMIT_INVALID');
+    maxUncompressedBytes>1024*1024*1024) throw Error('EXPORT_SIZE_LIMIT_INVALID');
  const id=String(eventId||'').trim();
  if(!/^[A-Za-z0-9_-]{1,80}$/.test(id)) throw Error('EXPORT_EVENT_ID_INVALID');
  const client=await pool.connect();

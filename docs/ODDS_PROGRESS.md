@@ -159,3 +159,16 @@ erişti. Gelen gerçek çıktılara göre:
 - HTTP paket doğrulaması eski sistem jsonschema sürümü nedeniyle durdu.
 - APK derlemesi bu çalıştırmada başlamadı.
 - Sonraki işlem: ayrı Python ortamında Draft 2020-12 doğrulaması ve teslim akışını yeniden çalıştırma.
+
+## Büyük maç paket boyutu doğrulaması
+
+- Gerçek sunucu ölçümü: GxLyDAQb için 83.541 ham kayıt; match-data.json
+  641.629.085 byte, toplam açılmış paket 660.246.966 byte, 2400 dosya.
+- 512 MiB ortam ayarı paket sürecine ulaşmış; boyut sınırı gerçekten aşılmış.
+- Varsayılan 128 MiB korunuyor; yapılandırılabilir üst sınır 1 GiB oldu.
+  Bu maçın denetim testi için sunucu ayarı 1 GiB kullanılacak. Ham veri kesilmiyor.
+- Küçük maç gerçek HTTP/schema/manifest/kanıt ve performans koruma testi geçti.
+  Maç öncesi dönem bittiği için yenileme PRE_MATCH_ENDED; güncel diye sunulmuyor.
+- Büyük maç testi ve APK derlemesi henüz geçmedi; telefon/okuyucu testi yapılmadı.
+- Değişen dosyalar: src/matchDataExport.js, exportSizeLimit.test.cjs, bu kayıt
+  ve dağıtım planı. Sonraki işlem: boyut regresyonu, gerçek büyük maç ZIP testi.

@@ -27,8 +27,8 @@
       "project": "backend",
       "source": "docs/ODDS_PROGRESS.md",
       "target": "docs/ODDS_PROGRESS.md",
-      "base_sha256": "9d0aaac176cb702a2e1b7982df515c97a1fd82929365ae593766a0292f1791bf",
-      "new_sha256": "7b090be9a71b8d18f4fe51f707b2a36544b489d89683eadc836a5c927ec22ab0"
+      "base_sha256": "7b090be9a71b8d18f4fe51f707b2a36544b489d89683eadc836a5c927ec22ab0",
+      "new_sha256": "8f4a10bcfb0a5ff4dcd5c605a19a4a5f7a265411d4cb654e45151835a2d6bbce"
     },
     {
       "project": "backend",
@@ -55,8 +55,8 @@
       "project": "backend",
       "source": "src/matchDataExport.js",
       "target": "src/matchDataExport.js",
-      "base_sha256": "4fdb50e004c9a65aa0197ce03cd7ac942db6019bde3ef880d7c0df576565a57a",
-      "new_sha256": "023ad12059d34ced455bebe94e7d14733b8e889ba1ab7f816942feb2ebbc9466"
+      "base_sha256": "023ad12059d34ced455bebe94e7d14733b8e889ba1ab7f816942feb2ebbc9466",
+      "new_sha256": "9ec89e2b21b015c9ebc5ccaf3ae3531164079c9d0b09b1ceeddfee06aa16f49a"
     },
     {
       "project": "backend",
@@ -1072,6 +1072,13 @@
       "target": "test/oddsContract/scheduledIdentity.test.cjs",
       "base_sha256": "1a4961b8cbff74edacbc641643c2efe8e7548c1d28bf86b11ff4a730a58f48eb",
       "new_sha256": "056fec1d32cc1228115dd7f751945c570684fa46c34f2437a5892ed2183144fc"
+    },
+    {
+      "project": "backend",
+      "source": "test/oddsContract/exportSizeLimit.test.cjs",
+      "target": "test/oddsContract/exportSizeLimit.test.cjs",
+      "base_sha256": "731e676b8d828b73ec8c676c44ca17d51f7f147c8583f27e00a74b6cbf6e6393",
+      "new_sha256": "4197fcbed7c49156bcca62bfd246f34c63a2c12b286d4dcca6145282441c4a97"
     }
   ]
 }

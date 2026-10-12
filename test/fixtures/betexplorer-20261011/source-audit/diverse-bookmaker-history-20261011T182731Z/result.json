@@ -1,0 +1,247 @@
+{
+  "candidates": [
+    {
+      "event_id": "xtmHKGT0",
+      "url": "https://www.betexplorer.com/football/england/premier-league/arsenal-leeds/xtmHKGT0/",
+      "league": "england/premier-league"
+    },
+    {
+      "event_id": "zsIUF5yo",
+      "url": "https://www.betexplorer.com/football/spain/laliga/rayo-vallecano-ath-bilbao/zsIUF5yo/",
+      "league": "spain/laliga"
+    },
+    {
+      "event_id": "nyUApYI6",
+      "url": "https://www.betexplorer.com/football/germany/bundesliga/augsburg-bayern-munich/nyUApYI6/",
+      "league": "germany/bundesliga"
+    }
+  ],
+  "attempts": [
+    {
+      "event_id": "xtmHKGT0",
+      "stage": "current",
+      "request_id": "d89aba99-478a-4d1f-967c-81b24d8dba7e",
+      "source_url": "https://www.betexplorer.com/match-odds/xtmHKGT0/0/1x2/odds/?lang=en",
+      "selected_bookmakers": 4
+    },
+    {
+      "event_id": "xtmHKGT0",
+      "stage": "archive",
+      "current_request_id": "d89aba99-478a-4d1f-967c-81b24d8dba7e",
+      "archive_request_id": "881e2181-9fd6-4161-aec1-d4e30df71cc9",
+      "source_url": "https://www.betexplorer.com/archive-odds/ab68txv464x0xs9eih/417/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "ab68txv464x0xs9eih",
+        "data-bid": "417",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/1039/https://refpa86887.com/L?tag=s_144205m_355c_&amp;site=144205&amp;ad=355\" data-bookmaker-id=\"417\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"1.40\" data-created=\"10,10,2026,12,21\"\" data-pos=\"1\"\" data-bookie=\"1xbet\"data-bookie-id='1039' data-oid=\"ab68txv464x0xs9eih\" data-bid=\"417\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "xtmHKGT0",
+      "stage": "archive",
+      "current_request_id": "d89aba99-478a-4d1f-967c-81b24d8dba7e",
+      "archive_request_id": "e98b0119-4b75-467a-a690-4ab5e9c7792b",
+      "source_url": "https://www.betexplorer.com/archive-odds/ab68txv464x0xs9eih/16/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "ab68txv464x0xs9eih",
+        "data-bid": "16",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/11/http://www.bet365.com/olp/open-account?affiliate=365_021894\" data-bookmaker-id=\"16\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"1.40\" data-created=\"10,10,2026,07,49\"\" data-pos=\"1\"\" data-bookie=\"bet365\"data-bookie-id='11' data-oid=\"ab68txv464x0xs9eih\" data-bid=\"16\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "xtmHKGT0",
+      "stage": "archive",
+      "current_request_id": "d89aba99-478a-4d1f-967c-81b24d8dba7e",
+      "archive_request_id": "9da68f5f-b41c-4c62-b65e-d659885919cd",
+      "source_url": "https://www.betexplorer.com/archive-odds/ab68txv464x0xs9eih/429/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "ab68txv464x0xs9eih",
+        "data-bid": "429",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/1038/http://ads.betfair.com/redirect.aspx?pid=12803&amp;bid=10187\" data-bookmaker-id=\"429\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"1.40\" data-created=\"10,10,2026,12,10\"\" data-pos=\"1\"\" data-bookie=\"betfair\"data-bookie-id='1038' data-oid=\"ab68txv464x0xs9eih\" data-bid=\"429\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "xtmHKGT0",
+      "stage": "archive",
+      "current_request_id": "d89aba99-478a-4d1f-967c-81b24d8dba7e",
+      "archive_request_id": "532f9139-e1c9-4f96-95ff-f3006e43c55f",
+      "source_url": "https://www.betexplorer.com/archive-odds/ab68txv464x0xs9eih/575/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "ab68txv464x0xs9eih",
+        "data-bid": "575",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/1081/https://promo.betinasia.com/welcome-offers/?utm_source=betexplorer&amp;utm_medium=affiliate\" data-bookmaker-id=\"575\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"1.46\" data-created=\"10,10,2026,12,25\"\" data-pos=\"1\"\" data-bookie=\"betinasia\"data-bookie-id='1081' data-oid=\"ab68txv464x0xs9eih\" data-bid=\"575\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "zsIUF5yo",
+      "stage": "current",
+      "request_id": "5e25e410-d4a8-41f2-8268-341c352691e6",
+      "source_url": "https://www.betexplorer.com/match-odds/zsIUF5yo/0/1x2/odds/?lang=en",
+      "selected_bookmakers": 4
+    },
+    {
+      "event_id": "zsIUF5yo",
+      "stage": "archive",
+      "current_request_id": "5e25e410-d4a8-41f2-8268-341c352691e6",
+      "archive_request_id": "f8019806-492d-4b6c-8d33-a86da570b4a4",
+      "source_url": "https://www.betexplorer.com/archive-odds/aeq0dxv464x0xshsbn/417/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "aeq0dxv464x0xshsbn",
+        "data-bid": "417",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/1039/https://refpa86887.com/L?tag=s_144205m_355c_&amp;site=144205&amp;ad=355\" data-bookmaker-id=\"417\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"3.04\" data-created=\"10,10,2026,12,53\"\" data-pos=\"1\"\" data-bookie=\"1xbet\"data-bookie-id='1039' data-oid=\"aeq0dxv464x0xshsbn\" data-bid=\"417\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "zsIUF5yo",
+      "stage": "archive",
+      "current_request_id": "5e25e410-d4a8-41f2-8268-341c352691e6",
+      "archive_request_id": "dbc47247-f351-41d2-b0aa-564ddce83a6c",
+      "source_url": "https://www.betexplorer.com/archive-odds/aeq0dxv498x0x0/16/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "aeq0dxv498x0x0",
+        "data-bid": "16",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/11/http://www.bet365.com/olp/open-account?affiliate=365_021894\" data-bookmaker-id=\"16\" class=\"archiveOddsMovement__odds table-main__detail-odds js-has-aodds \" data-odd=\"3.20\" data-created=\"10,10,2026,12,33\"\" data-pos=\"0\"\" data-bookie=\"bet365\"data-bookie-id='11' data-oid=\"aeq0dxv498x0x0\" data-bid=\"16\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "zsIUF5yo",
+      "stage": "archive",
+      "current_request_id": "5e25e410-d4a8-41f2-8268-341c352691e6",
+      "archive_request_id": "8b431003-e3a0-4fb6-b537-1ff3e688d692",
+      "source_url": "https://www.betexplorer.com/archive-odds/aeq0dxv498x0x0/429/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "aeq0dxv498x0x0",
+        "data-bid": "429",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/1038/http://ads.betfair.com/redirect.aspx?pid=12803&amp;bid=10187\" data-bookmaker-id=\"429\" class=\"archiveOddsMovement__odds table-main__detail-odds js-has-aodds \" data-odd=\"3.10\" data-created=\"10,10,2026,12,50\"\" data-pos=\"0\"\" data-bookie=\"betfair\"data-bookie-id='1038' data-oid=\"aeq0dxv498x0x0\" data-bid=\"429\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "zsIUF5yo",
+      "stage": "archive",
+      "current_request_id": "5e25e410-d4a8-41f2-8268-341c352691e6",
+      "archive_request_id": "b2e67d85-63ab-43be-83d2-c841c253c2d3",
+      "source_url": "https://www.betexplorer.com/archive-odds/aeq0dxv464x0xshsbn/575/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "aeq0dxv464x0xshsbn",
+        "data-bid": "575",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/1081/https://promo.betinasia.com/welcome-offers/?utm_source=betexplorer&amp;utm_medium=affiliate\" data-bookmaker-id=\"575\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first colored js-has-aodds archiveOddsMovement__odds_best\" data-odd=\"3.10\" data-created=\"10,10,2026,12,55\"\" data-pos=\"1\"\" data-bookie=\"betinasia\"data-bookie-id='1081' data-oid=\"aeq0dxv464x0xshsbn\" data-bid=\"575\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "nyUApYI6",
+      "stage": "current",
+      "request_id": "fe4d4544-f10a-45f6-941f-bf0cbd3c69c9",
+      "source_url": "https://www.betexplorer.com/match-odds/nyUApYI6/0/1x2/odds/?lang=en",
+      "selected_bookmakers": 4
+    },
+    {
+      "event_id": "nyUApYI6",
+      "stage": "archive",
+      "current_request_id": "fe4d4544-f10a-45f6-941f-bf0cbd3c69c9",
+      "archive_request_id": "49578b30-94bf-4875-b8f7-d60c01f1bc1f",
+      "source_url": "https://www.betexplorer.com/archive-odds/afpc3xv464x0xsk0kv/417/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "afpc3xv464x0xsk0kv",
+        "data-bid": "417",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/1039/https://refpa86887.com/L?tag=s_144205m_355c_&amp;site=144205&amp;ad=355\" data-bookmaker-id=\"417\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"13.30\" data-created=\"10,10,2026,14,19\"\" data-pos=\"1\"\" data-bookie=\"1xbet\"data-bookie-id='1039' data-oid=\"afpc3xv464x0xsk0kv\" data-bid=\"417\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "nyUApYI6",
+      "stage": "archive",
+      "current_request_id": "fe4d4544-f10a-45f6-941f-bf0cbd3c69c9",
+      "archive_request_id": "52050188-9add-44b7-8231-4e44a658dff1",
+      "source_url": "https://www.betexplorer.com/archive-odds/afpc3xv464x0xsk0kv/16/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "afpc3xv464x0xsk0kv",
+        "data-bid": "16",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/11/http://www.bet365.com/olp/open-account?affiliate=365_021894\" data-bookmaker-id=\"16\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"13.00\" data-created=\"10,10,2026,14,07\"\" data-pos=\"1\"\" data-bookie=\"bet365\"data-bookie-id='11' data-oid=\"afpc3xv464x0xsk0kv\" data-bid=\"16\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "nyUApYI6",
+      "stage": "archive",
+      "current_request_id": "fe4d4544-f10a-45f6-941f-bf0cbd3c69c9",
+      "archive_request_id": "0f8a17e8-4990-4f69-a55e-caf52d8dca65",
+      "source_url": "https://www.betexplorer.com/archive-odds/afpc3xv464x0xsk0kv/429/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "afpc3xv464x0xsk0kv",
+        "data-bid": "429",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/1038/http://ads.betfair.com/redirect.aspx?pid=12803&amp;bid=10187\" data-bookmaker-id=\"429\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"13.00\" data-created=\"10,10,2026,14,20\"\" data-pos=\"1\"\" data-bookie=\"betfair\"data-bookie-id='1038' data-oid=\"afpc3xv464x0xsk0kv\" data-bid=\"429\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    },
+    {
+      "event_id": "nyUApYI6",
+      "stage": "archive",
+      "current_request_id": "fe4d4544-f10a-45f6-941f-bf0cbd3c69c9",
+      "archive_request_id": "123a134d-6271-42c9-b27e-0a5d12ef6812",
+      "source_url": "https://www.betexplorer.com/archive-odds/afpc3xv464x0xsk0kv/575/1/2/E-1-2-0-0-0/",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "locator": {
+        "data-oid": "afpc3xv464x0xsk0kv",
+        "data-bid": "575",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "source_tag": "<td data-bet-url=\"/bookmaker/1081/https://promo.betinasia.com/welcome-offers/?utm_source=betexplorer&amp;utm_medium=affiliate\" data-bookmaker-id=\"575\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"15.00\" data-created=\"10,10,2026,14,15\"\" data-pos=\"1\"\" data-bookie=\"betinasia\"data-bookie-id='1081' data-oid=\"afpc3xv464x0xsk0kv\" data-bid=\"575\"\" data-bt=\"1\"\" data-sc=\"2\"\" data-hcp=\"E-1-2-0-0-0\">",
+      "rows": 1
+    }
+  ],
+  "found": null
+}

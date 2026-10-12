@@ -1,0 +1,80 @@
+{
+  "event_id": "GxLyDAQb",
+  "requests": [
+    {
+      "market_code": "ah",
+      "source_url": "https://www.betexplorer.com/gres/ajax/match-content.php?e=GxLyDAQb&t=old&ts=CfujcOgK&bt=ah&lang=en",
+      "request_id": "c600f0e6-1f7e-4ee9-8aa3-b94a09d5a550",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "http_status": 200,
+      "controls": [
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', '8C9JjMXu', true, true, 'en')\" id=\"lm_8C9JjMXu_sel_type\">\n<option value=\"1\"  selected=\"selected\">Serie A 2026/2027</option><option value=\"2\" >all tournaments</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', '8C9JjMXu', false, true, 'en')\" id=\"lm_8C9JjMXu_sel_count\">\n<option value=\"5\" >5 results</option><option value=\"10\"  selected=\"selected\">10 results</option><option value=\"15\" >15 results</option><option value=\"20\" >all results</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', 'MkPmVv50', true, true, 'en')\" id=\"lm_MkPmVv50_sel_type\">\n<option value=\"1\"  selected=\"selected\">Serie A 2026/2027</option><option value=\"2\" >all tournaments</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', 'MkPmVv50', false, true, 'en')\" id=\"lm_MkPmVv50_sel_count\">\n<option value=\"5\" >5 results</option><option value=\"10\"  selected=\"selected\">10 results</option><option value=\"15\" >15 results</option><option value=\"20\" >all results</option></select>"
+      ],
+      "scope_label_fragments": [
+        "m-preloader\" class=\"wrap-section__preloader lazyLoadCountryFlags\"></div><div class=\"h-display-none\" id=\"nm-all\">"
+      ],
+      "init_calls": []
+    },
+    {
+      "market_code": "ou",
+      "source_url": "https://www.betexplorer.com/gres/ajax/match-content.php?e=GxLyDAQb&t=new&ts=CfujcOgK&bt=ou&lang=en",
+      "request_id": "04ccf794-420e-4323-8ae4-759b6500c5b2",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "http_status": 200,
+      "controls": [
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', '8C9JjMXu', true, false, 'en')\" id=\"lm_8C9JjMXu_sel_type\">\n<option value=\"1\"  selected=\"selected\">Serie A 2026/2027</option><option value=\"2\" >all tournaments</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', '8C9JjMXu', false, false, 'en')\" id=\"lm_8C9JjMXu_sel_count\">\n<option value=\"5\"  selected=\"selected\">5 results</option><option value=\"10\" >10 results</option><option value=\"15\" >15 results</option><option value=\"20\" >all results</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', 'MkPmVv50', true, false, 'en')\" id=\"lm_MkPmVv50_sel_type\">\n<option value=\"1\"  selected=\"selected\">Serie A 2026/2027</option><option value=\"2\" >all tournaments</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', 'MkPmVv50', false, false, 'en')\" id=\"lm_MkPmVv50_sel_count\">\n<option value=\"5\"  selected=\"selected\">5 results</option><option value=\"10\" >10 results</option><option value=\"15\" >15 results</option><option value=\"20\" >all results</option></select>"
+      ],
+      "scope_label_fragments": [
+        "<p class=\"goal-average__header__text-gray\">Played</p>",
+        "<p class=\"goal-average__header__text-gray goal-average__header__text-played goal-average__header__text-plr10\">3</p>",
+        "<p class=\"goal-average__header__text-gray goal-average__header__text-played goal-average__header__text-plr10\">2</p>",
+        "<p class=\"goal-average__header__text-gray\">Played</p>",
+        "Full-Time</li>",
+        "First Half</li>",
+        "<div class=\"h2h-gs-container-first h-display-none\">",
+        "<div class=\"h2h-scored__title\">Scored Per 1st Half</div>",
+        "<div class=\"h2h-gs-container-second h-display-none\">"
+      ],
+      "init_calls": []
+    },
+    {
+      "market_code": "1x2",
+      "source_url": "https://www.betexplorer.com/gres/ajax/match-content.php?e=GxLyDAQb&t=new&ts=CfujcOgK&bt=1x2&lang=en",
+      "request_id": "0f1af071-6b09-4277-80e5-78ff6e9fdaf2",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "http_status": 200,
+      "controls": [
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', '8C9JjMXu', true, false, 'en')\" id=\"lm_8C9JjMXu_sel_type\">\n<option value=\"1\"  selected=\"selected\">Serie A 2026/2027</option><option value=\"2\" >all tournaments</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', '8C9JjMXu', false, false, 'en')\" id=\"lm_8C9JjMXu_sel_count\">\n<option value=\"5\"  selected=\"selected\">5 results</option><option value=\"10\" >10 results</option><option value=\"15\" >15 results</option><option value=\"20\" >all results</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', 'MkPmVv50', true, false, 'en')\" id=\"lm_MkPmVv50_sel_type\">\n<option value=\"1\"  selected=\"selected\">Serie A 2026/2027</option><option value=\"2\" >all tournaments</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', 'MkPmVv50', false, false, 'en')\" id=\"lm_MkPmVv50_sel_count\">\n<option value=\"5\"  selected=\"selected\">5 results</option><option value=\"10\" >10 results</option><option value=\"15\" >15 results</option><option value=\"20\" >all results</option></select>"
+      ],
+      "scope_label_fragments": [],
+      "init_calls": []
+    },
+    {
+      "market_code": "bts",
+      "source_url": "https://www.betexplorer.com/gres/ajax/match-content.php?e=GxLyDAQb&t=old&ts=CfujcOgK&bt=bts&lang=en",
+      "request_id": "33d27386-ac0f-42f7-82b2-1f70f66cb780",
+      "source_context_id": "context-417c5d138ceda6f99553dea83b4188de1d3a7d8795ba2b8cb03fdab27c4530ca",
+      "http_status": 200,
+      "controls": [
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', '8C9JjMXu', true, true, 'en')\" id=\"lm_8C9JjMXu_sel_type\">\n<option value=\"1\"  selected=\"selected\">Serie A 2026/2027</option><option value=\"2\" >all tournaments</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', '8C9JjMXu', false, true, 'en')\" id=\"lm_8C9JjMXu_sel_count\">\n<option value=\"5\" >5 results</option><option value=\"10\"  selected=\"selected\">10 results</option><option value=\"15\" >15 results</option><option value=\"20\" >all results</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', 'MkPmVv50', true, true, 'en')\" id=\"lm_MkPmVv50_sel_type\">\n<option value=\"1\"  selected=\"selected\">Serie A 2026/2027</option><option value=\"2\" >all tournaments</option></select>",
+        "<select onchange=\"match_change_team_matches('MSwxMTQxOTksU2VyaWUgQSAyMDI2LzIwMjcsMA==', 'GxLyDAQb', 'MkPmVv50', false, true, 'en')\" id=\"lm_MkPmVv50_sel_count\">\n<option value=\"5\" >5 results</option><option value=\"10\"  selected=\"selected\">10 results</option><option value=\"15\" >15 results</option><option value=\"20\" >all results</option></select>"
+      ],
+      "scope_label_fragments": [
+        "m-preloader\" class=\"wrap-section__preloader lazyLoadCountryFlags\"></div><div class=\"h-display-none\" id=\"nm-all\">"
+      ],
+      "init_calls": []
+    }
+  ],
+  "stage_id": "CfujcOgK"
+}

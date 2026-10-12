@@ -27,7 +27,7 @@ class MainActivity : FlutterActivity() {
                         val bytes = call.argument<ByteArray>("bytes")
                         val expected = call.argument<String>("sha256")
                         val filename = call.argument<String>("filename")
-                        if (bytes == null || bytes.size > 64 * 1024 * 1024 ||
+                        if (bytes == null || bytes.size > 128 * 1024 * 1024 ||
                             filename == null || expected == null) {
                             result.error("INVALID_FILE", "Dosya bilgileri geçersiz.", null)
                         } else {

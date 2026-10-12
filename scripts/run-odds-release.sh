@@ -41,7 +41,33 @@ for item in 'pjTVIO7M:small' 'GxLyDAQb:large'; do
   tail -1 "$review/http-$size.log"
 done
 
+sdk=$(python3 - "$mobile" <<'PYSDK'
+from pathlib import Path
+import os, re, subprocess, sys
+mobile=Path(sys.argv[1]); candidates=[]
+props=mobile/"android/local.properties"
+if props.exists():
+    match=re.search(r"(?m)^sdk.dir=(.+)$",props.read_text())
+    if match: candidates.append(match.group(1).strip())
+candidates.extend(os.environ.get(k,"") for k in ("ANDROID_HOME","ANDROID_SDK_ROOT"))
+result=subprocess.run(["find",str(Path.home()),"/opt","-maxdepth","4",
+                       "-type","d","-name","build-tools"],capture_output=True,text=True)
+candidates.extend(str(Path(p).parent) for p in result.stdout.splitlines())
+for name in dict.fromkeys(candidates):
+    if not name: continue
+    sdk=Path(name)
+    if (sdk/"build-tools").is_dir() and (sdk/"platforms").is_dir():
+        print(sdk.resolve()); break
+else:
+    raise RuntimeError("ANDROID_SDK_KURULUMU_BULUNAMADI")
+PYSDK
+)
+export ANDROID_HOME="$sdk"
+export ANDROID_SDK_ROOT="$sdk"
+echo "ANDROID_SDK: $sdk"
 cd "$mobile"
+"$flutter" test > "$review/final-flutter-tests.log" 2>&1
+tail -1 "$review/final-flutter-tests.log"
 "$flutter" build apk --release --target-platform android-arm64 > "$review/apk-build.log" 2>&1
 tail -3 "$review/apk-build.log"
 

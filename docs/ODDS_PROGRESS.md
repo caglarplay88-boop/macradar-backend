@@ -172,3 +172,16 @@ erişti. Gelen gerçek çıktılara göre:
 - Büyük maç testi ve APK derlemesi henüz geçmedi; telefon/okuyucu testi yapılmadı.
 - Değişen dosyalar: src/matchDataExport.js, exportSizeLimit.test.cjs, bu kayıt
   ve dağıtım planı. Sonraki işlem: boyut regresyonu, gerçek büyük maç ZIP testi.
+
+## Büyük maç HTTP sonucu ve mobil paket sınırı
+
+- Gerçek büyük maç HTTP testi geçti: ZIP 72.068.243 byte, önceki 83.541
+  record_id korunmuş; 1X2 8700, OU 44285, ASIAN 42202, KG 3771 kayıt.
+- Schema, manifest hash, kanıt bağlantıları ve performans bölümleri geçti.
+  Ara geçmiş kaydı 0; yenileme PRE_MATCH_ENDED, güncel veri iddiası yok.
+- APK derlemesi Android SDK ortam yolu eksikliğiyle durdu. Yeni betik mevcut
+  local.properties/ortam veya kurulu build-tools yolundan SDK'yı doğruluyor.
+- Gerçek 72 MB paket eski 64 MiB telefon sınırını aşıyor. Dart ve native
+  kaydetme sınırı birlikte 128 MiB oldu; ZIP/hash denetimleri korunuyor.
+- Mobil testler bu son değişiklikten sonra yeniden çalıştırılacak. Telefon
+  kart indirme ve harici okuyucu kabulü hâlen yapılmadı.

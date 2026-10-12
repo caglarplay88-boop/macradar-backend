@@ -39,7 +39,7 @@ class MatchExportSession extends ChangeNotifier {
     final date = raw == null ? null : DateTime.tryParse(raw);
     final parts = <String>[];
     if (response.headers['x-odds-refresh-success'] != 'true') {
-      parts.add('Kaynak yenilemesi tamamlanmadı; dosyadaki veri saati ve kapsamı esas alınmalı.');
+      parts.add('Kaynak yenilemesi tamamlanmadı; kayıtlı veri indirildi. Veri saati ve kapsamı dosyada belirtilir.');
     }
     if (date == null) {
       parts.add('Son başarılı tarama zamanı bulunmuyor.');

@@ -28,7 +28,7 @@
       "source": "docs/ODDS_PROGRESS.md",
       "target": "docs/ODDS_PROGRESS.md",
       "base_sha256": "5fe548b02b645721566db5aa266e60e2d46ef4477b2fc40bc98271ee36071fa0",
-      "new_sha256": "dcf5d5e8f5617aff377fbf456bf5de3351784683aa2ce421c5e71dee5b2afcfe"
+      "new_sha256": "44d6404197ad200035064bfb42270dbdd79b7fe55dfc0ce7590289d4470e4c23"
     },
     {
       "project": "backend",
@@ -1113,7 +1113,7 @@
       "source": "android-project/lib/source_opening_rows.dart",
       "target": "lib/source_opening_rows.dart",
       "base_sha256": "dc2389b62bcb1fb6321afdf12166205a0fc778a2ac4313f5ebb7487f55c7b374",
-      "new_sha256": "0bfca20af92896a5f5cf09884a8c578c66b4bbca5f8defd74137abfa2fb27036"
+      "new_sha256": "30c06c54627351fd138b8cf8d687d0f4bf1f7a4ca0e800c8fb2a4b0be54322a7"
     },
     {
       "project": "android",
@@ -1127,7 +1127,7 @@
       "source": "android-project/lib/match_export_session.dart",
       "target": "lib/match_export_session.dart",
       "base_sha256": null,
-      "new_sha256": "fc70af63538c2ee4245c876db75d7c43e59ddeddee3a94f280535af22257fd7e"
+      "new_sha256": "042acf955bee4b818ef1d6c5fe7029a976dad3b70898c2f3f96cde3f88b9702b"
     },
     {
       "project": "backend",

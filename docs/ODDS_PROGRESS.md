@@ -276,3 +276,13 @@ erişti. Gelen gerçek çıktılara göre:
   Flutter/Android derleme ve bu APK'dan fiziksel kayıt henüz çalıştırılmadı.
 - Sonraki işlem: mobil test/analyze, gerçek seçili maçta bekleme sınırı ve
   export/schema kontrolü, imzalı APK ve telefondaki kart dosyası kabulü.
+
+### Mobil ön testte durdurulan dağıtım
+
+- Sunucuda mobil ön test başarısız olduğu için dağıtım/derleme başlamadı.
+- Açılış kartının yeni başlığı mevcut gerçek kaynak widget testinin
+  KAYNAK AÇILIŞI etiketiyle uyuşmuyordu; kart tekil açılış başlığına döndü.
+- Yenileme uyarısında kayıtlı verinin indirildiği ifadesi korunmadığı için
+  mevcut indirme ekranı beklentisi bozuldu; bu anlam tekrar açıkça belirtildi.
+- Testler gevşetilmedi; taraf zamanları/tek kart ve ekranlar arası indirme
+  testleri aynı kalıyor. Bütün mobil testler yeniden çalıştırılacak.

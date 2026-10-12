@@ -68,7 +68,7 @@ String sourceOpeningDisplayLabel(Map<String, dynamic> row, String time) {
     final times = sides.map(label).toList();
     final common = times.toSet().length == 1;
     final uncertain = sides.any((s)=>s['source_timestamp']==null);
-    return 'KAYNAK AÇILIŞLARI\n${common ? times.first : sides.asMap().entries.map((e)=>"${names[e.value['_source_opening_selection']] ?? e.value['_source_opening_selection']}: ${times[e.key]}").join("\n")}'
+    return 'KAYNAK AÇILIŞI\n${common ? times.first : sides.asMap().entries.map((e)=>"${names[e.value['_source_opening_selection']] ?? e.value['_source_opening_selection']}: ${times[e.key]}").join("\n")}'
         '${uncertain ? "\nKaynak tarihi; UTC dönüşümü doğrulanmadı" : "\nTarafların kaynak zamanları"}';
   }
 

@@ -152,3 +152,10 @@ erişti. Gelen gerçek çıktılara göre:
   kayıtlarını güncel projeye bağlamak ve gerçek kazıyıcı doğrulamasını yapmak.
 - Buluttan normal `git push` kimlik doğrulaması yok; GitHub bağlantısı
   üzerinden görev belgelerinin ayrı dala kaydı kullanılacak.
+
+## 2026-10-12 sunucu uygulama kontrolü
+- 153 dosya yedeklenerek uygulandı; ilgisiz dosyalar değiştirilmedi.
+- 48 backend testi geçti; yeniden başlatılan backend sağlık kontrolünü geçti.
+- HTTP paket doğrulaması eski sistem jsonschema sürümü nedeniyle durdu.
+- APK derlemesi bu çalıştırmada başlamadı.
+- Sonraki işlem: ayrı Python ortamında Draft 2020-12 doğrulaması ve teslim akışını yeniden çalıştırma.

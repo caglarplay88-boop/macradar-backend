@@ -114,4 +114,71 @@ void main() {
     );
     expect(calls, 1);
   });
+  test('Kaydedilmiş hazır iş yeni hazırlama başlatmadan indirilir', () async {
+    final queries = <Map<String, String>>[];
+    final messages = <String>[];
+    String? saved;
+    final response = await downloadPreparedMatchPackage(
+      baseUrl: 'https://example.test', eventId: 'event123', headers: {},
+      readPendingJob: () async => id,
+      savePendingJob: (value) async { saved = value; },
+      onProgress: messages.add,
+      request: (uri, h) async {
+        queries.add(uri.queryParameters);
+        if (uri.queryParameters['status'] == '1') {
+          return http.Response(jsonEncode(state('READY')), 200);
+        }
+        return http.Response.bytes([0x50,0x4b,0x03,0x04],200,
+          headers: {'x-export-sha256':hash});
+      },
+    );
+    expect(response.statusCode,200);
+    expect(queries.any((q)=>q.containsKey('prepare')),false);
+    expect(saved,id); // Kayıt bitmeden iş kimliği silinmez.
+    expect(messages,contains('Paket hazır; telefona indiriliyor…'));
+  });
+  test('Geçici bağlantı kesintisi aynı işte yeniden denenir', () async {
+    var polls = 0;
+    final queries = <Map<String,String>>[];
+    final messages = <String>[];
+    await downloadPreparedMatchPackage(
+      baseUrl:'https://example.test',eventId:'event123',headers:{},
+      readPendingJob:() async=>id,
+      wait:(_) async{},onProgress:messages.add,
+      request:(uri,h) async {
+        queries.add(uri.queryParameters);
+        if(uri.queryParameters['status']=='1') {
+          if(++polls==1) throw Exception('connection interrupted');
+          return http.Response(jsonEncode(state('READY')),200);
+        }
+        return http.Response.bytes([0x50,0x4b,0x03,0x04],200,
+          headers:{'x-export-sha256':hash});
+      },
+    );
+    expect(polls,2);
+    expect(queries.any((q)=>q.containsKey('prepare')),false);
+    expect(messages.any((m)=>m.contains('Bağlantı kesildi')),true);
+  });
+  test('Toplama ve paketleme aşamaları kullanıcıya bildirilir', () async {
+    final messages=<String>[];
+    var polls=0;
+    await downloadPreparedMatchPackage(
+      baseUrl:'https://example.test',eventId:'event123',headers:{},
+      wait:(_) async{},onProgress:messages.add,
+      request:(uri,h) async {
+        if(uri.queryParameters.containsKey('prepare')) {
+          return http.Response(jsonEncode({...state('RUNNING'),'phase':'COLLECTING'}),202);
+        }
+        if(uri.queryParameters.containsKey('status')) {
+          return http.Response(jsonEncode(++polls==1
+            ? {...state('RUNNING'),'phase':'BUILDING_PACKAGE'} : state('READY')),200);
+        }
+        return http.Response.bytes([0x50,0x4b,0x03,0x04],200,
+          headers:{'x-export-sha256':hash});
+      },
+    );
+    expect(messages.any((m)=>m.contains('açılışlar toplanıyor')),true);
+    expect(messages.any((m)=>m.contains('ZIP paketi hazırlanıyor')),true);
+  });
+
 }

@@ -11,6 +11,9 @@ Future<http.Response> downloadPreparedMatchPackage({
   Future<void> Function(Duration)? wait,
   DateTime Function()? clock,
   Duration maximumWait = const Duration(minutes: 30),
+  Future<String?> Function()? readPendingJob,
+  Future<void> Function(String?)? savePendingJob,
+  void Function(String)? onProgress,
 }) async {
   if (!RegExp(r'^[A-Za-z0-9_-]{1,80}$').hasMatch(eventId)) {
     throw Exception('Geçersiz maç kimliği.');
@@ -18,7 +21,8 @@ Future<http.Response> downloadPreparedMatchPackage({
   final get =
       request ??
       (Uri uri, Map<String, String> h) =>
-          http.get(uri, headers: h).timeout(const Duration(seconds: 60));
+          http.get(uri, headers: h).timeout(Duration(
+            minutes: uri.queryParameters.containsKey("status") || uri.queryParameters.containsKey("prepare") ? 1 : 5));
   final pause = wait ?? (Duration duration) => Future<void>.delayed(duration);
   final now = clock ?? DateTime.now;
   final endpoint = Uri.parse(
@@ -39,13 +43,46 @@ Future<http.Response> downloadPreparedMatchPackage({
     return data;
   }
 
-  final prepared = decodeJob(
-    await get(endpoint.replace(queryParameters: {'prepare': '1'}), headers),
+  Future<http.Response> fetch(Uri uri) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        final response = await get(uri, headers);
+        if ([429, 502, 503, 504].contains(response.statusCode) && attempt < 2) {
+          onProgress?.call('Bağlantı gecikti; aynı paket işi yeniden kontrol ediliyor…');
+          await pause(Duration(seconds: 2 * (attempt + 1)));
+          continue;
+        }
+        return response;
+      } catch (_) {
+        if (attempt >= 2) rethrow;
+        onProgress?.call('Bağlantı kesildi; aynı paket işi yeniden kontrol ediliyor…');
+        await pause(Duration(seconds: 2 * (attempt + 1)));
+      }
+    }
+  }
+  var pending = await readPendingJob?.call();
+  Map<String, dynamic>? prepared;
+  if (pending != null && RegExp(r'^[a-f0-9-]{36}$').hasMatch(pending)) {
+    onProgress?.call('Önceki paket işi kontrol ediliyor…');
+    final response = await fetch(endpoint.replace(queryParameters: {'job': pending, 'status': '1'}));
+    if (response.statusCode == 404) {
+      await savePendingJob?.call(null);
+    } else {
+      prepared = decodeJob(response);
+      if (['FAILED', 'INTERRUPTED'].contains(prepared['status'])) {
+        await savePendingJob?.call(null);
+        prepared = null;
+      }
+    }
+  }
+  prepared ??= decodeJob(
+    await fetch(endpoint.replace(queryParameters: {'prepare': '1'})),
   );
   final dynamic id = prepared['job_id'];
   if (id is! String || !RegExp(r'^[a-f0-9-]{36}$').hasMatch(id)) {
     throw Exception('Paket işi kimliği geçersiz.');
   }
+  await savePendingJob?.call(id);
   var state = prepared;
   while (true) {
     if (state['job_id'] != id) {
@@ -53,13 +90,12 @@ Future<http.Response> downloadPreparedMatchPackage({
     }
     final status = state['status'];
     if (status == 'FAILED' || status == 'INTERRUPTED') {
+      await savePendingJob?.call(null);
       throw Exception('Paket hazırlanamadı. Hazırlama işi durdu.');
     }
     if (status == 'READY') {
-      final response = await get(
-        endpoint.replace(queryParameters: {'job': id}),
-        headers,
-      );
+      onProgress?.call('Paket hazır; telefona indiriliyor…');
+      final response = await fetch(endpoint.replace(queryParameters: {'job': id}));
       if (response.statusCode != 200) {
         throw Exception('Hazır paket alınamadı (HTTP ${response.statusCode}).');
       }
@@ -78,6 +114,13 @@ Future<http.Response> downloadPreparedMatchPackage({
     if (status != 'QUEUED' && status != 'RUNNING') {
       throw Exception('Paket hazırlama durumu geçersiz.');
     }
+    final elapsed = now().difference(started).inSeconds;
+    final phase = state['phase'];
+    onProgress?.call(status == 'QUEUED'
+        ? 'Toplama sırası bekleniyor… ($elapsed sn)'
+        : phase == 'BUILDING_PACKAGE'
+            ? 'Veriler toplandı; ZIP paketi hazırlanıyor… ($elapsed sn)'
+            : 'Kaynak fiyatları ve erişilebilir açılışlar toplanıyor… ($elapsed sn)\nİlk toplama birkaç dakika sürebilir.');
     if (now().difference(started) >= maximumWait) {
       throw TimeoutException('Paket hazırlama bekleme süresi doldu.');
     }
@@ -86,10 +129,7 @@ Future<http.Response> downloadPreparedMatchPackage({
       throw TimeoutException('Paket hazırlama bekleme süresi doldu.');
     }
     state = decodeJob(
-      await get(
-        endpoint.replace(queryParameters: {'job': id, 'status': '1'}),
-        headers,
-      ),
+      await fetch(endpoint.replace(queryParameters: {'job': id, 'status': '1'})),
     );
   }
 }

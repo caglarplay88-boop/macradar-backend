@@ -6,11 +6,15 @@ class MatchExportPanel extends StatefulWidget {
   final String eventId;
   final String title;
   final Future<http.Response> Function() downloadPackage;
+  final Future<http.Response> Function(void Function(String))? downloadPackageWithProgress;
+  final Future<void> Function()? onPackageSaved;
   const MatchExportPanel({
     super.key,
     required this.eventId,
     required this.title,
     required this.downloadPackage,
+    this.downloadPackageWithProgress,
+    this.onPackageSaved,
   });
 
   @override
@@ -23,6 +27,11 @@ class _MatchExportPanelState extends State<MatchExportPanel> {
   String? _savedUri;
   String _message = '';
   String _dataMessage = '';
+  String _saveMessage = 'Maç dosyası seçtiğin klasöre kaydedildi.';
+
+  void _progress(String message) {
+    if (mounted) setState(() => _message = message);
+  }
 
   String _collectionMessage(http.Response response) {
     final raw = response.headers['x-odds-last-success-at'];
@@ -56,7 +65,9 @@ class _MatchExportPanelState extends State<MatchExportPanel> {
     try {
       String? uri = share ? _savedUri : null;
       if (uri == null) {
-        final response = await widget.downloadPackage();
+        final response = widget.downloadPackageWithProgress == null
+            ? await widget.downloadPackage()
+            : await widget.downloadPackageWithProgress!(_progress);
         if (response.statusCode != 200) {
           throw Exception(
             'Maç dosyası alınamadı (HTTP ${response.statusCode}).',
@@ -76,6 +87,7 @@ class _MatchExportPanelState extends State<MatchExportPanel> {
             !RegExp(r'^[a-f0-9]{64}$').hasMatch(expectedHash)) {
           throw Exception('Dosya bütünlük bilgisi eksik.');
         }
+        _progress('Paket indirildi; telefona kaydediliyor…');
         final result = await _files.invokeMapMethod<String, dynamic>(
           'savePackage',
           {
@@ -91,7 +103,11 @@ class _MatchExportPanelState extends State<MatchExportPanel> {
           return;
         }
         _savedUri = uri;
+        if (result?['directory'] == 'Download') {
+          _saveMessage = 'Maç dosyası Download klasörüne kaydedildi.\n${result?["filename"] ?? ""}';
+        }
         _dataMessage = _collectionMessage(response);
+        try { await widget.onPackageSaved?.call(); } catch (_) { }
       }
       if (share) {
         await _files.invokeMethod<void>('sharePackage', {'uri': uri});
@@ -101,7 +117,7 @@ class _MatchExportPanelState extends State<MatchExportPanel> {
           () => _message = [
             share
                 ? 'Dosya hazır. Açılan menüden paylaşabilirsin.'
-                : 'Maç dosyası seçtiğin klasöre kaydedildi.',
+                : _saveMessage,
             _dataMessage,
           ].where((part) => part.isNotEmpty).join('\n'),
         );

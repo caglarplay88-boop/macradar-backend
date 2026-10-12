@@ -217,12 +217,25 @@ class Api {
     throw last ?? Exception('Bağlantı kurulamadı.');
   }
 
-  Future<http.Response> downloadMatchPackage(String eventId) {
+  Future<http.Response> downloadMatchPackage(String eventId, {void Function(String)? onProgress}) async {
+    final preferences = await SharedPreferences.getInstance();
+    final pendingKey = 'match_export_job_${baseUrl}_$eventId';
     return downloadPreparedMatchPackage(
       baseUrl: baseUrl,
       eventId: eventId,
       headers: readHeaders,
+      readPendingJob: () async => preferences.getString(pendingKey),
+      savePendingJob: (id) async {
+        if (id == null) { await preferences.remove(pendingKey); }
+        else { await preferences.setString(pendingKey, id); }
+      },
+      onProgress: onProgress,
     );
+  }
+
+  Future<void> matchPackageSaved(String eventId) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove('match_export_job_${baseUrl}_$eventId');
   }
 
   Future<Map<String, dynamic>> get(String path) async {
@@ -4835,6 +4848,8 @@ class _MatchDetailState extends State<MatchDetail> {
                     title: widget.title,
                     downloadPackage: () =>
                         api.downloadMatchPackage(widget.eventId),
+                    downloadPackageWithProgress: (progress) => api.downloadMatchPackage(widget.eventId, onProgress: progress),
+                    onPackageSaved: () => api.matchPackageSaved(widget.eventId),
                   )
                 : _showOdds
                 ? Column(
@@ -4892,11 +4907,19 @@ class _BookmakerOverUnderDetailState extends State<BookmakerOverUnderDetail> {
 
   List<Map<String, dynamic>> _bookmakers = const [];
 
+  bool _refreshing = false;
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try { await _load(); }
+    finally { if (mounted) setState(() => _refreshing = false); }
+  }
+
   @override
   void initState() {
     super.initState();
     _tab = widget.initialTab == 1 ? 1 : 0;
-    _load();
+    _refresh();
   }
 
   String _bookmakerKey(String value) {
@@ -5279,7 +5302,7 @@ class _BookmakerOverUnderDetailState extends State<BookmakerOverUnderDetail> {
           border: Border.all(color: openingColor.withOpacity(0.55)),
         ),
         child: const Text(
-          'Açılış yok',
+          'Bu şirket/çizgi için kaydedilmiş kaynak açılışı yok.',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w900,
@@ -5413,6 +5436,7 @@ class _BookmakerOverUnderDetailState extends State<BookmakerOverUnderDetail> {
 
     return Scaffold(
       appBar: AppBar(
+        actions: [IconButton(tooltip: "Oranları ve açılışları yenile", onPressed: _refreshing ? null : _refresh, icon: const Icon(Icons.refresh))],
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -5522,11 +5546,19 @@ class _BookmakerAsianDetailState extends State<BookmakerAsianDetail> {
 
   List<Map<String, dynamic>> _bookmakers = const [];
 
+  bool _refreshing = false;
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try { await _load(); }
+    finally { if (mounted) setState(() => _refreshing = false); }
+  }
+
   @override
   void initState() {
     super.initState();
     _tab = widget.initialTab == 1 ? 1 : 0;
-    _load();
+    _refresh();
   }
 
   String _bookmakerKey(String value) {
@@ -5914,7 +5946,7 @@ class _BookmakerAsianDetailState extends State<BookmakerAsianDetail> {
           border: Border.all(color: openingColor.withOpacity(0.55)),
         ),
         child: const Text(
-          'Açılış yok',
+          'Bu şirket/çizgi için kaydedilmiş kaynak açılışı yok.',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w900,
@@ -6048,6 +6080,7 @@ class _BookmakerAsianDetailState extends State<BookmakerAsianDetail> {
 
     return Scaffold(
       appBar: AppBar(
+        actions: [IconButton(tooltip: "Oranları ve açılışları yenile", onPressed: _refreshing ? null : _refresh, icon: const Icon(Icons.refresh))],
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -6142,11 +6175,19 @@ class _BookmakerKgDetailState extends State<BookmakerKgDetail> {
 
   List<Map<String, dynamic>> _bookmakers = const [];
 
+  bool _refreshing = false;
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try { await _load(); }
+    finally { if (mounted) setState(() => _refreshing = false); }
+  }
+
   @override
   void initState() {
     super.initState();
     _tab = widget.initialTab == 1 ? 1 : 0;
-    _load();
+    _refresh();
   }
 
   String _bookmakerKey(String value) {
@@ -6509,7 +6550,7 @@ class _BookmakerKgDetailState extends State<BookmakerKgDetail> {
           border: Border.all(color: openingColor.withOpacity(0.55)),
         ),
         child: const Text(
-          'Açılış yok',
+          'Bu şirket/çizgi için kaydedilmiş kaynak açılışı yok.',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w900,
@@ -6654,6 +6695,7 @@ class _BookmakerKgDetailState extends State<BookmakerKgDetail> {
 
     return Scaffold(
       appBar: AppBar(
+        actions: [IconButton(tooltip: "Oranları ve açılışları yenile", onPressed: _refreshing ? null : _refresh, icon: const Icon(Icons.refresh))],
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -6740,11 +6782,19 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
   List<Map<String, dynamic>> _openingRows = const [];
   List<Map<String, dynamic>> _bookmakers = const [];
 
+  bool _refreshing = false;
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try { await _load(); }
+    finally { if (mounted) setState(() => _refreshing = false); }
+  }
+
   @override
   void initState() {
     super.initState();
     _tab = widget.initialTab == 1 ? 1 : 0;
-    _load();
+    _refresh();
   }
 
   Future<void> _load() async {
@@ -7023,7 +7073,7 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
               border: Border.all(color: openingColor.withOpacity(0.55)),
             ),
             child: const Text(
-              'Açılış yok',
+              'Bu şirket/çizgi için kaydedilmiş kaynak açılışı yok.',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
@@ -7210,6 +7260,7 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
+        actions: [IconButton(tooltip: "Oranları ve açılışları yenile", onPressed: _refreshing ? null : _refresh, icon: const Icon(Icons.refresh))],
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

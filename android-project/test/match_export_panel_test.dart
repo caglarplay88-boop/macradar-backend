@@ -14,7 +14,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           expect(call.method, 'savePackage');
-          return {'uri': 'content://test-only/package'};
+          return {'uri': 'content://test-only/package', 'directory': 'Download', 'filename': 'test.zip'};
         });
     addTearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -43,6 +43,7 @@ void main() {
     await tester.tap(find.text('İndir'));
     await tester.pumpAndSettle();
     expect(find.textContaining('kayıtlı veri indirildi'), findsOneWidget);
+    expect(find.textContaining('Download klasörüne kaydedildi'), findsOneWidget);
     expect(find.textContaining('12.10.2026 17:00 (Türkiye)'), findsOneWidget);
     expect(find.textContaining('doğrulanamayan alanları'), findsOneWidget);
   });

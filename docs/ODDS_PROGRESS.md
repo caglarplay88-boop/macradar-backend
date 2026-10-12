@@ -206,3 +206,26 @@ erişti. Gelen gerçek çıktılara göre:
 - Kaynak dönem/Asian işareti/durum/fiyat türü belirsizlikleri korunuyor.
 - Telefon APK indirme kontrolü sonraki adım; kurulum ve APK düğmesinden kart
   indirme kabulü ile harici okuyucu entegrasyonu henüz yapılmadı.
+
+## Telefon kabulünde yeniden açılan sorun — 2026-10-12
+
+- Kullanıcı APK 1.0.10'da hazırlama ekranı ve eksik bwin açılışı bildirdi.
+  Fiziksel telefon kart indirme kabulü tamamlanmış sayılmıyor.
+- Gerçek işler xnGLmLIO ve 88eKVac4 yaklaşık 5 dakikada READY olmuş.
+  APK adresinden hazır paketler HTTP 200, doğru SHA256, 955371/850956 byte.
+- xnGLmLIO: 1045 ham kayıt, 402 kaynak açılışı; bwin current_only ve
+  NO_ARCHIVE_LOCATOR_IN_THIS_SOURCE_ROW. Açılış yokluğu parser hatası diye
+  varsayılmadı. 88eKVac4: 393 kaynak açılışı, bwin'de 14 açılış kaydı var.
+- Yeni mobil revizyon: iş kimliği SharedPreferences'da tutulur, bağlantı
+  kesilince aynı iş sorgulanır; toplama/ZIP/indirme/kayıt aşamaları görünür.
+- Android 10+ doğrudan Download'a MediaStore ile kaydeder; eski Android
+  kayıt seçicisini kullanır. Başarısız yazılan MediaStore girdisi temizlenir.
+- İş kimliği yalnızca native kayıt başarısından sonra silinir; başarısız
+  indirme/kayıt tekrarında hazır paketin yeniden hazırlanması önlenir.
+- APK sürümü 1.0.11+111. Kesinti/aynı iş/aşama bildirim testleri eklendi;
+  bu revizyonun Flutter testleri, Kotlin derlemesi ve telefon kabulü henüz
+  çalıştırılmadı. Sonraki işlem: gerçek seçili maç HTTP testi ve mobil doğrulama.
+
+- Dört piyasanın şirket detayına Yenile eklendi; ilk toplama sonrasında
+  gelen açılışlar tekrar okunabilir. Aynı detayda iki yenileme başlatılmaz.
+  Eksik kayıt, şirket/çizgi için kaydedilmiş kaynak açılışı yok diye belirtilir.

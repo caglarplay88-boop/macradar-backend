@@ -6,29 +6,29 @@
       "project": "android",
       "source": "android-project/lib/match_export_panel.dart",
       "target": "lib/match_export_panel.dart",
-      "base_sha256": "6fa075a9089a806d0d2ce6c21d58116e4978d605b1106ed577e15a1d63c79b02",
-      "new_sha256": "ccdbbacc78af9ff8ff0ea83387a5f5cb67d7a4e99f47f768769f14879e7f1446"
+      "base_sha256": "ccdbbacc78af9ff8ff0ea83387a5f5cb67d7a4e99f47f768769f14879e7f1446",
+      "new_sha256": "1ba507fd738a5f3c3bd1c5035b10a516ef390ddf5e22aab31671f2288a30fe63"
     },
     {
       "project": "android",
       "source": "android-project/pubspec.yaml",
       "target": "pubspec.yaml",
-      "base_sha256": "b9abba6a2d75eab4d823735e83402f658eed58fd10e2cde9a6e7f288770b96e3",
-      "new_sha256": "8ca8dd64bcb7bbf817c49c4c24aba27e47bd220f241300f30414f22fd703c52e"
+      "base_sha256": "8ca8dd64bcb7bbf817c49c4c24aba27e47bd220f241300f30414f22fd703c52e",
+      "new_sha256": "0cbb0158c0780a89a7e3f73afce63b1aa0a33344d727502cf4d2b2c5dc4bfe4b"
     },
     {
       "project": "android",
       "source": "android-project/test/match_export_panel_test.dart",
       "target": "test/match_export_panel_test.dart",
-      "base_sha256": null,
-      "new_sha256": "95763ccfaa1dc06e243bb756defa8346b21696473f2f7f224d11ab791ac28de6"
+      "base_sha256": "95763ccfaa1dc06e243bb756defa8346b21696473f2f7f224d11ab791ac28de6",
+      "new_sha256": "ae888206315858c7df7af8dcf6d7f0d83170ce78fcc7a81908fb0adf9b6b8d67"
     },
     {
       "project": "backend",
       "source": "docs/ODDS_PROGRESS.md",
       "target": "docs/ODDS_PROGRESS.md",
-      "base_sha256": "cc6b107c5faeee4f59faa8f5255e4f7bf488e234cd0004bef30ae82285ab1c2a",
-      "new_sha256": "6f5d28e4cf7c67cc89a9ef478605b493960e3d0267485c146a274e9d48d1af5f"
+      "base_sha256": "6f5d28e4cf7c67cc89a9ef478605b493960e3d0267485c146a274e9d48d1af5f",
+      "new_sha256": "13e1b5e13c15ba13a7456bdcc3d3a9a58371c9b0197bb317ddd3969c553b0d91"
     },
     {
       "project": "backend",
@@ -1084,8 +1084,29 @@
       "project": "android",
       "source": "android-project/android/app/src/main/kotlin/com/macradar/macradar/MainActivity.kt",
       "target": "android/app/src/main/kotlin/com/macradar/macradar/MainActivity.kt",
-      "base_sha256": "394f3dd59c0af39387fa05bb8c2fcc7121bff1f6850cff778e8ff1ae77ad037d",
-      "new_sha256": "8cfc461f343d1c90c79dea2736e02993cb95622b6e7efffd8c26f3e1abde79b0"
+      "base_sha256": "8cfc461f343d1c90c79dea2736e02993cb95622b6e7efffd8c26f3e1abde79b0",
+      "new_sha256": "f1e4042e0356e98012a41f1f26dabaccd7ce57c694c60eed7e7560d58540b1fe"
+    },
+    {
+      "project": "android",
+      "source": "android-project/lib/main.dart",
+      "target": "lib/main.dart",
+      "base_sha256": "801b1d15ad5c61af425ea62bd7575d01f3f6fd81d0c7520e3eab325865bb0d97",
+      "new_sha256": "871441a98a84c756e3c8a055abf7bea9ac2418fca68cc7cdca3c42e1209d7b21"
+    },
+    {
+      "project": "android",
+      "source": "android-project/lib/match_package_download.dart",
+      "target": "lib/match_package_download.dart",
+      "base_sha256": "3e63e9f17d09e8c1b38ce18776a8b3bae0f0581ed724cff2be96f8ba8e9a00cb",
+      "new_sha256": "c3e22049a1ed231292f6b3deae30bb11dc05ea9a4b63a58fff86eaadfa3ab2ce"
+    },
+    {
+      "project": "android",
+      "source": "android-project/test/match_package_download_test.dart",
+      "target": "test/match_package_download_test.dart",
+      "base_sha256": "651480bc8b0cf57039677bc0a39968475de32906a43cb892f6ac0aea2e11d6a8",
+      "new_sha256": "465d6973aaf6184237a574ea62eebc1ce40ae9fa309182b5366b1bed95ae8eed"
     }
   ]
 }

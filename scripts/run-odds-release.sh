@@ -31,7 +31,7 @@ done
 [ "$ready" = 1 ]
 echo "YENI_BACKEND_SAGLIK_KONTROLU_GECTI"
 
-for item in 'pjTVIO7M:small' 'GxLyDAQb:large'; do
+for item in 'xnGLmLIO:small' 'GxLyDAQb:large'; do
   event=${item%:*}
   size=${item#*:}
   python3 "$repo/scripts/validate-odds-http.py" \
@@ -75,6 +75,9 @@ python3 - "$root" "$mobile" "$review" <<'PY'
 from pathlib import Path
 import hashlib, json, re, shutil, subprocess, sys, zipfile
 root, mobile, review = map(Path, sys.argv[1:])
+version_text = re.search(r"(?m)^version:\s*(\d+\.\d+\.\d+)\+(\d+)", (mobile / "pubspec.yaml").read_text())
+assert version_text, "APK_SURUMU_YOK"
+version_name, version_code = version_text.groups()
 apk = mobile / "build/app/outputs/flutter-apk/app-release.apk"
 assert apk.is_file(), "APK_YOK"
 with zipfile.ZipFile(apk) as z:
@@ -98,16 +101,16 @@ assert old.is_file(), "ESKI_APK_IMZA_KARSILASTIRMASI_ICIN_YOK"
 assert new_signer == signer(old), "APK_GUNCELLEME_IMZASI_FARKLI"
 badging = subprocess.check_output([str(tool / "aapt"), "dump", "badging", str(apk)], text=True)
 assert "name='com.macradar.macradar'" in badging
-assert "versionCode='110'" in badging
-assert "versionName='1.0.10'" in badging
+assert f"versionCode='{version_code}'" in badging
+assert f"versionName='{version_name}'" in badging
 delivery = root / "artifacts/odds-revision-delivery-20261012"
 delivery.mkdir(parents=True, exist_ok=True)
-target = delivery / "MacRadar-1.0.10.apk"
+target = delivery / f"MacRadar-{version_name}.apk"
 shutil.copy2(apk, target)
 report = {
     "apk": str(target), "bytes": target.stat().st_size,
     "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
-    "version": "1.0.10+110", "signature": "PASSED", "same_update_signer": True,
+    "version": f"{version_name}+{version_code}", "signature": "PASSED", "same_update_signer": True,
     "zip_integrity": "PASSED", "actual_http_exports": "PASSED",
     "phone_download": "NOT_PERFORMED", "external_reader_test": "NOT_PERFORMED"
 }
@@ -117,9 +120,9 @@ progress = root / "docs/ODDS_PROGRESS.md"
 with progress.open("a") as stream:
     stream.write("\n## Sunucu uygulama ve APK sonucu\n\n")
     stream.write("- macradar.service yenilendi; ayrı dropping servisi değiştirilmedi.\n")
-    stream.write("- 48 backend testi ve 26 mobil test geçti; analiz hata sayısı 0.\n")
+    stream.write("- 48 backend testi ve son revizyon mobil testleri geçti; analiz hata sayısı 0.\n")
     stream.write("- İki gerçek mevcut APK HTTP export akışı, ZIP/schema/manifest/kanıt ve ham kayıt koruma denetimleri geçti.\n")
-    stream.write("- APK 1.0.10+110 derlendi; imza, aynı güncelleme imzası ve ZIP bütünlüğü doğrulandı.\n")
+    stream.write(f"- APK {version_name}+{version_code} derlendi; imza, aynı güncelleme imzası ve ZIP bütünlüğü doğrulandı.\n")
     stream.write("- Telefon indirme/kurulum/kart indirme ve harici okuyucu kabulü henüz yapılmadı.\n")
     stream.write("- Teslim kanıtı: artifacts/odds-revision-delivery-20261012/delivery.json\n")
 PY

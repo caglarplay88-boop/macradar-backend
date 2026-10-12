@@ -4,7 +4,11 @@ package com.macradar.macradar
 import android.app.Activity
 import android.content.ClipData
 import android.content.Intent
+import android.content.ContentValues
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -40,6 +44,10 @@ class MainActivity : FlutterActivity() {
                             } else {
                                 pendingResult = result
                                 pendingBytes = bytes
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    saveToDownloads(bytes, filename, result)
+                                    return@setMethodCallHandler
+                                }
                                 try {
                                     val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                                         addCategory(Intent.CATEGORY_OPENABLE)
@@ -80,6 +88,42 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    private fun saveToDownloads(bytes: ByteArray, filename: String, result: MethodChannel.Result) {
+        Thread {
+            var uri: Uri? = null
+            try {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "application/zip")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val created = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: throw IllegalStateException("Download entry unavailable")
+                uri = created
+                contentResolver.openOutputStream(created, "wt")?.use {
+                    it.write(bytes)
+                    it.flush()
+                } ?: throw IllegalStateException("Download stream unavailable")
+                contentResolver.update(created, ContentValues().apply {
+                    put(MediaStore.MediaColumns.IS_PENDING, 0)
+                }, null, null)
+                runOnUiThread {
+                    pendingResult = null
+                    pendingBytes = null
+                    result.success(mapOf("uri" to created.toString(), "directory" to "Download", "filename" to filename))
+                }
+            } catch (_: Exception) {
+                uri?.let { try { contentResolver.delete(it, null, null) } catch (_: Exception) { } }
+                runOnUiThread {
+                    pendingResult = null
+                    pendingBytes = null
+                    result.error("WRITE_FAILED", "Download klasörüne dosya kaydedilemedi.", null)
+                }
+            }
+        }.start()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

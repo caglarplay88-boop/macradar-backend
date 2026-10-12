@@ -1,0 +1,78 @@
+{
+  "example": "/home/ubuntu/macradar-src-test/artifacts/match_exports/app-export-test-20261011T073059Z/MacRadar-0p1XkgIt-1791703861588.zip::match-data.json",
+  "currentCode": "async function fetch1x2Source(rawUrl, source) {\n  const parsed = parseBetExplorerUrl(rawUrl);\n  const endpoint =\n    'https://www.betexplorer.com/match-odds/' +\n    parsed.eventId + '/0/1x2/odds/?lang=en';\n\n  const payload = await requestJson(source, endpoint);\n\n  if (!payload || typeof payload.odds !== 'string' || !payload.odds.trim()) {\n    throw new Error('BetExplorer 1X2 odds HTML is empty.');\n  }\n\n  const rows = parse1x2(payload.odds);\n  if (rows.length < MIN_HEALTHY_BOOKMAKERS) {\n    throw new Error(\n      'Insufficient 1X2 bookmaker coverage: ' +\n      rows.length + ' < ' + MIN_HEALTHY_BOOKMAKERS\n    );\n  }\n\n  return {\n    eventId: parsed.eventId,\n    url: parsed.url,\n    market: '1X2',\n    capturedAt: new Date(),\n    sourceName: source.sourceName,\n    sourceRegion: source.sourceRegion,\n    rows\n  };\n}",
+  "openingCode": "async function fetchOpening1x2Source(rawUrl, source) {\n  const parsed = parseBetExplorerUrl(rawUrl);\n  const endpoint =\n    'https://www.betexplorer.com/match-odds/' +\n    parsed.eventId + '/0/1x2/odds/?lang=en';\n\n  const payload = await requestJson(source, endpoint);\n  if (!payload || typeof payload.odds !== 'string' || !payload.odds.trim()) {\n    throw new Error('BetExplorer opening market HTML is empty.');\n  }\n\n  const detailed = parse1x2Detailed(payload.odds);\n  if (detailed.length < MIN_OPENING_BOOKMAKERS) {\n    throw new Error(\n      'Insufficient opening market coverage: ' +\n      detailed.length + ' < ' + MIN_OPENING_BOOKMAKERS\n    );\n  }\n\n  const rows = [];\n  let cursor = 0;\n\n  const worker = async () => {\n    while (true) {\n      const index = cursor++;\n      if (index >= detailed.length) return;\n      const row = detailed[index];\n\n      try {\n        const values = await Promise.all(\n          row.cells.map(cell => fetchArchiveOpening(cell, source))\n        );\n        if (values.some(value => !value)) continue;\n\n        const times = values.map(value => value.openingAt.getTime());\n        rows.push({\n          bookmakerId: row.bookmakerId,\n          bookmakerName: row.bookmakerName,\n          homeOdd: values[0].odd,\n          drawOdd: values[1].odd,\n          awayOdd: values[2].odd,\n          capturedAt: new Date(Math.max(...times)),\n          openingAtBySelection: {\n            home: values[0].openingAt,\n            draw: values[1].openingAt,\n            away: values[2].openingAt\n          }\n        });\n      } catch {\n        // A single bookmaker archive failure must not destroy the full set.\n      }\n    }\n  };\n\n  const concurrency = Math.min(4, detailed.length);\n  await Promise.all(Array.from({ length: concurrency }, worker));\n\n  if (rows.length < MIN_OPENING_BOOKMAKERS) {\n    throw new Error(\n      'Insufficient opening archive coverage: ' +\n      rows.length + ' < ' + MIN_OPENING_BOOKMAKERS\n    );\n  }\n\n  rows.sort((a, b) => a.bookmakerName.localeCompare(b.bookmakerName));\n\n  return {\n    eventId: parsed.eventId,\n    url: parsed.url,\n    market: '1X2',\n    sourceName: source.sourceName + '-archive',\n    sourceRegion: source.sourceRegion,\n    rows\n  };\n}",
+  "archiveCode": "async function fetchArchiveOpening(cell, source) {\n  if (!cell?.oid || !cell?.bid || !cell?.bt || !cell?.sc || !cell?.hcp) {\n    return null;\n  }\n\n  const endpoint =\n    'https://www.betexplorer.com/archive-odds/' +\n    [cell.oid, cell.bid, cell.bt, cell.sc, cell.hcp]\n      .map(encodeURIComponent)\n      .join('/') +\n    '/';\n\n  const payload = await requestJson(source, endpoint, 4 * 1024 * 1024);\n  if (!Array.isArray(payload) || !payload.length) return null;\n\n  const first = payload[payload.length - 1];\n  const odd = Number(String(first?.odd || '').replace(',', '.'));\n  const openingAt = parseOpeningAt(first?.date, cell.created);\n\n  if (!Number.isFinite(odd) || odd <= 1 || !openingAt) return null;\n\n  return {\n    odd,\n    openingAt,\n    sourceDate: first?.date || null\n  };\n}",
+  "samples": [
+    {
+      "market": "1X2",
+      "capture_type": "opening",
+      "captured_at": "2026-09-22T09:14:00.000Z",
+      "created_at": "2026-10-04T21:11:02.151Z",
+      "source_name": "betexplorer-nl-archive"
+    },
+    {
+      "market": "1X2",
+      "capture_type": "current",
+      "captured_at": "2026-10-04T21:10:54.822Z",
+      "created_at": "2026-10-04T21:11:02.151Z",
+      "source_name": "betexplorer-nl"
+    },
+    {
+      "market": "1X2",
+      "capture_type": "periodic",
+      "captured_at": "2026-10-05T04:15:42.359Z",
+      "created_at": "2026-10-05T04:15:42.418Z",
+      "source_name": "betexplorer-nl"
+    },
+    {
+      "market": "OU",
+      "capture_type": "opening",
+      "captured_at": "2026-09-22T08:19:00.000Z",
+      "created_at": "2026-10-04T21:11:02.161Z",
+      "source_name": "betexplorer-nl-archive"
+    },
+    {
+      "market": "OU",
+      "capture_type": "current",
+      "captured_at": "2026-10-04T21:10:58.811Z",
+      "created_at": "2026-10-04T21:11:02.170Z",
+      "source_name": "betexplorer-nl"
+    },
+    {
+      "market": "OU",
+      "capture_type": "periodic",
+      "captured_at": "2026-10-04T21:41:37.041Z",
+      "created_at": "2026-10-04T21:41:37.389Z",
+      "source_name": "betexplorer-nl"
+    },
+    {
+      "market": "ASIAN",
+      "capture_type": "opening",
+      "captured_at": "2026-09-22T08:20:00.000Z",
+      "created_at": "2026-10-04T21:41:33.928Z",
+      "source_name": "betexplorer-nl-archive"
+    },
+    {
+      "market": "ASIAN",
+      "capture_type": "periodic",
+      "captured_at": "2026-10-04T21:41:37.379Z",
+      "created_at": "2026-10-04T21:41:37.386Z",
+      "source_name": "betexplorer-nl"
+    },
+    {
+      "market": "KG",
+      "capture_type": "opening",
+      "captured_at": "2026-09-22T08:19:00.000Z",
+      "created_at": "2026-10-04T21:41:36.104Z",
+      "source_name": "betexplorer-nl-archive"
+    },
+    {
+      "market": "KG",
+      "capture_type": "periodic",
+      "captured_at": "2026-10-04T21:41:36.975Z",
+      "created_at": "2026-10-04T21:41:37.388Z",
+      "source_name": "betexplorer-nl"
+    }
+  ]
+}

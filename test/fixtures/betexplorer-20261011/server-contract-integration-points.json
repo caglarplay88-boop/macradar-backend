@@ -1,0 +1,22 @@
+[
+  {
+    "needle": "buildMatchExport",
+    "code": "tches\\/([A-Za-z0-9_-]{1,80})\\/export$/);\n    if (req.method === 'GET' && matchExportPath) {\n      try {\n        const { buildMatchExport } = require('./matchDataExport');\n        const exported = await buildMatchExport(pool, matchExportPath[1]);\n        res.writeHead(200, {\n          'content-type': 'application/zip',\n          'content-disposition': 'attachment; filename=\"' + exported.filename + '\"',\n          'content-length': exp"
+  },
+  {
+    "needle": "buildMatchExport",
+    "code": "rtPath) {\n      try {\n        const { buildMatchExport } = require('./matchDataExport');\n        const exported = await buildMatchExport(pool, matchExportPath[1]);\n        res.writeHead(200, {\n          'content-type': 'application/zip',\n          'content-disposition': 'attachment; filename=\"' + exported.filename + '\"',\n          'content-length': exported.buffer.length,\n          'cache-control': 'no-store',\n          'x-content-t"
+  },
+  {
+    "needle": "updateTracking",
+    "code": " listMatches,\n  setActive,\n  removeTrackedMatch,\n  archiveStartedMatch,\n  finishMatch,\n  pool,\n  getTrackingSettings,\n  updateTrackingSettings,\n  getLatestOdds1x2Batch,\n  getLatestLiveOdds1x2State,\n  listOdds1x2History,\n  getLatestOddsOverUnderBatch,\n  getLatestLiveOddsOverUnderState,\n  listOddsOverUnderHistory,\n  getPerformanceCache,\n  markPerformancePreparing,\n  savePerformanceCache,\n  failPerformanceCache,\n  getLatestOddsAsianB"
+  },
+  {
+    "needle": "updateTracking",
+    "code": "      opening_error: initialCapture?.openingError || null\n          });\n        }\n      }\n\n      const settings = await updateTrackingSettings(eventId, enabled, minutes);\n      if (!settings) return json(res, 404, { error: 'Maç bulunamadı.' });\n\n      return json(res, 200, {\n        ok: true,\n        event_id: eventId,\n        tracking_enabled: settings.tracking_enabled === true,\n        refresh_minutes: Number(settings.refresh_mi"
+  },
+  {
+    "needle": "updateTracking",
+    "code": "ve(parsed.eventId, true);\n\n            // Bülten'den seçildiği anda takip her zaman 60 dk ile başlar.\n            await updateTrackingSettings(parsed.eventId, true, 60);\n\n            // İlk çekimi zamanlanmış işçi yapar.\n            // HTTP yanıtı kaynaklardan oran çekilmesini beklemez.\n          }\n\n          results.push({\n            url: parsed.url,\n            eventId: parsed.eventId,\n            ok: true,\n            queued: "
+  }
+]

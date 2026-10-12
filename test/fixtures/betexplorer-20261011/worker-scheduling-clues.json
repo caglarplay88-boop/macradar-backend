@@ -1,0 +1,3 @@
+[
+  "const WORKER_TICK_MS = Math.max(\n  15000,\n  Number(process.env.ODDS_WORKER_TICK_MS) || 20000\n);"
+]

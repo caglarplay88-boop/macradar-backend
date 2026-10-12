@@ -1,0 +1,164 @@
+{
+  "archives": [
+    {
+      "id": "archive-ASIAN-0",
+      "source": "betexplorer-default-tor",
+      "selectionRaw": "1",
+      "createdRaw": "09,10,2026,18,25",
+      "bookmaker": "bets.io",
+      "response": [
+        {
+          "date": "08.10. 14:51",
+          "odd": "10.50",
+          "change": "0"
+        }
+      ]
+    },
+    {
+      "id": "archive-KG-0",
+      "source": "betexplorer-direct",
+      "selectionRaw": "y",
+      "createdRaw": "09,10,2026,18,10",
+      "bookmaker": "bet365",
+      "response": [
+        {
+          "date": "22.09. 08:19",
+          "odd": "1.83",
+          "change": "0"
+        }
+      ]
+    },
+    {
+      "id": "archive-KG-1",
+      "source": "betexplorer-direct",
+      "selectionRaw": "n",
+      "createdRaw": "09,10,2026,18,10",
+      "bookmaker": "bet365",
+      "response": [
+        {
+          "date": "22.09. 08:19",
+          "odd": "1.83",
+          "change": "0"
+        }
+      ]
+    },
+    {
+      "id": "archive-ASIAN-1",
+      "source": "betexplorer-default-tor",
+      "selectionRaw": "2",
+      "createdRaw": "09,10,2026,18,15",
+      "bookmaker": "bets.io",
+      "response": [
+        {
+          "date": "08.10. 14:51",
+          "odd": "1.02",
+          "change": "0"
+        }
+      ]
+    }
+  ],
+  "markets": [
+    {
+      "market": "1X2",
+      "source": "betexplorer-direct",
+      "rowCount": 10,
+      "headers": [
+        "",
+        "",
+        "",
+        "",
+        "1",
+        "X",
+        "2"
+      ],
+      "rowAttributes": {
+        "data-bid": "27",
+        "data-bookie-id": "344 ",
+        "data-originid": "1"
+      },
+      "cells": [
+        {
+          "data-bookmaker-id": "27",
+          "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first inactive ",
+          "data-odd": "1.53",
+          "data-created": "09,10,2026,18,59",
+          "data-pos": "1",
+          "data-bookie": "888sport",
+          "data-bookie-id": "344"
+        },
+        {
+          "data-bookmaker-id": "27",
+          "class": "archiveOddsMovement__odds table-main__detail-odds inactive ",
+          "data-odd": "3.60",
+          "data-created": "09,10,2026,18,52",
+          "data-pos": "0",
+          "data-bookie": "888sport",
+          "data-bookie-id": "344"
+        },
+        {
+          "data-bookmaker-id": "27",
+          "class": "archiveOddsMovement__odds table-main__detail-odds inactive ",
+          "data-odd": "6.00",
+          "data-created": "09,10,2026,18,59",
+          "data-pos": "2",
+          "data-bookie": "888sport",
+          "data-bookie-id": "344"
+        }
+      ],
+      "responseKeys": [
+        "odds"
+      ]
+    },
+    {
+      "market": "OU",
+      "source": "betexplorer-direct",
+      "rowCount": 79,
+      "headers": [
+        "",
+        "",
+        "",
+        "",
+        "Total",
+        "Over",
+        "Under",
+        ""
+      ],
+      "rowAttributes": {
+        "data-bid": "27",
+        "data-bookie-id": "344 ",
+        "data-originid": "1"
+      },
+      "cells": [
+        {
+          "data-bookmaker-id": "27",
+          "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first inactive ",
+          "data-odd": "1.05",
+          "data-created": "09,10,2026,09,47",
+          "data-pos": "1",
+          "data-bookie": "888sport",
+          "data-bookie-id": "344"
+        },
+        {
+          "data-bookmaker-id": "27",
+          "class": "archiveOddsMovement__odds table-main__detail-odds inactive ",
+          "data-odd": "9.50",
+          "data-created": "09,10,2026,18,57",
+          "data-pos": "2",
+          "data-bookie": "888sport",
+          "data-bookie-id": "344"
+        }
+      ],
+      "responseKeys": [
+        "odds"
+      ]
+    }
+  ],
+  "page": {
+    "title": "Montpellier - Grenoble - Statistiche H2H e quote",
+    "clues": [
+      "pJ1ZgJk8XY851Q-WEa8Xdex6E\" />\n\t<script type=\"text/javascript\">\n\t\t_use_timezones = true;\n\t\t_page_proxy = true;\n\t\t_init_get_message = 0;\n\t\t_default_sport_id = 1;\n\t\t_default_sport_u",
+      "ttom__switcher-mobile\").css(\"display\", \"none\");\n\t\t\t\t}\n\t\t\t\tset_default_timezone();\n\t\t\t\tlazyLoadInit();\n        fix_sticky_banner();\n\n\t\t\t\t\t\t\t});\n\t\t\t$(document).on(\"click\", \".footer"
+    ],
+    "file": "match-page.html"
+  }
+}

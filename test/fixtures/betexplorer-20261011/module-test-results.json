@@ -1,0 +1,32 @@
+[
+  {
+    "test": "settings.test.cjs",
+    "exit": 0,
+    "stdout": "TAKVIM_SINIRLARI_BELIRSIZ_SAAT_AYAR_VE_BACKOFF: GECTI\nZAMAN_SENARYOLARI: 14\n",
+    "stderr": ""
+  },
+  {
+    "test": "sourceTime.test.cjs",
+    "exit": 0,
+    "stdout": "GERCEK_HUCRE_ZAMANLARI: GECTI; hucre=1038\nEKSIK_YIL_SAAT_DILIMI_TARIH_SINIRLARI_VE_KESIM_SIZINTISI: GECTI\n",
+    "stderr": ""
+  },
+  {
+    "test": "currentParser.test.cjs",
+    "exit": 0,
+    "stdout": "GERCEK_HAM_TARAF_KORUMA: {\"market\":\"1X2\",\"sourceCells\":30,\"rawRecords\":30,\"quoteGroups\":10,\"lines\":[null],\"inactivePreserved\":3}\nGERCEK_HAM_TARAF_KORUMA: {\"market\":\"OU\",\"sourceCells\":153,\"rawRecords\":153,\"quoteGroups\":79,\"lines\":[0.5,1,1.25,1.5,1.75,2,2.25,2.5,2.75,3,3.25,3.5,3.75,4,4.25,4.5,5.5,6.5],\"inactivePreserved\":12}\nGERCEK_HAM_TARAF_KORUMA: {\"market\":\"ASIAN\",\"sourceCells\":322,\"rawRecords\":322,\"quoteGroups\":162,\"lines\":[-4,-3.75,-3.5,-3.25,-3,-2.75,-2.5,-2.25,null,-2,-1.75,-1.5,-1.25,-1,-0.75,-0.5,-0.25,0,0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.25,2.5],\"inactivePreserved\":27}\nGERCEK_HAM_TARAF_KORUMA: {\"market\":\"KG\",\"sourceCells\":14,\"rawRecords\":14,\"quoteGroups\":7,\"lines\":[null],\"inactivePreserved\":2}\nCEYREK_CIZGI_EKSIK_TARAF_GECERSIZ_FIYAT_VE_KANIT_BAGLARI: GECTI\n",
+    "stderr": ""
+  },
+  {
+    "test": "archiveParser.test.cjs",
+    "exit": 0,
+    "stdout": "GERCEK_ARSIV_SATIRLARI_VE_ACILIS_ETIKETI: GECTI; satir=6\nTUM_ARA_SATIRLAR_ABA_EKSIK_YIL_VE_KAPSAM_AYRIMI: GECTI\n",
+    "stderr": ""
+  },
+  {
+    "test": "seriesSummary.test.cjs",
+    "exit": 0,
+    "stdout": "ABA_TEKRARLAR_VE_ACIK_KAPALI_ACIK: GECTI\nUC_BASLANGIC_TURU_KESIM_PENCERE_VE_YENIDEN_URETIM: GECTI\n",
+    "stderr": ""
+  }
+]

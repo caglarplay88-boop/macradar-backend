@@ -1,0 +1,259 @@
+{
+  "contractSha256": "414277046fd489dd821ada72689f054b9b799bd02861ed4af991b8814de38be5",
+  "checkedAt": "2026-10-11T12:06:30.399429+00:00",
+  "files": [
+    {
+      "file": "src/matchDataExport.js",
+      "sha256": "c6f26af43a095a7588c24644e2b957fcd2167265a4275c3260c5106956b30e93",
+      "functions": [
+        "crc32",
+        "zip",
+        "chart",
+        "buildMatchExport"
+      ],
+      "exports": "module.exports={buildMatchExport,chart,zip};\n"
+    },
+    {
+      "file": "src/odds1x2.js",
+      "sha256": "33fc340dad6c42b5091e2e55d64adcaeac68a6b962eb5d779085f42927a2ceff",
+      "functions": [
+        "remoteSourceConfig",
+        "hmacHex",
+        "equalHex",
+        "remoteGet",
+        "fetchRemoteValidated",
+        "parseBetExplorerUrl",
+        "bookmakerKey",
+        "decodeHtml",
+        "extractBookmaker",
+        "cellAttr",
+        "parse1x2Detailed",
+        "parse1x2",
+        "parseOpeningAt",
+        "sourceChain",
+        "curlArgs",
+        "requestJson",
+        "fetch1x2Source",
+        "fetchArchiveOpening",
+        "fetchOpening1x2Source",
+        "fetch1x2SingleSource",
+        "pull1x2WithFailover",
+        "pullOpening1x2WithFailover"
+      ],
+      "exports": "module.exports = {\n  parseBetExplorerUrl,\n  parse1x2,\n  fetch1x2SingleSource,\n  pull1x2WithFailover,\n  pullOpening1x2WithFailover,\n  sourceChain\n};\n"
+    },
+    {
+      "file": "src/odds1x2Capture.js",
+      "sha256": "bd693fa0be0a0d0674a5063fbd1d325ab7f5b6510e2e75da8b46bbefb1b1b998",
+      "functions": [
+        "captureSequences",
+        "pullInitial1x2",
+        "pullInitialOverUnder",
+        "captureInitial1x2"
+      ],
+      "exports": "module.exports = {\n  pullInitialOverUnder,\n  captureSequences,\n  pullInitial1x2,\n  captureInitial1x2\n};\n"
+    },
+    {
+      "file": "src/odds1x2Worker.js",
+      "sha256": "8e02bb6865eb94a71e62ac6938f9cc7ce6fe9a7b30d95377e92ab5d5f6d724ac",
+      "functions": [
+        "periodicSequence",
+        "backfillOverUnderOpening",
+        "backfillAsianOpening",
+        "backfillKgOpening",
+        "backfill1x2Opening",
+        "capturePeriodic1x2",
+        "runOddsWorkerTick",
+        "startOdds1x2Worker",
+        "stopOdds1x2Worker"
+      ],
+      "exports": "module.exports = {\n  backfillOverUnderOpening,\n  periodicSequence,\n  capturePeriodic1x2,\n  runOddsWorkerTick,\n  startOdds1x2Worker,\n  stopOdds1x2Worker,\n  backfillAsianOpening,\n  backfillKgOpening\n};\n"
+    },
+    {
+      "file": "src/oddsAsian.js",
+      "sha256": "7b561fe07fab83417fc72d217b99ac1cf4078e18bc2b0d640f15967fc85ebdee",
+      "functions": [
+        "numberOdd",
+        "parseHandicapFromHcp",
+        "parseHandicapFromText",
+        "parseAsianDetailed",
+        "parseAsian",
+        "validateAsianRows",
+        "pullAsianWithFailover",
+        "asianOpeningCell",
+        "parseAsianOpeningDetailed",
+        "fetchOpeningAsianSource",
+        "pullOpeningAsianWithFailover"
+      ],
+      "exports": "module.exports.pullOpeningAsianWithFailover =\n  pullOpeningAsianWithFailover;\n"
+    },
+    {
+      "file": "src/oddsKg.js",
+      "sha256": "fa2f5a94a273583a7b306275f4abc16668603facfe910116f0b7dd8fa2d60a75",
+      "functions": [
+        "numberOdd",
+        "parseKgDetailed",
+        "parseKg",
+        "validateKgRows",
+        "pullKgWithFailover",
+        "kgOpeningCell",
+        "parseKgOpeningDetailed",
+        "fetchOpeningKgSource",
+        "pullOpeningKgWithFailover"
+      ],
+      "exports": "module.exports.pullOpeningKgWithFailover =\n  pullOpeningKgWithFailover;\n"
+    },
+    {
+      "file": "src/oddsOverUnder.js",
+      "sha256": "9d44369e54658d6279d24c220c87674283db02c018c3599e5a0018d8ab8332f5",
+      "functions": [
+        "parseBetExplorerUrl",
+        "sourceChain",
+        "curlArgs",
+        "requestJson",
+        "decodeHtml",
+        "cellAttr",
+        "extractBookmaker",
+        "bookmakerKey",
+        "extractTotalLine",
+        "parseOverUnderDetailed",
+        "parseOverUnder",
+        "fetchOverUnderSource",
+        "pullOverUnderWithFailover",
+        "parseOpeningAt",
+        "fetchArchiveOpening",
+        "fetchOpeningOverUnderSource",
+        "pullOpeningOverUnderWithFailover"
+      ],
+      "exports": "module.exports._openingInternals = {\n  requestJson,\n  parseBetExplorerUrl,\n  fetchArchiveOpening,\n  sourceChain\n};\n"
+    }
+  ],
+  "example": {
+    "location": "/home/ubuntu/macradar-src-test/artifacts/match_exports/app-export-test-20261011T073059Z/MacRadar-0p1XkgIt-1791703861588.zip::match-data.json",
+    "keys": [
+      "formatVersion",
+      "exportedAt",
+      "timeZone",
+      "match",
+      "tracking",
+      "odds",
+      "performance",
+      "performanceRaw",
+      "performanceCache",
+      "warnings"
+    ],
+    "match": {
+      "event_id": "0p1XkgIt",
+      "url": "https://www.betexplorer.com/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/",
+      "match_slug": "montpellier-grenoble",
+      "active": true,
+      "created_at": "2026-10-04T21:10:54.055Z",
+      "updated_at": "2026-10-08T09:25:05.466Z",
+      "display_name": "Montpellier - Grenoble",
+      "league": "Francia: Ligue 2",
+      "match_date": "2026-10-09T00:00:00.000Z",
+      "kickoff_time": "21:00",
+      "archived": false,
+      "lifecycle": "tracking",
+      "home_score": null,
+      "away_score": null,
+      "result_status": null,
+      "refresh_minutes": null
+    },
+    "markets": {
+      "1X2": {
+        "containerType": "list",
+        "rows": 1970,
+        "fields": [
+          "id",
+          "event_id",
+          "bookmaker_id",
+          "bookmaker_key",
+          "bookmaker_name",
+          "market",
+          "home_odd",
+          "draw_odd",
+          "away_odd",
+          "captured_at",
+          "capture_sequence",
+          "capture_type",
+          "source_name",
+          "source_region",
+          "created_at",
+          "home_closed",
+          "draw_closed",
+          "away_closed"
+        ]
+      },
+      "OU": {
+        "containerType": "list",
+        "rows": 1015,
+        "fields": [
+          "id",
+          "event_id",
+          "bookmaker_id",
+          "bookmaker_key",
+          "bookmaker_name",
+          "market",
+          "total_line",
+          "under_odd",
+          "over_odd",
+          "under_closed",
+          "over_closed",
+          "captured_at",
+          "capture_sequence",
+          "capture_type",
+          "source_name",
+          "source_region",
+          "created_at"
+        ]
+      },
+      "ASIAN": {
+        "containerType": "list",
+        "rows": 5046,
+        "fields": [
+          "id",
+          "event_id",
+          "bookmaker_id",
+          "bookmaker_key",
+          "bookmaker_name",
+          "market",
+          "handicap_line",
+          "home_odd",
+          "away_odd",
+          "home_closed",
+          "away_closed",
+          "captured_at",
+          "capture_sequence",
+          "capture_type",
+          "source_name",
+          "source_region",
+          "created_at"
+        ]
+      },
+      "KG": {
+        "containerType": "list",
+        "rows": 516,
+        "fields": [
+          "id",
+          "event_id",
+          "bookmaker_id",
+          "bookmaker_key",
+          "bookmaker_name",
+          "market",
+          "yes_odd",
+          "no_odd",
+          "yes_closed",
+          "no_closed",
+          "captured_at",
+          "capture_sequence",
+          "capture_type",
+          "source_name",
+          "source_region",
+          "created_at"
+        ]
+      }
+    }
+  },
+  "liveSourceVerification": "not_started"
+}

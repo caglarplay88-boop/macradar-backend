@@ -1,0 +1,16 @@
+{
+  "version": "1.0.9+109",
+  "sha256": "73025b52d96d88773be4001c23e733d737e34efc1314d634805b2dc824eccfc1",
+  "bytes": 19714871,
+  "signature": "PASSED",
+  "same_update_signer": true,
+  "zip_integrity": "PASSED",
+  "abis": [
+    "arm64-v8a"
+  ],
+  "package": "package: name='com.macradar.macradar' versionCode='109' versionName='1.0.9' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'",
+  "download_url": "http://80.225.82.228:3100/apk-delivery/9d7e252f4624d1d4bc809ffc362abcbc7d905b349a7d38784348011ae9d4fce4.apk",
+  "path": "/home/ubuntu/macradar-src-test/var/odds-contract/apk-delivery/9d7e252f4624d1d4bc809ffc362abcbc7d905b349a7d38784348011ae9d4fce4.apk",
+  "expires_at": 1791823393673,
+  "phone_download_verified": false
+}

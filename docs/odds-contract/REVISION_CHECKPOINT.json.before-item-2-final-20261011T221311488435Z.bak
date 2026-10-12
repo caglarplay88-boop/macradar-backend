@@ -1,0 +1,257 @@
+{
+  "updated_at": "2026-10-11T21:49:26.491413+00:00",
+  "contract_file": "BETEXPLORER_ODDS_DATA_CONTRACT.md",
+  "contract_sha256": "414277046fd489dd821ada72689f054b9b799bd02861ed4af991b8814de38be5",
+  "full_contract_read_in_conversation": true,
+  "implemented_and_tested": [
+    "Current API readers derive quotes from the raw store for revised tracking",
+    "History API readers use the same raw store and keep archive selections separate",
+    "Periodic worker no longer reparses or writes to legacy odds tables",
+    "Export odds compatibility includes raw quote groups with raw_record_ids",
+    "Nullable prices, signs and statuses remain nullable in API envelopes",
+    "Verified status transitions survive quality review and summary",
+    "Mobile Asian view retains unresolved signed lines without assigning zero"
+  ],
+  "legacy_fields_policy": "Preserve existing file fields as required by section 11; new compatibility rows are derived, not separately stored",
+  "last_full_backend_test_count": 36,
+  "subsequent_targeted_history_tests_passed": true,
+  "mobile_tests_and_analyze_passed": true,
+  "production_service_restarted": false,
+  "apk_built": false,
+  "remaining_verification": [
+    "Fresh real source acceptance for four markets",
+    "Full-time scope, Asian home sign, inactive status meaning and exchange price type",
+    "Real accessible intermediate archive coverage",
+    "Actual MacRadar reader integration",
+    "HTTP route behavior and final mobile behavior",
+    "Remaining old source entry points and compatibility graph handling"
+  ],
+  "completion_claim": false,
+  "post_export_revision_validation": {
+    "recorded_at": "2026-10-11T19:44:41.258731+00:00",
+    "backend_test_files_passed": 40,
+    "mobile_tests": "PASSED",
+    "mobile_analysis": {
+      "errors": 0,
+      "warnings": 6,
+      "info": 230
+    },
+    "real_export_validation": {
+      "schema": "PASSED",
+      "zip_integrity": "PASSED",
+      "manifest_hashes": "PASSED",
+      "evidence_links": "PASSED",
+      "previous_real_records_preserved": 1631,
+      "raw_records": 18114,
+      "source_history_records": 0,
+      "export_refresh": {
+        "requested_at": "2026-10-11T19:34:35.429Z",
+        "reason": "export",
+        "current_scan_requested": true,
+        "history_reconciliation_requested": true,
+        "success": true,
+        "finished_at": "2026-10-11T19:41:47.216Z",
+        "skipped": false,
+        "outcome": "COLLECTION_SUCCEEDED",
+        "run_id": "c3a79654-1b00-407e-8055-872851e5bd04",
+        "history_reconciliation_performed": true,
+        "error": null
+      },
+      "external_reader_test": "NOT_PERFORMED",
+      "zip_path": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z/export-fresh-coordinator-20261011T193435Z/MacRadar-GxLyDAQb-1791747716617.zip"
+    },
+    "service_activation": {
+      "active": "active",
+      "substate": "running",
+      "old_pid": "830632",
+      "new_pid": "864524",
+      "result": "success"
+    },
+    "apk_revision_build": {
+      "recorded_at": "2026-10-11T19:54:33.846764+00:00",
+      "apk": {
+        "path": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z/delivery/MacRadar-odds-contract.apk",
+        "bytes": 54731297,
+        "sha256": "3416aff6cd79bf01cd146d7117168e09ce28185b0de9d7490e60a473d090cd7a"
+      },
+      "match_package": {
+        "path": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z/delivery/MacRadar-GxLyDAQb.zip",
+        "bytes": 7069837,
+        "sha256": "9dbe604f7b81ba38dd78f9a184d3c45b1d3989e486bd41345cda913c2d864001"
+      },
+      "apk_signature": "PASSED",
+      "apk_zip_integrity": "PASSED",
+      "phone_download": "PENDING",
+      "external_reader_test": "NOT_PERFORMED"
+    },
+    "source_scope_sign_status_price_type": "UNVERIFIED_FIELDS_RETAINED",
+    "real_multirow_intermediate_history": "NOT_VERIFIED",
+    "external_reader_test": "NOT_PERFORMED"
+  },
+  "itemized_revision": {
+    "version": 1,
+    "recorded_at": "2026-10-11T21:49:26.491413+00:00",
+    "active_item": 2,
+    "advance_requires_user_next_item": true,
+    "contract": {
+      "path": "BETEXPLORER_ODDS_DATA_CONTRACT.md",
+      "sha256": "414277046fd489dd821ada72689f054b9b799bd02861ed4af991b8814de38be5",
+      "bytes": 19599,
+      "full_read_confirmed_in_conversation": true,
+      "final_technical_appendices_included": true
+    },
+    "scope": {
+      "source": "BetExplorer",
+      "markets": [
+        "1X2",
+        "OU",
+        "ASIAN",
+        "KG"
+      ],
+      "export_file": "match-data.json",
+      "required": [
+        "correct_source_and_identity_mapping",
+        "preserve_raw_data_and_collection_audit",
+        "reproducible_contract_basic_calculations",
+        "preserve_existing_macradar_fields"
+      ],
+      "preserve": [
+        "existing_betexplorer_scraper",
+        "working_performance_collection",
+        "unrelated_code"
+      ],
+      "prohibited_phone_features": [
+        "betting_commentary",
+        "trap_prediction",
+        "winner_prediction",
+        "ai",
+        "prediction_model"
+      ],
+      "new_api_provider_allowed": false
+    },
+    "prior_checkpoint_policy": "Existing implementation and test entries are historical evidence; they do not complete the current itemized acceptance.",
+    "overall_acceptance": "NOT_COMPLETED",
+    "items": {
+      "1": {
+        "status": "VERIFIED_CONTRACT_AND_SCOPE_PRESERVATION",
+        "verified_at": "2026-10-11T20:14:31.098047Z",
+        "verified": [
+          "full_authoritative_contract_read",
+          "project_contract_exact_sha256",
+          "final_technical_appendices_read",
+          "scope_and_responsibilities_recorded"
+        ],
+        "application_code_changed": false,
+        "functional_contract_compliance": "NOT_VERIFIED_IN_ITEM_1",
+        "real_application_issues": "UNRESOLVED",
+        "other_items_completed": false
+      },
+      "2": {
+        "status": "PARTIALLY_VERIFIED",
+        "recorded_at": "2026-10-11T21:00:31.785714Z",
+        "evidence_folder": "artifacts/odds-contract-audit/20261011T120630Z/item2-real-source-20261011T203354011Z/history-audit",
+        "assessment_file": "artifacts/odds-contract-audit/20261011T120630Z/item2-real-source-20261011T203354011Z/history-audit/SOURCE_VERIFICATION_ITEM2.json",
+        "assessment_sha256": "540549e7a73de0d58778f7dd2df04b3f5c75f1a2bb26bc8fca9827d529242391",
+        "source_comparison": "PASS_FOUR_MARKETS",
+        "archive_requests": 741,
+        "source_opening_rows": 741,
+        "current_only_records": 220,
+        "unverified_fields": [
+          "NORMAL_TIME_SETTLEMENT_SCOPE",
+          "ASIAN_HOME_TEAM_SIGN",
+          "OPEN_SUSPENDED_CLOSED_CLASSIFICATION",
+          "EXCHANGE_BACK_LAY",
+          "SPORTSBOOK_CLASSIFICATION",
+          "ARCHIVE_YEAR_AND_ABSOLUTE_TIME_RANGE",
+          "PAGINATION_COMPLETION"
+        ],
+        "intermediate_history": "NOT_OBSERVED_IN_THIS_MATCH_CAPTURE",
+        "application_code_changed": false,
+        "full_verification_claim": false,
+        "user_matches_revision_validation": {
+          "recorded_at": "2026-10-11T21:49:26.491413+00:00",
+          "events": [
+            "r9rkvmPc",
+            "pjTVIO7M"
+          ],
+          "status": "PARTIALLY_VERIFIED",
+          "assessment_file": "artifacts/odds-contract-audit/20261011T120630Z/item2-user-matches-20261011T210816943Z/USER_MATCH_SOURCE_ASSESSMENT_ITEM2.json",
+          "assessment_sha256": "c6ed21b9921edd5a3a7bfa2ba457c8b123994fa5a367bc59133b08bab618211b",
+          "current_records_independently_compared": 1514,
+          "opening_only": 1145,
+          "current_only": 369,
+          "failed_archive_requests_after_retry": 0,
+          "original_failed_attempts_preserved": true,
+          "multirow_intermediate_history_observed": false,
+          "complete_history_guaranteed": false,
+          "period_null_correction": {
+            "implemented": true,
+            "existing_parser_test_passed": true,
+            "real_source_regression_passed": true,
+            "running_service_activated": false,
+            "existing_live_records_migrated": false
+          },
+          "source_unverified_fields": [
+            "Asian handicap team ownership and sign",
+            "Normal-time or other settlement scope",
+            "Open/suspended/closed classification",
+            "Sportsbook/exchange back-lay price type",
+            "Archive calendar year",
+            "Pagination completion"
+          ],
+          "open_application_findings": [
+            "Raw openings exist; legacy odds contains no opening rows in audited packages.",
+            "Asian unresolved lines and series collisions remain.",
+            "Existing live records still contain unverified FULL_TIME_90 values.",
+            "Period-null parser correction is not yet active in the running service.",
+            "Phone bookmaker details and download flow have not been validated."
+          ],
+          "all_source_fields_verified": false,
+          "application_acceptance_completed": false
+        }
+      },
+      "3": {
+        "status": "NOT_STARTED"
+      },
+      "4": {
+        "status": "NOT_STARTED"
+      },
+      "5": {
+        "status": "NOT_STARTED"
+      },
+      "6": {
+        "status": "NOT_STARTED"
+      },
+      "7": {
+        "status": "NOT_STARTED"
+      },
+      "8": {
+        "status": "NOT_STARTED"
+      },
+      "9": {
+        "status": "NOT_STARTED"
+      },
+      "10": {
+        "status": "NOT_STARTED"
+      },
+      "11": {
+        "status": "NOT_STARTED"
+      },
+      "12": {
+        "status": "NOT_STARTED"
+      },
+      "13": {
+        "status": "NOT_STARTED"
+      },
+      "14": {
+        "status": "NOT_STARTED"
+      },
+      "15": {
+        "status": "NOT_STARTED"
+      },
+      "16": {
+        "status": "NOT_STARTED"
+      }
+    }
+  }
+}

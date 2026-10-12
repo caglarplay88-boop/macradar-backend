@@ -1,0 +1,33 @@
+{
+  "matches": {
+    "betexplorer-source-script-0.js": {
+      "archive-odds": 9,
+      "odds-movement": 4,
+      "archiveOddsMovement": 0,
+      "set_default_timezone": 1,
+      "get_timezone": 0,
+      "timezone": 57,
+      "Full Time": 1,
+      "full-time": 0
+    },
+    "betexplorer-source-script-1.js": {
+      "archive-odds": 0,
+      "odds-movement": 0,
+      "archiveOddsMovement": 0,
+      "set_default_timezone": 0,
+      "get_timezone": 0,
+      "timezone": 0,
+      "Full Time": 0,
+      "full-time": 0
+    }
+  },
+  "snippets": [
+    {
+      "file": "betexplorer-source-script-0.js",
+      "needle": "function set_default_timezone",
+      "start": 72778,
+      "end": 73978,
+      "code": "function set_default_timezone(){var e=Math.round((new Date).getTimezoneOffset()/-60),e=(0<=e?\"+\":\"-\")+Math.abs(e);get_cookie(\"my_timezone\")!==e&&(set_cookie(\"my_timezone\",e,365,\"/\",\"\",\"\"),location.reload())}function set_timezone(e){set_cookie(\"my_timezone\",e,365,\"/\",\"\",\"\"),location.reload()}function init_age_wall(){var e,t=document.getElementById(\"ageOverlay\"),a=document.getElementById(\"ageModal\"),s=document.getElementById(\"ageYes\"),n=document.getElementById(\"ageNo\"),i=document.getElementById(\"terapiaLink\");function o(){document.body.classList.add(\"age-wall-active\"),t.style.display=\"flex\"}function l(){i&&i.getAttribute(\"href\");var e=\"undefined\"!=typeof language&&language&&\"en\"!==language?\"/\"+language+\"/\":\"/\";t.innerHTML='<div class=\"age-modal age-modal--blocked\" role=\"alertdialog\" aria-modal=\"true\"><div class=\"age__modal-logo-wrap\"><a href=\"'+e+'\" class=\"header__logo\"><i class=\"icon icon__logo\"></i><span class=\"header__logo__text\">Betexplorer</span></a></div><h2>Acesso Restrito</h2><p>Você deve ter 18 anos ou mais para acessar este website.</p><p>Este conteúdo é destinado exclusivamente a maiores de 18 anos.</p><p>Por favor, retorne quando tiver idade legal para acessar este serviç"
+    }
+  ]
+}

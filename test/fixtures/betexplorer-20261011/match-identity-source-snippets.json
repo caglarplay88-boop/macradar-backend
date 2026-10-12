@@ -1,0 +1,55 @@
+[
+  {
+    "needle": "id=\"eventID\"",
+    "matches": 1,
+    "snippets": [
+      "-section__header__newTitle wrap-section__header__title\">Statistiche H2H e Quote Montpellier vs Grenoble\n</header>\n<input type=\"hidden\" data-event-id=\"0p1XkgIt\" id=\"eventID\"/></div>\n<ul class=\"list-details borderTop0\">\n<li class=\"list-details__item\">\n<a href=\"/it/football/team/montpellier/Eyf00syR/\"><figure class=\"list-details__item__team\">\n<div><img src=\"/res/images/team-logo/pvtGM5jQ-n3xBmVJB.png\" "
+    ]
+  },
+  {
+    "needle": "id=\"match-date\"",
+    "matches": 1,
+    "snippets": [
+      "ue=\"533\" id=\"homeParticipantIdHeader\"/></a>\n</li>\n<li class=\"list-details__item\">\n<p class=\"list-details__item__date headerTournamentDate partialResultsHeight\" id=\"match-date\" data-dt=\"9,10,2026,19,00\"></p>\n<input type=\"hidden\" value=\"\" id=\"isLive\"/><input type=\"hidden\" value=\"1\" id=\"isFinished\"/><p class=\"list-details__item__score\" id=\"js-score\">2:0</p>\n<div class=\"list-details__min-height\">\n<div clas"
+    ]
+  },
+  {
+    "needle": "Montpellier",
+    "matches": 25,
+    "snippets": [
+      "Thu, 01 Jan 1970 00:00:00 GMT; path=/';\n</script>\n\n<link rel=\"alternate\" data-lang=\"en\" hreflang=\"en\" href=\"https://www.betexplorer.com/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/\"/>\n<link rel=\"alternate\" data-lang=\"it\" hreflang=\"it-IT\" href=\"https://www.betexplorer.com/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/\"/>\n<link rel=\"alternate\" data-lang=\"br\" hreflang=\"pt-BR\" href",
+      "ce/ligue-2/montpellier-grenoble/0p1XkgIt/\"/>\n<link rel=\"alternate\" data-lang=\"it\" hreflang=\"it-IT\" href=\"https://www.betexplorer.com/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/\"/>\n<link rel=\"alternate\" data-lang=\"br\" hreflang=\"pt-BR\" href=\"https://www.betexplorer.com/br/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/\"/>\n\n<script type=\"text/javascript\">\n  const currentGeoLocatio"
+    ]
+  },
+  {
+    "needle": "Grenoble",
+    "matches": 24,
+    "snippets": [
+      "1970 00:00:00 GMT; path=/';\n</script>\n\n<link rel=\"alternate\" data-lang=\"en\" hreflang=\"en\" href=\"https://www.betexplorer.com/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/\"/>\n<link rel=\"alternate\" data-lang=\"it\" hreflang=\"it-IT\" href=\"https://www.betexplorer.com/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/\"/>\n<link rel=\"alternate\" data-lang=\"br\" hreflang=\"pt-BR\" href=\"https:/",
+      "ontpellier-grenoble/0p1XkgIt/\"/>\n<link rel=\"alternate\" data-lang=\"it\" hreflang=\"it-IT\" href=\"https://www.betexplorer.com/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/\"/>\n<link rel=\"alternate\" data-lang=\"br\" hreflang=\"pt-BR\" href=\"https://www.betexplorer.com/br/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/\"/>\n\n<script type=\"text/javascript\">\n  const currentGeoLocation = 'it';"
+    ]
+  },
+  {
+    "needle": "application/ld+json",
+    "matches": 2,
+    "snippets": [
+      "nifest\" href=\"/manifest.json\">\n<link rel=\"mask-icon\" href=\"/safari-pinned-tab.svg\" color=\"#5bbad5\">\n<meta name=\"theme-color\" content=\"#ffffff\">\t\n\n<script type=\"application/ld+json\">\n{\n    \"@context\": \"https://schema.org\",\n    \"@type\": \"SportsEvent\",\n    \"sport\": \"Calcio\",\n    \"name\": \"Montpellier - Grenoble\",\n    \"startDate\": \"2026-10-09T20:00:00+02:00\",\n    \"url\": \"https://www.betexplorer.com/it/football/",
+      "es/images/team-logo/xMQT7ZPt-Q5NSJFyH.png\"\n    },\n    \"organizer\": {\n        \"@type\": \"Organization\",\n        \"name\": \"Ligue 2\"\n    }\n}\n</script>\n<script type=\"application/ld+json\">\n    {\n        \"@context\": \"https://schema.org\",\n        \"@type\": \"BreadcrumbList\",\n        \"itemListElement\": [\n    {\n        \"@type\": \"ListItem\",\n        \"position\": 1,\n        \"name\": \"Home\",\n        \"item\": \"https://www.bete"
+    ]
+  },
+  {
+    "needle": "Full Time",
+    "matches": 0,
+    "snippets": []
+  },
+  {
+    "needle": "Full time",
+    "matches": 0,
+    "snippets": []
+  },
+  {
+    "needle": "Regular Time",
+    "matches": 0,
+    "snippets": []
+  }
+]

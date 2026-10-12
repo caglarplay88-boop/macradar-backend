@@ -1,0 +1,42 @@
+[
+  {
+    "market": "ASIAN",
+    "priceCells": 322,
+    "archiveOidPresent": 280,
+    "inactiveCells": 27,
+    "sourceAttributeNames": [
+      "data-bet-url",
+      "data-bid",
+      "data-bookie",
+      "data-bookie-id",
+      "data-bookmaker-id",
+      "data-bt",
+      "data-created",
+      "data-hcp",
+      "data-odd",
+      "data-oid",
+      "data-pos",
+      "data-sc"
+    ]
+  },
+  {
+    "market": "KG",
+    "priceCells": 14,
+    "archiveOidPresent": 10,
+    "inactiveCells": 2,
+    "sourceAttributeNames": [
+      "data-bet-url",
+      "data-bid",
+      "data-bookie",
+      "data-bookie-id",
+      "data-bookmaker-id",
+      "data-bt",
+      "data-created",
+      "data-hcp",
+      "data-odd",
+      "data-oid",
+      "data-pos",
+      "data-sc"
+    ]
+  }
+]

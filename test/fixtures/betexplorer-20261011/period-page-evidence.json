@@ -1,0 +1,41 @@
+[
+  {
+    "data-event-id": "0p1XkgIt",
+    "id": "eventID"
+  },
+  {
+    "class": "list-details__item__date headerTournamentDate partialResultsHeight",
+    "id": "match-date",
+    "data-dt": "9,10,2026,19,00"
+  },
+  {
+    "data-tab": "1x2",
+    "class": "listTabsItemInMobile list-tabs__item__newIn bb current clicked",
+    "href": "/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/1x2/"
+  },
+  {
+    "data-tab": "ou",
+    "class": "listTabsItemInMobile list-tabs__item__newIn bb",
+    "href": "/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/over-under/"
+  },
+  {
+    "data-tab": "ah",
+    "class": "listTabsItemInMobile list-tabs__item__newIn bb",
+    "href": "/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/asian-handicap/"
+  },
+  {
+    "data-tab": "ha",
+    "class": "listTabsItemInMobile list-tabs__item__newIn bb",
+    "href": "/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/draw-no-bet/"
+  },
+  {
+    "data-tab": "dc",
+    "class": "listTabsItemInMobile list-tabs__item__newIn bb",
+    "href": "/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/double-chance/"
+  },
+  {
+    "data-tab": "bts",
+    "class": "listTabsItemInMobile list-tabs__item__newIn bb",
+    "href": "/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/both-teams-to-score/"
+  }
+]

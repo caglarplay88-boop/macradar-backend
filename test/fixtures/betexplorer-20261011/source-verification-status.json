@@ -1,0 +1,63 @@
+{
+  "updatedAt": "2026-10-11T12:46:32.621659+00:00",
+  "productionCodeChanged": false,
+  "verifiedEvidence": {
+    "eventId": "0p1XkgIt",
+    "currentResponses": [
+      "1X2",
+      "OU",
+      "ASIAN",
+      "KG"
+    ],
+    "selectionMapping": {
+      "1X2": {
+        "1": "HOME",
+        "0": "DRAW",
+        "2": "AWAY"
+      },
+      "OU": {
+        "1": "OVER",
+        "2": "UNDER"
+      },
+      "ASIAN": {
+        "1": "HOME",
+        "2": "AWAY"
+      },
+      "KG": {
+        "y": "YES",
+        "n": "NO"
+      }
+    },
+    "sampleArchiveRowsPerSelection": 1,
+    "archiveOpeningLabel": "Kaynak arayüzü dönen dizinin son satırını Opening odds olarak etiketliyor.",
+    "archiveTimezonePreferenceTest": {
+      "offsets": [
+        "+0",
+        "+3"
+      ],
+      "differenceMinutes": 180
+    },
+    "sourceCellTimeDisplayRule": "my_tz_format: raw hour + chosen offset - 1",
+    "legacyCapturedAt": "opening: birleşik kaynak zamanı; current/periodic: kazıyıcı toplama zamanı. Eski alan değiştirilmeden korunacak."
+  },
+  "unverified": [
+    "FULL_TIME_90 ödeme kapsamı",
+    "Asian işaretinin takım tarafıyla kesin anlamı",
+    "inactive işaretinin CLOSED/SUSPENDED ayrımı",
+    "exchange BACK/LAY ayrımı",
+    "arşiv tarihindeki eksik yılın kesin çözümü",
+    "bütün seri ve şirketlerin ara geçmiş kapsamı",
+    "sayfalama ve erişilebilir geçmişin eksiksizliği",
+    "gerçek MacRadar okuyucusu entegrasyonu"
+  ],
+  "knownParserProblems": [
+    "OU yalnızca 1.5 ve 2.5 çizgilerini kabul ediyor.",
+    "ASIAN ve KG kapanma alanları false olarak sabitlenmiş.",
+    "Açılış ayrıştırıcısı doğrulanmadan UTC ve yıl çıkarımı yapıyor.",
+    "Geçmişin yalnızca son satırı alınıyor.",
+    "Taraf kaynak zamanları eski birleşik satırlarda kaybolabiliyor."
+  ],
+  "acceptanceStatus": "DEVAM_EDIYOR",
+  "futureMatchProbe": "Doğrudan bağlantı başarısız; NL sonucu ayrı denetim dosyasında.",
+  "policy": "Doğrulanmayan anlam null ve gerekçeli kalite bayrağı; eski veriler sessizce düzeltilmeyecek."
+}

@@ -1,0 +1,98 @@
+[
+  {
+    "event_id": "r9rkvmPc",
+    "url": "https://www.betexplorer.com/it/football/italy/serie-a/torino-udinese/r9rkvmPc/",
+    "display_name": "Torino - Udinese",
+    "created_at": "2026-10-11T19:58:56.737Z",
+    "updated_at": "2026-10-11T21:04:46.778Z",
+    "active": true,
+    "archived": false,
+    "lifecycle": "tracking",
+    "match_date": "2026-10-12T00:00:00.000Z",
+    "kickoff_time": "21:45"
+  },
+  {
+    "event_id": "pjTVIO7M",
+    "url": "https://www.betexplorer.com/it/football/argentina/primera-nacional/central-norte-ferro/pjTVIO7M/",
+    "display_name": "Central Norte - Ferro",
+    "created_at": "2026-10-11T19:57:41.982Z",
+    "updated_at": "2026-10-11T21:04:43.339Z",
+    "active": false,
+    "archived": true,
+    "lifecycle": "started",
+    "match_date": "2026-10-11T00:00:00.000Z",
+    "kickoff_time": "23:00"
+  },
+  {
+    "event_id": "nHIhMVq3",
+    "url": "https://www.betexplorer.com/it/football/brazil/serie-a-betano/sao-paulo-vitoria/nHIhMVq3/",
+    "display_name": "Sao Paulo - Vitoria",
+    "created_at": "2026-10-10T19:59:06.457Z",
+    "updated_at": "2026-10-11T21:04:43.345Z",
+    "active": false,
+    "archived": true,
+    "lifecycle": "finished",
+    "match_date": "2026-10-11T00:00:00.000Z",
+    "kickoff_time": "03:00"
+  },
+  {
+    "event_id": "vD9eqaaC",
+    "url": "https://www.betexplorer.com/it/football/austria/salzburg/atsv-salzburg-schwarzach/vD9eqaaC/",
+    "display_name": "ATSV Salzburg - Schwarzach",
+    "created_at": "2026-10-10T19:59:06.454Z",
+    "updated_at": "2026-10-11T21:04:43.342Z",
+    "active": false,
+    "archived": true,
+    "lifecycle": "finished",
+    "match_date": "2026-10-11T00:00:00.000Z",
+    "kickoff_time": "13:00"
+  },
+  {
+    "event_id": "6BHs6jSr",
+    "url": "https://www.betexplorer.com/it/football/andorra/primera-divisio/fc-rangers-carroi/6BHs6jSr/",
+    "display_name": "FC Rangers - Carroi",
+    "created_at": "2026-10-10T19:59:05.415Z",
+    "updated_at": "2026-10-11T21:04:43.337Z",
+    "active": false,
+    "archived": true,
+    "lifecycle": "finished",
+    "match_date": "2026-10-11T00:00:00.000Z",
+    "kickoff_time": "12:00"
+  },
+  {
+    "event_id": "KWw4rT84",
+    "url": "https://www.betexplorer.com/it/football/usa/mls/orlando-city-columbus-crew/KWw4rT84/",
+    "display_name": "Orlando City - Columbus Crew",
+    "created_at": "2026-10-10T19:59:04.854Z",
+    "updated_at": "2026-10-11T21:04:43.334Z",
+    "active": false,
+    "archived": true,
+    "lifecycle": "finished",
+    "match_date": "2026-10-11T00:00:00.000Z",
+    "kickoff_time": "02:30"
+  },
+  {
+    "event_id": "C6zdpkvh",
+    "url": "https://www.betexplorer.com/it/football/usa/mls/new-york-red-bulls-san-diego-fc/C6zdpkvh/",
+    "display_name": "New York Red Bulls - San Diego FC",
+    "created_at": "2026-10-10T19:59:04.354Z",
+    "updated_at": "2026-10-11T21:04:43.331Z",
+    "active": false,
+    "archived": true,
+    "lifecycle": "finished",
+    "match_date": "2026-10-11T00:00:00.000Z",
+    "kickoff_time": "02:30"
+  },
+  {
+    "event_id": "K8UXx446",
+    "url": "https://www.betexplorer.com/it/football/turkey/super-lig/besiktas-kocaelispor/K8UXx446/",
+    "display_name": "Besiktas - Kocaelispor",
+    "created_at": "2026-10-10T19:59:03.920Z",
+    "updated_at": "2026-10-11T21:04:43.328Z",
+    "active": false,
+    "archived": true,
+    "lifecycle": "finished",
+    "match_date": "2026-10-11T00:00:00.000Z",
+    "kickoff_time": "19:00"
+  }
+]

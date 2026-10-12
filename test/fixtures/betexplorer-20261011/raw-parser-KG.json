@@ -1,0 +1,1278 @@
+{
+  "parser_version": "betexplorer-evidenced-current-v2",
+  "odds_raw": [
+    {
+      "record_id": "record-c88f71adfd22aa079f5abd980e34f0b04558fae5ad792133f287fae8700d706f",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-ba5380639c43a5c8553af0b5c3b20e71ac4707fbed03f005464ab5df6eaac756",
+      "bookmaker_id": "27",
+      "bookmaker_name": "888sport",
+      "market": "KG",
+      "period": null,
+      "selection": "YES",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.91,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-09-22T08:21:00.000Z",
+      "source_timestamp_raw": "22,09,2026,09,21",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-d5b818b61f3104b738800fff6cb2c215662f976969deea9f3992757b6a3ee974",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "SOURCE_INACTIVE_STATUS_UNRESOLVED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-d5b818b61f3104b738800fff6cb2c215662f976969deea9f3992757b6a3ee974",
+      "source_identifiers": {
+        "internal_bookmaker_id": "27",
+        "display_bookmaker_id": "344",
+        "archive_locator": null
+      },
+      "source_status_marker": "inactive",
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "415873d08a0d413d91ec5de51b73756d7e85d8305719ed02c223889a714131c2"
+    },
+    {
+      "record_id": "record-1c590baead696588aa624b79b6a239380a3d0aae69b3d67f74627f523d882c51",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-ba5380639c43a5c8553af0b5c3b20e71ac4707fbed03f005464ab5df6eaac756",
+      "bookmaker_id": "27",
+      "bookmaker_name": "888sport",
+      "market": "KG",
+      "period": null,
+      "selection": "NO",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.8,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-09-22T08:21:00.000Z",
+      "source_timestamp_raw": "22,09,2026,09,21",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-d5b818b61f3104b738800fff6cb2c215662f976969deea9f3992757b6a3ee974",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "SOURCE_INACTIVE_STATUS_UNRESOLVED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-d5b818b61f3104b738800fff6cb2c215662f976969deea9f3992757b6a3ee974",
+      "source_identifiers": {
+        "internal_bookmaker_id": "27",
+        "display_bookmaker_id": "344",
+        "archive_locator": null
+      },
+      "source_status_marker": "inactive",
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "3fc527f579dedd911ce8ec02a399864219a815615503a118819554485aecb081"
+    },
+    {
+      "record_id": "record-f0250db90628a3795a68a8a0a1da42918e321ab647ebe4bbe6f2b127bf52a413",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-f45f8aec5df59882fbe8e9de8a599c4984b226f620905d7001c30f1478a1bce6",
+      "bookmaker_id": "16",
+      "bookmaker_name": "bet365",
+      "market": "KG",
+      "period": null,
+      "selection": "YES",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.91,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T17:10:00.000Z",
+      "source_timestamp_raw": "09,10,2026,18,10",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-0b12cc1ca63fd14b264c6b74f29bee57a6fe05f2e11dcb6edb906f4ba30e9e3f",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-0b12cc1ca63fd14b264c6b74f29bee57a6fe05f2e11dcb6edb906f4ba30e9e3f",
+      "source_identifiers": {
+        "internal_bookmaker_id": "16",
+        "display_bookmaker_id": "11",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbq8x0x0",
+          "data-bid": "16",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "2e37b90995d112b71e9d5d871dba88bc2d12265bd30ffd14340a67423bd5f786"
+    },
+    {
+      "record_id": "record-6ba4ab516c06f9b1616673d3cf7f25a3add8a78e1c4624afa50e68c084547e9e",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-f45f8aec5df59882fbe8e9de8a599c4984b226f620905d7001c30f1478a1bce6",
+      "bookmaker_id": "16",
+      "bookmaker_name": "bet365",
+      "market": "KG",
+      "period": null,
+      "selection": "NO",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.8,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T17:10:00.000Z",
+      "source_timestamp_raw": "09,10,2026,18,10",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-0b12cc1ca63fd14b264c6b74f29bee57a6fe05f2e11dcb6edb906f4ba30e9e3f",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-0b12cc1ca63fd14b264c6b74f29bee57a6fe05f2e11dcb6edb906f4ba30e9e3f",
+      "source_identifiers": {
+        "internal_bookmaker_id": "16",
+        "display_bookmaker_id": "11",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbtcx0x0",
+          "data-bid": "16",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "6b995fa1ffd6a41d044495b934129dbaff362103fff17ef68692a0eb1f8a2205"
+    },
+    {
+      "record_id": "record-82ea9e72c6782e8ca869f10696d06661f1f11693f472b7875965620f8722fdc1",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-09f5de67c2d660fc2a23b6616ebf8300c39f3a2089e9a826bbf625cfe008656c",
+      "bookmaker_id": "53",
+      "bookmaker_name": "bwin.it",
+      "market": "KG",
+      "period": null,
+      "selection": "YES",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.93,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T14:34:00.000Z",
+      "source_timestamp_raw": "09,10,2026,15,34",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-fb7c1d9c674403af7e108eb4a1dd8b183b605ab3a9e01cff99a24b87fa9a6989",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-fb7c1d9c674403af7e108eb4a1dd8b183b605ab3a9e01cff99a24b87fa9a6989",
+      "source_identifiers": {
+        "internal_bookmaker_id": "53",
+        "display_bookmaker_id": "322",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbq8x0x0",
+          "data-bid": "53",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "cd578f3af491b8ffb98c3d4ac3b609e0271d0d73c075313ee5fa2e6272b0cb27"
+    },
+    {
+      "record_id": "record-1fd3017465312c5d1a8072d67b9cb87181c3e2cc92499cf4b4f250ae8ca17b7a",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-09f5de67c2d660fc2a23b6616ebf8300c39f3a2089e9a826bbf625cfe008656c",
+      "bookmaker_id": "53",
+      "bookmaker_name": "bwin.it",
+      "market": "KG",
+      "period": null,
+      "selection": "NO",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.73,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T14:34:00.000Z",
+      "source_timestamp_raw": "09,10,2026,15,34",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-fb7c1d9c674403af7e108eb4a1dd8b183b605ab3a9e01cff99a24b87fa9a6989",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-fb7c1d9c674403af7e108eb4a1dd8b183b605ab3a9e01cff99a24b87fa9a6989",
+      "source_identifiers": {
+        "internal_bookmaker_id": "53",
+        "display_bookmaker_id": "322",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbtcx0x0",
+          "data-bid": "53",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "8c46056f6fddf0e334f0a530450bebff45b01882513eaf8d0f06adc3930bcc17"
+    },
+    {
+      "record_id": "record-fb81aed19a8458c5ff5e13b7ba3a6d4eb52250cfb03e137e20debcd09b8b5411",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-0e44282d0558a11c787bd1772753b2b119944bafd95ae2a903899d84ebb60779",
+      "bookmaker_id": "188",
+      "bookmaker_name": "goldbet",
+      "market": "KG",
+      "period": null,
+      "selection": "YES",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.97,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T17:13:00.000Z",
+      "source_timestamp_raw": "09,10,2026,18,13",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-5c18c0914910cc3f10bae104e594d1eb414baf99d585ad6a84999854d8974934",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-5c18c0914910cc3f10bae104e594d1eb414baf99d585ad6a84999854d8974934",
+      "source_identifiers": {
+        "internal_bookmaker_id": "188",
+        "display_bookmaker_id": "120",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbq8x0x0",
+          "data-bid": "188",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "5b4912942f68af528ed2c06024b7ceebb70d2511abafe21ef1e8ea6739583788"
+    },
+    {
+      "record_id": "record-b477df2b354497e70c0d4a5156eadc10cf2432975572e562d50aa974fbbdcadb",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-0e44282d0558a11c787bd1772753b2b119944bafd95ae2a903899d84ebb60779",
+      "bookmaker_id": "188",
+      "bookmaker_name": "goldbet",
+      "market": "KG",
+      "period": null,
+      "selection": "NO",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.75,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T12:48:00.000Z",
+      "source_timestamp_raw": "09,10,2026,13,48",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-5c18c0914910cc3f10bae104e594d1eb414baf99d585ad6a84999854d8974934",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-5c18c0914910cc3f10bae104e594d1eb414baf99d585ad6a84999854d8974934",
+      "source_identifiers": {
+        "internal_bookmaker_id": "188",
+        "display_bookmaker_id": "120",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbtcx0x0",
+          "data-bid": "188",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "e018da138d6bbd48b3c55c5fd590e3a7830c0b140f4d11c83e7e390285ab74b1"
+    },
+    {
+      "record_id": "record-af65e36e0af376e96d7c14b89b70490377e573c2838ebf6cabeb5de71c2e63d6",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-8d475e6118c95a76b678d42342d8b558c4464c4afd586839ff25ffb06eacee67",
+      "bookmaker_id": "335",
+      "bookmaker_name": "lottomatica",
+      "market": "KG",
+      "period": null,
+      "selection": "YES",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.97,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T17:13:00.000Z",
+      "source_timestamp_raw": "09,10,2026,18,13",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-9a3d0afae27752a1f7cb984744e7a19494fffa88ebcdda48dd325b9a987c4e82",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-9a3d0afae27752a1f7cb984744e7a19494fffa88ebcdda48dd325b9a987c4e82",
+      "source_identifiers": {
+        "internal_bookmaker_id": "335",
+        "display_bookmaker_id": "349",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbq8x0x0",
+          "data-bid": "335",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "8226d8dfd5584ceafa41f15f8b8c23d9fd186cd76f76eb3e997c2035bb6ebbd6"
+    },
+    {
+      "record_id": "record-01ef0a85bc60ff961bd8632891ec51083785a5b83d61730c393332423e80adae",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-8d475e6118c95a76b678d42342d8b558c4464c4afd586839ff25ffb06eacee67",
+      "bookmaker_id": "335",
+      "bookmaker_name": "lottomatica",
+      "market": "KG",
+      "period": null,
+      "selection": "NO",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.75,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T12:48:00.000Z",
+      "source_timestamp_raw": "09,10,2026,13,48",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-9a3d0afae27752a1f7cb984744e7a19494fffa88ebcdda48dd325b9a987c4e82",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-9a3d0afae27752a1f7cb984744e7a19494fffa88ebcdda48dd325b9a987c4e82",
+      "source_identifiers": {
+        "internal_bookmaker_id": "335",
+        "display_bookmaker_id": "349",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbtcx0x0",
+          "data-bid": "335",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "b971d127e0e0c0af9a146a012024c599fbe31edb8c489d79232a672f867cfe52"
+    },
+    {
+      "record_id": "record-0981d4290f135fa6cf4913bb7b0e2944c67e92e3401fc3bb1ee3ed4ba1fc5e98",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-0b59fe61610870ac81080b45532b2e79dfd6eaa1620553addee8e67390adb031",
+      "bookmaker_id": "467",
+      "bookmaker_name": "planetwin365",
+      "market": "KG",
+      "period": null,
+      "selection": "YES",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.97,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T17:13:00.000Z",
+      "source_timestamp_raw": "09,10,2026,18,13",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-564588549f84e12c6ddadbb56e5f16c8ea5fabce6c41d24038b97247781d2694",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-564588549f84e12c6ddadbb56e5f16c8ea5fabce6c41d24038b97247781d2694",
+      "source_identifiers": {
+        "internal_bookmaker_id": "467",
+        "display_bookmaker_id": "1063",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbq8x0x0",
+          "data-bid": "467",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "4254ed07c077fe42149033ac1727b327ad01b1c05cd456273847aad96e0f2949"
+    },
+    {
+      "record_id": "record-885ff4c61873e113660dcd8c7ed25f69f1bc41928dc1f066481418e2a6546616",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-0b59fe61610870ac81080b45532b2e79dfd6eaa1620553addee8e67390adb031",
+      "bookmaker_id": "467",
+      "bookmaker_name": "planetwin365",
+      "market": "KG",
+      "period": null,
+      "selection": "NO",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.75,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-09T12:48:00.000Z",
+      "source_timestamp_raw": "09,10,2026,13,48",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-564588549f84e12c6ddadbb56e5f16c8ea5fabce6c41d24038b97247781d2694",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-564588549f84e12c6ddadbb56e5f16c8ea5fabce6c41d24038b97247781d2694",
+      "source_identifiers": {
+        "internal_bookmaker_id": "467",
+        "display_bookmaker_id": "1063",
+        "archive_locator": {
+          "data-oid": "a77uhxcdbtcx0x0",
+          "data-bid": "467",
+          "data-bt": "13",
+          "data-sc": "2",
+          "data-hcp": "E-13-2-0-0-0"
+        }
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "0ad3c3bc6074d472bfc4fbae1e6761e25f33fbf341ba01bbff890c6a2f86a336"
+    },
+    {
+      "record_id": "record-640efe3329256071d7cfea1aa7d7bf525c604e66a210137d9958ea3c7b820be5",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-7e22698b9241b06bc8e7726f920b8d259cf930469bacf91b7aab54ff3deef9b7",
+      "bookmaker_id": "15",
+      "bookmaker_name": "william hill",
+      "market": "KG",
+      "period": null,
+      "selection": "YES",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.91,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-02T16:00:00.000Z",
+      "source_timestamp_raw": "02,10,2026,17,00",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-d022f8e9f9db95dd82eb533ad2dfa2bf917c7c6a53ccac2f290ff054a84762f5",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-d022f8e9f9db95dd82eb533ad2dfa2bf917c7c6a53ccac2f290ff054a84762f5",
+      "source_identifiers": {
+        "internal_bookmaker_id": "15",
+        "display_bookmaker_id": "148",
+        "archive_locator": null
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "1dce982a8c7effe514d528f8adeff39aff95975f3302d9d78856f0a7e8a3d22c"
+    },
+    {
+      "record_id": "record-550035213724b4b811d4672437b8d058ed6670cf9a0547c616c7b365efc23d45",
+      "event_id": "0p1XkgIt",
+      "source": "BetExplorer",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-7e22698b9241b06bc8e7726f920b8d259cf930469bacf91b7aab54ff3deef9b7",
+      "bookmaker_id": "15",
+      "bookmaker_name": "william hill",
+      "market": "KG",
+      "period": null,
+      "selection": "NO",
+      "line": null,
+      "home_handicap": null,
+      "away_handicap": null,
+      "odds_decimal": 1.8,
+      "status": "UNKNOWN",
+      "price_type": "UNKNOWN",
+      "source_record_id": null,
+      "source_timestamp": "2026-10-02T16:00:00.000Z",
+      "source_timestamp_raw": "02,10,2026,17,00",
+      "source_timezone": "UTC+01:00",
+      "timestamp_precision": "MINUTE",
+      "observed_at": "2026-10-11T12:12:55.000Z",
+      "capture_started_at": "2026-10-11T12:00:00.000Z",
+      "capture_finished_at": "2026-10-11T12:13:00.000Z",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-d022f8e9f9db95dd82eb533ad2dfa2bf917c7c6a53ccac2f290ff054a84762f5",
+      "source_group_id": null,
+      "record_origin": "scraper_observation",
+      "opening_type": null,
+      "is_main_line": null,
+      "quality_flags": [
+        "PERIOD_UNVERIFIED",
+        "PRE_MATCH_SCOPE_UNVERIFIED",
+        "PRICE_TYPE_UNVERIFIED"
+      ],
+      "raw_evidence_ref": "evidence-d022f8e9f9db95dd82eb533ad2dfa2bf917c7c6a53ccac2f290ff054a84762f5",
+      "source_identifiers": {
+        "internal_bookmaker_id": "15",
+        "display_bookmaker_id": "148",
+        "archive_locator": null
+      },
+      "source_status_marker": null,
+      "source_exchange_marker": false,
+      "scope_verified": false,
+      "main_analysis_eligible": false,
+      "series_id": "dab46b5374385b8c0b96abd792d82a5d4250ebd67fefae85bf8e2d48935a8322"
+    }
+  ],
+  "raw_evidence": {
+    "evidence-d5b818b61f3104b738800fff6cb2c215662f976969deea9f3992757b6a3ee974": {
+      "kind": "BETEXPLORER_PRICE_TABLE_ROW",
+      "parser_version": "betexplorer-evidenced-current-v2",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-ba5380639c43a5c8553af0b5c3b20e71ac4707fbed03f005464ab5df6eaac756",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-d5b818b61f3104b738800fff6cb2c215662f976969deea9f3992757b6a3ee974",
+      "fetched_at": "2026-10-11T12:12:55.000Z",
+      "table_headers": [
+        "",
+        "",
+        "",
+        "",
+        "Yes",
+        "No"
+      ],
+      "row_attributes": {
+        "data-bid": "27",
+        "data-bookie-id": "344 ",
+        "data-originid": "1"
+      },
+      "line_cells": [],
+      "price_cells": [
+        {
+          "attributes": {
+            "data-bookmaker-id": "27",
+            "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first inactive ",
+            "data-odd": "1.91",
+            "data-created": "22,09,2026,09,21",
+            "data-pos": "y",
+            "data-bookie": "888sport",
+            "data-bookie-id": "344"
+          },
+          "text": ""
+        },
+        {
+          "attributes": {
+            "data-bookmaker-id": "27",
+            "class": "archiveOddsMovement__odds table-main__detail-odds inactive ",
+            "data-odd": "1.80",
+            "data-created": "22,09,2026,09,21",
+            "data-pos": "n",
+            "data-bookie": "888sport",
+            "data-bookie-id": "344"
+          },
+          "text": ""
+        }
+      ]
+    },
+    "evidence-0b12cc1ca63fd14b264c6b74f29bee57a6fe05f2e11dcb6edb906f4ba30e9e3f": {
+      "kind": "BETEXPLORER_PRICE_TABLE_ROW",
+      "parser_version": "betexplorer-evidenced-current-v2",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-f45f8aec5df59882fbe8e9de8a599c4984b226f620905d7001c30f1478a1bce6",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-0b12cc1ca63fd14b264c6b74f29bee57a6fe05f2e11dcb6edb906f4ba30e9e3f",
+      "fetched_at": "2026-10-11T12:12:55.000Z",
+      "table_headers": [
+        "",
+        "",
+        "",
+        "",
+        "Yes",
+        "No"
+      ],
+      "row_attributes": {
+        "data-bid": "16",
+        "data-bookie-id": "11 ",
+        "data-originid": "1"
+      },
+      "line_cells": [],
+      "price_cells": [
+        {
+          "attributes": {
+            "data-bookmaker-id": "16",
+            "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds ",
+            "data-odd": "1.91",
+            "data-created": "09,10,2026,18,10",
+            "data-pos": "y",
+            "data-bookie": "bet365",
+            "data-bookie-id": "11",
+            "data-oid": "a77uhxcdbq8x0x0",
+            "data-bid": "16",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        },
+        {
+          "attributes": {
+            "data-bookmaker-id": "16",
+            "class": "archiveOddsMovement__odds table-main__detail-odds colored js-has-aodds archiveOddsMovement__odds_best",
+            "data-odd": "1.80",
+            "data-created": "09,10,2026,18,10",
+            "data-pos": "n",
+            "data-bookie": "bet365",
+            "data-bookie-id": "11",
+            "data-oid": "a77uhxcdbtcx0x0",
+            "data-bid": "16",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        }
+      ]
+    },
+    "evidence-fb7c1d9c674403af7e108eb4a1dd8b183b605ab3a9e01cff99a24b87fa9a6989": {
+      "kind": "BETEXPLORER_PRICE_TABLE_ROW",
+      "parser_version": "betexplorer-evidenced-current-v2",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-09f5de67c2d660fc2a23b6616ebf8300c39f3a2089e9a826bbf625cfe008656c",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-fb7c1d9c674403af7e108eb4a1dd8b183b605ab3a9e01cff99a24b87fa9a6989",
+      "fetched_at": "2026-10-11T12:12:55.000Z",
+      "table_headers": [
+        "",
+        "",
+        "",
+        "",
+        "Yes",
+        "No"
+      ],
+      "row_attributes": {
+        "data-bid": "53",
+        "data-bookie-id": "322 ",
+        "data-originid": "7"
+      },
+      "line_cells": [],
+      "price_cells": [
+        {
+          "attributes": {
+            "data-bookmaker-id": "53",
+            "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds ",
+            "data-odd": "1.93",
+            "data-created": "09,10,2026,15,34",
+            "data-pos": "y",
+            "data-bookie": "bwin.it",
+            "data-bookie-id": "322",
+            "data-oid": "a77uhxcdbq8x0x0",
+            "data-bid": "53",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        },
+        {
+          "attributes": {
+            "data-bookmaker-id": "53",
+            "class": "archiveOddsMovement__odds table-main__detail-odds js-has-aodds ",
+            "data-odd": "1.73",
+            "data-created": "09,10,2026,15,34",
+            "data-pos": "n",
+            "data-bookie": "bwin.it",
+            "data-bookie-id": "322",
+            "data-oid": "a77uhxcdbtcx0x0",
+            "data-bid": "53",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        }
+      ]
+    },
+    "evidence-5c18c0914910cc3f10bae104e594d1eb414baf99d585ad6a84999854d8974934": {
+      "kind": "BETEXPLORER_PRICE_TABLE_ROW",
+      "parser_version": "betexplorer-evidenced-current-v2",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-0e44282d0558a11c787bd1772753b2b119944bafd95ae2a903899d84ebb60779",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-5c18c0914910cc3f10bae104e594d1eb414baf99d585ad6a84999854d8974934",
+      "fetched_at": "2026-10-11T12:12:55.000Z",
+      "table_headers": [
+        "",
+        "",
+        "",
+        "",
+        "Yes",
+        "No"
+      ],
+      "row_attributes": {
+        "data-bid": "188",
+        "data-bookie-id": "120 ",
+        "data-originid": "7"
+      },
+      "line_cells": [],
+      "price_cells": [
+        {
+          "attributes": {
+            "data-bookmaker-id": "188",
+            "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first colored js-has-aodds archiveOddsMovement__odds_best",
+            "data-odd": "1.97",
+            "data-created": "09,10,2026,18,13",
+            "data-pos": "y",
+            "data-bookie": "goldbet",
+            "data-bookie-id": "120",
+            "data-oid": "a77uhxcdbq8x0x0",
+            "data-bid": "188",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        },
+        {
+          "attributes": {
+            "data-bookmaker-id": "188",
+            "class": "archiveOddsMovement__odds table-main__detail-odds js-has-aodds ",
+            "data-odd": "1.75",
+            "data-created": "09,10,2026,13,48",
+            "data-pos": "n",
+            "data-bookie": "goldbet",
+            "data-bookie-id": "120",
+            "data-oid": "a77uhxcdbtcx0x0",
+            "data-bid": "188",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        }
+      ]
+    },
+    "evidence-9a3d0afae27752a1f7cb984744e7a19494fffa88ebcdda48dd325b9a987c4e82": {
+      "kind": "BETEXPLORER_PRICE_TABLE_ROW",
+      "parser_version": "betexplorer-evidenced-current-v2",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-8d475e6118c95a76b678d42342d8b558c4464c4afd586839ff25ffb06eacee67",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-9a3d0afae27752a1f7cb984744e7a19494fffa88ebcdda48dd325b9a987c4e82",
+      "fetched_at": "2026-10-11T12:12:55.000Z",
+      "table_headers": [
+        "",
+        "",
+        "",
+        "",
+        "Yes",
+        "No"
+      ],
+      "row_attributes": {
+        "data-bid": "335",
+        "data-bookie-id": "349 ",
+        "data-originid": "7"
+      },
+      "line_cells": [],
+      "price_cells": [
+        {
+          "attributes": {
+            "data-bookmaker-id": "335",
+            "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first colored js-has-aodds archiveOddsMovement__odds_best",
+            "data-odd": "1.97",
+            "data-created": "09,10,2026,18,13",
+            "data-pos": "y",
+            "data-bookie": "lottomatica",
+            "data-bookie-id": "349",
+            "data-oid": "a77uhxcdbq8x0x0",
+            "data-bid": "335",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        },
+        {
+          "attributes": {
+            "data-bookmaker-id": "335",
+            "class": "archiveOddsMovement__odds table-main__detail-odds js-has-aodds ",
+            "data-odd": "1.75",
+            "data-created": "09,10,2026,13,48",
+            "data-pos": "n",
+            "data-bookie": "lottomatica",
+            "data-bookie-id": "349",
+            "data-oid": "a77uhxcdbtcx0x0",
+            "data-bid": "335",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        }
+      ]
+    },
+    "evidence-564588549f84e12c6ddadbb56e5f16c8ea5fabce6c41d24038b97247781d2694": {
+      "kind": "BETEXPLORER_PRICE_TABLE_ROW",
+      "parser_version": "betexplorer-evidenced-current-v2",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-0b59fe61610870ac81080b45532b2e79dfd6eaa1620553addee8e67390adb031",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-564588549f84e12c6ddadbb56e5f16c8ea5fabce6c41d24038b97247781d2694",
+      "fetched_at": "2026-10-11T12:12:55.000Z",
+      "table_headers": [
+        "",
+        "",
+        "",
+        "",
+        "Yes",
+        "No"
+      ],
+      "row_attributes": {
+        "data-bid": "467",
+        "data-bookie-id": "1063 ",
+        "data-originid": "7"
+      },
+      "line_cells": [],
+      "price_cells": [
+        {
+          "attributes": {
+            "data-bookmaker-id": "467",
+            "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first colored js-has-aodds archiveOddsMovement__odds_best",
+            "data-odd": "1.97",
+            "data-created": "09,10,2026,18,13",
+            "data-pos": "y",
+            "data-bookie": "planetwin365",
+            "data-bookie-id": "1063",
+            "data-oid": "a77uhxcdbq8x0x0",
+            "data-bid": "467",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        },
+        {
+          "attributes": {
+            "data-bookmaker-id": "467",
+            "class": "archiveOddsMovement__odds table-main__detail-odds js-has-aodds ",
+            "data-odd": "1.75",
+            "data-created": "09,10,2026,13,48",
+            "data-pos": "n",
+            "data-bookie": "planetwin365",
+            "data-bookie-id": "1063",
+            "data-oid": "a77uhxcdbtcx0x0",
+            "data-bid": "467",
+            "data-bt": "13",
+            "data-sc": "2",
+            "data-hcp": "E-13-2-0-0-0"
+          },
+          "text": ""
+        }
+      ]
+    },
+    "evidence-d022f8e9f9db95dd82eb533ad2dfa2bf917c7c6a53ccac2f290ff054a84762f5": {
+      "kind": "BETEXPLORER_PRICE_TABLE_ROW",
+      "parser_version": "betexplorer-evidenced-current-v2",
+      "source_url": "https://www.betexplorer.com/",
+      "source_context_id": "context-7e22698b9241b06bc8e7726f920b8d259cf930469bacf91b7aab54ff3deef9b7",
+      "snapshot_id": "actual-source-audit",
+      "quote_group_id": "quote-d022f8e9f9db95dd82eb533ad2dfa2bf917c7c6a53ccac2f290ff054a84762f5",
+      "fetched_at": "2026-10-11T12:12:55.000Z",
+      "table_headers": [
+        "",
+        "",
+        "",
+        "",
+        "Yes",
+        "No"
+      ],
+      "row_attributes": {
+        "data-bid": "15",
+        "data-bookie-id": "148 ",
+        "data-originid": "1"
+      },
+      "line_cells": [],
+      "price_cells": [
+        {
+          "attributes": {
+            "data-bookmaker-id": "15",
+            "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first ",
+            "data-odd": "1.91",
+            "data-created": "02,10,2026,17,00",
+            "data-pos": "y",
+            "data-bookie": "william hill",
+            "data-bookie-id": "148"
+          },
+          "text": ""
+        },
+        {
+          "attributes": {
+            "data-bookmaker-id": "15",
+            "class": "archiveOddsMovement__odds table-main__detail-odds colored archiveOddsMovement__odds_best",
+            "data-odd": "1.80",
+            "data-created": "02,10,2026,17,00",
+            "data-pos": "n",
+            "data-bookie": "william hill",
+            "data-bookie-id": "148"
+          },
+          "text": ""
+        }
+      ]
+    }
+  },
+  "quote_groups": [
+    {
+      "quote_group_id": "quote-d5b818b61f3104b738800fff6cb2c215662f976969deea9f3992757b6a3ee974",
+      "snapshot_id": "actual-source-audit",
+      "raw_record_ids": [
+        "record-c88f71adfd22aa079f5abd980e34f0b04558fae5ad792133f287fae8700d706f",
+        "record-1c590baead696588aa624b79b6a239380a3d0aae69b3d67f74627f523d882c51"
+      ],
+      "source_group_id": null,
+      "grouping_basis": "SAME_FETCHED_SOURCE_TABLE_ROW",
+      "simultaneous_source_updates_verified": false,
+      "reconstructed": false
+    },
+    {
+      "quote_group_id": "quote-0b12cc1ca63fd14b264c6b74f29bee57a6fe05f2e11dcb6edb906f4ba30e9e3f",
+      "snapshot_id": "actual-source-audit",
+      "raw_record_ids": [
+        "record-f0250db90628a3795a68a8a0a1da42918e321ab647ebe4bbe6f2b127bf52a413",
+        "record-6ba4ab516c06f9b1616673d3cf7f25a3add8a78e1c4624afa50e68c084547e9e"
+      ],
+      "source_group_id": null,
+      "grouping_basis": "SAME_FETCHED_SOURCE_TABLE_ROW",
+      "simultaneous_source_updates_verified": false,
+      "reconstructed": false
+    },
+    {
+      "quote_group_id": "quote-fb7c1d9c674403af7e108eb4a1dd8b183b605ab3a9e01cff99a24b87fa9a6989",
+      "snapshot_id": "actual-source-audit",
+      "raw_record_ids": [
+        "record-82ea9e72c6782e8ca869f10696d06661f1f11693f472b7875965620f8722fdc1",
+        "record-1fd3017465312c5d1a8072d67b9cb87181c3e2cc92499cf4b4f250ae8ca17b7a"
+      ],
+      "source_group_id": null,
+      "grouping_basis": "SAME_FETCHED_SOURCE_TABLE_ROW",
+      "simultaneous_source_updates_verified": false,
+      "reconstructed": false
+    },
+    {
+      "quote_group_id": "quote-5c18c0914910cc3f10bae104e594d1eb414baf99d585ad6a84999854d8974934",
+      "snapshot_id": "actual-source-audit",
+      "raw_record_ids": [
+        "record-fb81aed19a8458c5ff5e13b7ba3a6d4eb52250cfb03e137e20debcd09b8b5411",
+        "record-b477df2b354497e70c0d4a5156eadc10cf2432975572e562d50aa974fbbdcadb"
+      ],
+      "source_group_id": null,
+      "grouping_basis": "SAME_FETCHED_SOURCE_TABLE_ROW",
+      "simultaneous_source_updates_verified": false,
+      "reconstructed": false
+    },
+    {
+      "quote_group_id": "quote-9a3d0afae27752a1f7cb984744e7a19494fffa88ebcdda48dd325b9a987c4e82",
+      "snapshot_id": "actual-source-audit",
+      "raw_record_ids": [
+        "record-af65e36e0af376e96d7c14b89b70490377e573c2838ebf6cabeb5de71c2e63d6",
+        "record-01ef0a85bc60ff961bd8632891ec51083785a5b83d61730c393332423e80adae"
+      ],
+      "source_group_id": null,
+      "grouping_basis": "SAME_FETCHED_SOURCE_TABLE_ROW",
+      "simultaneous_source_updates_verified": false,
+      "reconstructed": false
+    },
+    {
+      "quote_group_id": "quote-564588549f84e12c6ddadbb56e5f16c8ea5fabce6c41d24038b97247781d2694",
+      "snapshot_id": "actual-source-audit",
+      "raw_record_ids": [
+        "record-0981d4290f135fa6cf4913bb7b0e2944c67e92e3401fc3bb1ee3ed4ba1fc5e98",
+        "record-885ff4c61873e113660dcd8c7ed25f69f1bc41928dc1f066481418e2a6546616"
+      ],
+      "source_group_id": null,
+      "grouping_basis": "SAME_FETCHED_SOURCE_TABLE_ROW",
+      "simultaneous_source_updates_verified": false,
+      "reconstructed": false
+    },
+    {
+      "quote_group_id": "quote-d022f8e9f9db95dd82eb533ad2dfa2bf917c7c6a53ccac2f290ff054a84762f5",
+      "snapshot_id": "actual-source-audit",
+      "raw_record_ids": [
+        "record-640efe3329256071d7cfea1aa7d7bf525c604e66a210137d9958ea3c7b820be5",
+        "record-550035213724b4b811d4672437b8d058ed6670cf9a0547c616c7b365efc23d45"
+      ],
+      "source_group_id": null,
+      "grouping_basis": "SAME_FETCHED_SOURCE_TABLE_ROW",
+      "simultaneous_source_updates_verified": false,
+      "reconstructed": false
+    }
+  ],
+  "source_contexts": {
+    "context-ba5380639c43a5c8553af0b5c3b20e71ac4707fbed03f005464ab5df6eaac756": {
+      "parent_source_context_id": "actual-source-context",
+      "source_row_context": {
+        "origin_id_raw": "1",
+        "display_bookmaker_id_raw": "344",
+        "identifier_meanings_verified": false
+      }
+    },
+    "context-f45f8aec5df59882fbe8e9de8a599c4984b226f620905d7001c30f1478a1bce6": {
+      "parent_source_context_id": "actual-source-context",
+      "source_row_context": {
+        "origin_id_raw": "1",
+        "display_bookmaker_id_raw": "11",
+        "identifier_meanings_verified": false
+      }
+    },
+    "context-09f5de67c2d660fc2a23b6616ebf8300c39f3a2089e9a826bbf625cfe008656c": {
+      "parent_source_context_id": "actual-source-context",
+      "source_row_context": {
+        "origin_id_raw": "7",
+        "display_bookmaker_id_raw": "322",
+        "identifier_meanings_verified": false
+      }
+    },
+    "context-0e44282d0558a11c787bd1772753b2b119944bafd95ae2a903899d84ebb60779": {
+      "parent_source_context_id": "actual-source-context",
+      "source_row_context": {
+        "origin_id_raw": "7",
+        "display_bookmaker_id_raw": "120",
+        "identifier_meanings_verified": false
+      }
+    },
+    "context-8d475e6118c95a76b678d42342d8b558c4464c4afd586839ff25ffb06eacee67": {
+      "parent_source_context_id": "actual-source-context",
+      "source_row_context": {
+        "origin_id_raw": "7",
+        "display_bookmaker_id_raw": "349",
+        "identifier_meanings_verified": false
+      }
+    },
+    "context-0b59fe61610870ac81080b45532b2e79dfd6eaa1620553addee8e67390adb031": {
+      "parent_source_context_id": "actual-source-context",
+      "source_row_context": {
+        "origin_id_raw": "7",
+        "display_bookmaker_id_raw": "1063",
+        "identifier_meanings_verified": false
+      }
+    },
+    "context-7e22698b9241b06bc8e7726f920b8d259cf930469bacf91b7aab54ff3deef9b7": {
+      "parent_source_context_id": "actual-source-context",
+      "source_row_context": {
+        "origin_id_raw": "1",
+        "display_bookmaker_id_raw": "148",
+        "identifier_meanings_verified": false
+      }
+    }
+  }
+}

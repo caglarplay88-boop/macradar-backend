@@ -1,0 +1,139 @@
+{
+  "eventId": "0p1XkgIt",
+  "results": [
+    {
+      "market": "1X2",
+      "eventId": "0p1XkgIt",
+      "attempts": [
+        {
+          "source": "betexplorer-nl",
+          "startedAt": "2026-10-11T12:09:58.924Z",
+          "finishedAt": "2026-10-11T12:10:23.941Z",
+          "error": "TIMEOUT"
+        },
+        {
+          "source": "betexplorer-ca",
+          "startedAt": "2026-10-11T12:10:23.941Z",
+          "finishedAt": "2026-10-11T12:10:48.954Z",
+          "error": "TIMEOUT"
+        },
+        {
+          "source": "betexplorer-default-tor",
+          "startedAt": "2026-10-11T12:10:48.954Z",
+          "finishedAt": "2026-10-11T12:11:13.970Z",
+          "error": "TIMEOUT"
+        },
+        {
+          "source": "betexplorer-direct",
+          "startedAt": "2026-10-11T12:11:13.971Z",
+          "finishedAt": "2026-10-11T12:11:38.984Z",
+          "error": "TIMEOUT"
+        }
+      ],
+      "success": false
+    },
+    {
+      "market": "OU",
+      "eventId": "0p1XkgIt",
+      "attempts": [
+        {
+          "source": "betexplorer-nl",
+          "startedAt": "2026-10-11T12:09:58.930Z",
+          "finishedAt": "2026-10-11T12:10:23.946Z",
+          "error": "TIMEOUT"
+        },
+        {
+          "source": "betexplorer-ca",
+          "startedAt": "2026-10-11T12:10:23.946Z",
+          "finishedAt": "2026-10-11T12:10:48.959Z",
+          "error": "TIMEOUT"
+        },
+        {
+          "source": "betexplorer-default-tor",
+          "startedAt": "2026-10-11T12:10:48.959Z",
+          "finishedAt": "2026-10-11T12:11:13.974Z",
+          "error": "TIMEOUT"
+        },
+        {
+          "source": "betexplorer-direct",
+          "startedAt": "2026-10-11T12:11:13.974Z",
+          "finishedAt": "2026-10-11T12:11:38.989Z",
+          "error": "TIMEOUT"
+        }
+      ],
+      "success": false
+    },
+    {
+      "market": "ASIAN",
+      "eventId": "0p1XkgIt",
+      "attempts": [
+        {
+          "source": "betexplorer-nl",
+          "startedAt": "2026-10-11T12:11:38.985Z",
+          "finishedAt": "2026-10-11T12:12:04.001Z",
+          "error": "TIMEOUT"
+        },
+        {
+          "source": "betexplorer-ca",
+          "startedAt": "2026-10-11T12:12:04.001Z",
+          "finishedAt": "2026-10-11T12:12:29.018Z",
+          "error": "TIMEOUT"
+        }
+      ],
+      "success": true,
+      "source": {
+        "name": "betexplorer-default-tor",
+        "region": null,
+        "language": "en",
+        "timezoneVerified": false
+      },
+      "endpoint": "https://www.betexplorer.com/match-odds/0p1XkgIt/0/ah/odds/?lang=en",
+      "startedAt": "2026-10-11T12:12:29.018Z",
+      "finishedAt": "2026-10-11T12:12:37.960Z",
+      "responseFile": "ASIAN-source-response.json",
+      "responseKeys": [
+        "odds"
+      ],
+      "oddsHTMLBytes": 964789
+    },
+    {
+      "market": "KG",
+      "eventId": "0p1XkgIt",
+      "attempts": [
+        {
+          "source": "betexplorer-nl",
+          "startedAt": "2026-10-11T12:11:38.989Z",
+          "finishedAt": "2026-10-11T12:12:04.004Z",
+          "error": "TIMEOUT"
+        },
+        {
+          "source": "betexplorer-ca",
+          "startedAt": "2026-10-11T12:12:04.004Z",
+          "finishedAt": "2026-10-11T12:12:29.020Z",
+          "error": "TIMEOUT"
+        },
+        {
+          "source": "betexplorer-default-tor",
+          "startedAt": "2026-10-11T12:12:29.020Z",
+          "finishedAt": "2026-10-11T12:12:54.033Z",
+          "error": "TIMEOUT"
+        }
+      ],
+      "success": true,
+      "source": {
+        "name": "betexplorer-direct",
+        "region": null,
+        "language": "en",
+        "timezoneVerified": false
+      },
+      "endpoint": "https://www.betexplorer.com/match-odds/0p1XkgIt/0/bts/odds/?lang=en",
+      "startedAt": "2026-10-11T12:12:54.033Z",
+      "finishedAt": "2026-10-11T12:12:54.670Z",
+      "responseFile": "KG-source-response.json",
+      "responseKeys": [
+        "odds"
+      ],
+      "oddsHTMLBytes": 42524
+    }
+  ]
+}

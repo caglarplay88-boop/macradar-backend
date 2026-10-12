@@ -1,0 +1,91 @@
+{
+  "updated_at": "2026-10-11T16:58:17.632043+00:00",
+  "contract_file": "BETEXPLORER_ODDS_DATA_CONTRACT.md",
+  "contract_sha256": "414277046fd489dd821ada72689f054b9b799bd02861ed4af991b8814de38be5",
+  "full_contract_read_in_conversation": true,
+  "implemented_and_tested": [
+    "Current API readers derive quotes from the raw store for revised tracking",
+    "History API readers use the same raw store and keep archive selections separate",
+    "Periodic worker no longer reparses or writes to legacy odds tables",
+    "Export odds compatibility includes raw quote groups with raw_record_ids",
+    "Nullable prices, signs and statuses remain nullable in API envelopes",
+    "Verified status transitions survive quality review and summary",
+    "Mobile Asian view retains unresolved signed lines without assigning zero"
+  ],
+  "legacy_fields_policy": "Preserve existing file fields as required by section 11; new compatibility rows are derived, not separately stored",
+  "last_full_backend_test_count": 36,
+  "subsequent_targeted_history_tests_passed": true,
+  "mobile_tests_and_analyze_passed": true,
+  "production_service_restarted": false,
+  "apk_built": false,
+  "remaining_verification": [
+    "Fresh real source acceptance for four markets",
+    "Full-time scope, Asian home sign, inactive status meaning and exchange price type",
+    "Real accessible intermediate archive coverage",
+    "Actual MacRadar reader integration",
+    "HTTP route behavior and final mobile behavior",
+    "Remaining old source entry points and compatibility graph handling"
+  ],
+  "completion_claim": false,
+  "post_export_revision_validation": {
+    "recorded_at": "2026-10-11T19:44:41.258731+00:00",
+    "backend_test_files_passed": 40,
+    "mobile_tests": "PASSED",
+    "mobile_analysis": {
+      "errors": 0,
+      "warnings": 6,
+      "info": 230
+    },
+    "real_export_validation": {
+      "schema": "PASSED",
+      "zip_integrity": "PASSED",
+      "manifest_hashes": "PASSED",
+      "evidence_links": "PASSED",
+      "previous_real_records_preserved": 1631,
+      "raw_records": 18114,
+      "source_history_records": 0,
+      "export_refresh": {
+        "requested_at": "2026-10-11T19:34:35.429Z",
+        "reason": "export",
+        "current_scan_requested": true,
+        "history_reconciliation_requested": true,
+        "success": true,
+        "finished_at": "2026-10-11T19:41:47.216Z",
+        "skipped": false,
+        "outcome": "COLLECTION_SUCCEEDED",
+        "run_id": "c3a79654-1b00-407e-8055-872851e5bd04",
+        "history_reconciliation_performed": true,
+        "error": null
+      },
+      "external_reader_test": "NOT_PERFORMED",
+      "zip_path": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z/export-fresh-coordinator-20261011T193435Z/MacRadar-GxLyDAQb-1791747716617.zip"
+    },
+    "service_activation": {
+      "active": "active",
+      "substate": "running",
+      "old_pid": "830632",
+      "new_pid": "864524",
+      "result": "success"
+    },
+    "apk_revision_build": {
+      "recorded_at": "2026-10-11T19:54:33.846764+00:00",
+      "apk": {
+        "path": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z/delivery/MacRadar-odds-contract.apk",
+        "bytes": 54731297,
+        "sha256": "3416aff6cd79bf01cd146d7117168e09ce28185b0de9d7490e60a473d090cd7a"
+      },
+      "match_package": {
+        "path": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z/delivery/MacRadar-GxLyDAQb.zip",
+        "bytes": 7069837,
+        "sha256": "9dbe604f7b81ba38dd78f9a184d3c45b1d3989e486bd41345cda913c2d864001"
+      },
+      "apk_signature": "PASSED",
+      "apk_zip_integrity": "PASSED",
+      "phone_download": "PENDING",
+      "external_reader_test": "NOT_PERFORMED"
+    },
+    "source_scope_sign_status_price_type": "UNVERIFIED_FIELDS_RETAINED",
+    "real_multirow_intermediate_history": "NOT_VERIFIED",
+    "external_reader_test": "NOT_PERFORMED"
+  }
+}

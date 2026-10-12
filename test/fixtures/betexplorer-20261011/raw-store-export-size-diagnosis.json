@@ -1,0 +1,105 @@
+{
+  "purpose": "REAL_RAW_STORE_SIZE_DIAGNOSIS",
+  "real_database_export_test": false,
+  "sections": [
+    {
+      "section": "odds_summary",
+      "compact_bytes": 5528156,
+      "pretty_bytes": 7594451
+    },
+    {
+      "section": "odds_raw",
+      "compact_bytes": 3443647,
+      "pretty_bytes": 4125518
+    },
+    {
+      "section": "collection",
+      "compact_bytes": 2395806,
+      "pretty_bytes": 2933305
+    },
+    {
+      "section": "raw_evidence",
+      "compact_bytes": 1646515,
+      "pretty_bytes": 2571707
+    },
+    {
+      "section": "quality",
+      "compact_bytes": 909143,
+      "pretty_bytes": 1213937
+    },
+    {
+      "section": "odds",
+      "compact_bytes": 590505,
+      "pretty_bytes": 760840
+    },
+    {
+      "section": "compatibility",
+      "compact_bytes": 127732,
+      "pretty_bytes": 135975
+    },
+    {
+      "section": "match",
+      "compact_bytes": 1900,
+      "pretty_bytes": 2546
+    },
+    {
+      "section": "quote_compatibility",
+      "compact_bytes": 204,
+      "pretty_bytes": 248
+    },
+    {
+      "section": "calculation_version",
+      "compact_bytes": 41,
+      "pretty_bytes": 41
+    },
+    {
+      "section": "schema_version",
+      "compact_bytes": 27,
+      "pretty_bytes": 27
+    },
+    {
+      "section": "exportedAt",
+      "compact_bytes": 26,
+      "pretty_bytes": 26
+    },
+    {
+      "section": "timeZone",
+      "compact_bytes": 17,
+      "pretty_bytes": 17
+    },
+    {
+      "section": "tracking",
+      "compact_bytes": 4,
+      "pretty_bytes": 4
+    },
+    {
+      "section": "performance",
+      "compact_bytes": 4,
+      "pretty_bytes": 4
+    },
+    {
+      "section": "performanceRaw",
+      "compact_bytes": 4,
+      "pretty_bytes": 4
+    },
+    {
+      "section": "warnings",
+      "compact_bytes": 2,
+      "pretty_bytes": 2
+    },
+    {
+      "section": "formatVersion",
+      "compact_bytes": 1,
+      "pretty_bytes": 1
+    }
+  ],
+  "largest_section_keys": [
+    "calculation_version",
+    "analysis_cutoff",
+    "analysis_mode",
+    "max_window_carry_seconds",
+    "series",
+    "quote_groups",
+    "bookmaker_comparisons"
+  ]
+}

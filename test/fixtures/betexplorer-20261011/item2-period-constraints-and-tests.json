@@ -1,0 +1,21 @@
+{
+  "schema": [
+    {
+      "path": "$/properties/odds_raw/items/properties/period",
+      "definition": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "required": true
+    }
+  ],
+  "tests": [
+    {
+      "path": "test/oddsContract/currentParser.test.cjs",
+      "bytes": 3612,
+      "period_references": []
+    }
+  ]
+}

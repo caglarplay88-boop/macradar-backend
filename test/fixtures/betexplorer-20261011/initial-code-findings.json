@@ -1,0 +1,46 @@
+{
+  "status": "source_verification_pending",
+  "codeFindings": [
+    {
+      "file": "src/odds1x2.js",
+      "finding": "Bookmaker identity derived from name; selection mapping uses first three price cells.",
+      "requiresSourceVerification": true
+    },
+    {
+      "file": "src/oddsAsian.js",
+      "finding": "Selection mapping falls back to cell order; handicap parsing falls back to last text number.",
+      "requiresSourceVerification": true
+    },
+    {
+      "file": "src/oddsAsian.js",
+      "finding": "homeClosed and awayClosed are hardcoded false.",
+      "contractGap": true
+    },
+    {
+      "file": "src/oddsOverUnder.js",
+      "finding": "Only lines 1.5 and 2.5 retained; live response also contains 0.5.",
+      "contractGap": true
+    },
+    {
+      "file": "src/oddsKg.js",
+      "finding": "yesClosed and noClosed hardcoded false.",
+      "contractGap": true
+    },
+    {
+      "file": "src/odds1x2.js",
+      "finding": "Legacy archive date parsing assumes UTC and resolves omitted year heuristically.",
+      "contractGap": true
+    }
+  ],
+  "timezoneEvidence": {
+    "sourcePreferenceCookie": "my_timezone",
+    "controlledOffsets": [
+      "+0",
+      "+3"
+    ],
+    "observedDifferenceMinutes": 180,
+    "evidence": "timezone-comparison.json",
+    "sourceCellDisplayRule": "raw_hour + timezone_key - 1",
+    "archiveYear": "not_present_in_tested_response"
+  }
+}

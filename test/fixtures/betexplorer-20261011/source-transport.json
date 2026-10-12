@@ -1,0 +1,10 @@
+{
+  "sourceChain": "function sourceChain() {\n  return [\n    {\n      sourceName: 'betexplorer-nl',\n      sourceRegion: 'nl',\n      socksAddress: String(process.env.TOR_SOCKS_NL || '127.0.0.1:9065').trim()\n    },\n    {\n      sourceName: 'betexplorer-ca',\n      sourceRegion: 'ca',\n      socksAddress: String(process.env.TOR_SOCKS_CA || '127.0.0.1:9066').trim()\n    },\n    {\n      sourceName: 'betexplorer-default-tor',\n      sourceRegion: null,\n      socksAddress: String(\n        process.env.TOR_SOCKS_DEFAULT ||\n        process.env.TOR_SOCKS ||\n        '127.0.0.1:9050'\n      ).trim()\n    },\n    {\n      sourceName: 'betexplorer-direct',\n      sourceRegion: null,\n      socksAddress: null\n    }\n  ];\n}",
+  "requestJson": "async function requestJson(source, endpoint, maxBuffer = 12 * 1024 * 1024) {\n  const { stdout } = await execFileAsync('curl', curlArgs(source, endpoint), {\n    maxBuffer,\n    timeout: 30000\n  });\n  try {\n    return JSON.parse(stdout);\n  } catch {\n    throw new Error('BetExplorer did not return JSON.');\n  }\n}",
+  "exports": {
+    "src/odds1x2.js": "module.exports = {\n  parseBetExplorerUrl,\n  parse1x2,\n  fetch1x2SingleSource,\n  pull1x2WithFailover,\n  pullOpening1x2WithFailover,\n  sourceChain\n};\n",
+    "src/oddsAsian.js": "module.exports.pullOpeningAsianWithFailover =\n  pullOpeningAsianWithFailover;\n",
+    "src/oddsKg.js": "module.exports.pullOpeningKgWithFailover =\n  pullOpeningKgWithFailover;\n",
+    "src/oddsOverUnder.js": "module.exports._openingInternals = {\n  requestJson,\n  parseBetExplorerUrl,\n  fetchArchiveOpening,\n  sourceChain\n};\n"
+  }
+}

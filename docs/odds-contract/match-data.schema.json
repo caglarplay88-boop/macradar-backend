@@ -1,0 +1,343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MacRadar BetExplorer maç veri sözleşmesi v2",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "calculation_version",
+    "exportedAt",
+    "match",
+    "collection",
+    "odds_raw",
+    "raw_evidence",
+    "odds",
+    "odds_summary",
+    "quality",
+    "performance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "betexplorer-match-data-v2"
+    },
+    "calculation_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "exportedAt": {
+      "type": "string"
+    },
+    "match": {
+      "type": "object",
+      "required": [
+        "event_id"
+      ]
+    },
+    "collection": {
+      "type": "object",
+      "required": [
+        "analysis_cutoff",
+        "analysis_mode",
+        "runs",
+        "history_coverage",
+        "settings",
+        "time_conversion",
+        "compatibility"
+      ]
+    },
+    "odds_raw": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "record_id",
+          "event_id",
+          "source",
+          "source_url",
+          "source_context_id",
+          "bookmaker_id",
+          "bookmaker_name",
+          "market",
+          "period",
+          "selection",
+          "line",
+          "home_handicap",
+          "away_handicap",
+          "odds_decimal",
+          "status",
+          "price_type",
+          "source_record_id",
+          "source_timestamp",
+          "source_timestamp_raw",
+          "source_timezone",
+          "timestamp_precision",
+          "observed_at",
+          "capture_started_at",
+          "capture_finished_at",
+          "snapshot_id",
+          "quote_group_id",
+          "source_group_id",
+          "record_origin",
+          "opening_type",
+          "is_main_line",
+          "quality_flags",
+          "raw_evidence_ref"
+        ],
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "event_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_context_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bookmaker_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bookmaker_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "market": {
+            "enum": [
+              "1X2",
+              "OU",
+              "ASIAN",
+              "KG"
+            ]
+          },
+          "period": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selection": {
+            "enum": [
+              "HOME",
+              "DRAW",
+              "AWAY",
+              "UNDER",
+              "OVER",
+              "YES",
+              "NO",
+              null
+            ]
+          },
+          "line": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "home_handicap": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "away_handicap": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "odds_decimal": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "SUSPENDED",
+              "CLOSED",
+              "UNKNOWN"
+            ]
+          },
+          "price_type": {
+            "enum": [
+              "SPORTSBOOK",
+              "EXCHANGE_BACK",
+              "EXCHANGE_LAY",
+              "UNKNOWN"
+            ]
+          },
+          "source_record_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_timestamp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_timestamp_raw": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_timezone": {
+            "oneOf": [
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "offset_minutes"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "FIXED_OFFSET"
+                  },
+                  "offset_minutes": {
+                    "type": "integer",
+                    "minimum": -840,
+                    "maximum": 840
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "timestamp_precision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "capture_started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "capture_finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snapshot_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quote_group_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_group_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "record_origin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "opening_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_main_line": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "quality_flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "raw_evidence_ref": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "raw_evidence": {
+      "type": "object"
+    },
+    "odds": {
+      "type": "object",
+      "required": [
+        "1X2",
+        "OU",
+        "ASIAN",
+        "KG"
+      ],
+      "properties": {
+        "1X2": {
+          "type": "array"
+        },
+        "OU": {
+          "type": "array"
+        },
+        "ASIAN": {
+          "type": "array"
+        },
+        "KG": {
+          "type": "array"
+        }
+      }
+    },
+    "odds_summary": {
+      "type": "object"
+    },
+    "quality": {
+      "type": "object"
+    },
+    "performance": {}
+  },
+  "additionalProperties": true,
+  "$comment": "Ham hatalı fiyatlar korunur; analiz uygunluğu ayrıca quality tarafından belirlenir. Eski alanlar yasaklanmaz."
+}

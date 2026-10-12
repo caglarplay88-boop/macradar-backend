@@ -1,0 +1,38 @@
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "SportsEvent",
+    "sport": "Calcio",
+    "name": "Montpellier - Grenoble",
+    "startDate": "2026-10-09T20:00:00+02:00",
+    "url": "https://www.betexplorer.com/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/",
+    "eventStatus": "https://schema.org/EventEnded",
+    "location": {
+      "@type": "Place",
+      "name": "Stade de la Mosson",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Montpellier",
+        "addressCountry": "France"
+      }
+    },
+    "image": [
+      "https://www.betexplorer.com/res/images/flags/1x1/fr.svg"
+    ],
+    "description": "Montpellier - Grenoble 09 Oct 2026 20:00:00 at Stade de la Mosson",
+    "homeTeam": {
+      "@type": "SportsTeam",
+      "name": "Montpellier",
+      "image": "https://www.betexplorer.com/res/images/team-logo/pvtGM5jQ-n3xBmVJB.png"
+    },
+    "awayTeam": {
+      "@type": "SportsTeam",
+      "name": "Grenoble",
+      "image": "https://www.betexplorer.com/res/images/team-logo/xMQT7ZPt-Q5NSJFyH.png"
+    },
+    "organizer": {
+      "@type": "Organization",
+      "name": "Ligue 2"
+    }
+  }
+]

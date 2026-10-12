@@ -1,0 +1,31 @@
+{
+  "folder": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z/match-screen-export-20261012T144351Z",
+  "report": {
+    "event_id": "pjTVIO7M",
+    "job_id": "3a15a4a3-6106-42d9-91f0-009a4b40150e",
+    "actual_http_route": true,
+    "schema_2020_12": "PASSED",
+    "zip_integrity": "PASSED",
+    "manifest_hashes": "PASSED",
+    "embedded_evidence_links": "PASSED",
+    "raw_records": 1135,
+    "source_openings": 513,
+    "source_history": 0,
+    "export_refresh": {
+      "requested_at": "2026-10-12T14:43:51.429Z",
+      "reason": "export",
+      "current_scan_requested": true,
+      "history_reconciliation_requested": true,
+      "success": false,
+      "finished_at": "2026-10-12T14:44:11.751Z",
+      "skipped": true,
+      "outcome": "PRE_MATCH_ENDED",
+      "run_id": null,
+      "history_reconciliation_performed": false,
+      "error": "PRE_MATCH_ENDED"
+    },
+    "zip_path": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z/match-screen-export-20261012T144351Z/match-screen-package.zip",
+    "phone_download_test": "NOT_PERFORMED",
+    "external_reader_test": "NOT_PERFORMED"
+  }
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "url": "https://www.betexplorer.com/res/js/all.min.js?serial=2610021100",
+    "source": "betexplorer-direct",
+    "startedAt": "2026-10-11T12:25:55.302Z",
+    "success": true,
+    "responseFile": "betexplorer-source-script-0.js",
+    "bytes": 192647,
+    "sha256": "6731062940d47c8f1133b527b5cb59e4c4d26b32ff98972d5d1343561b494dd8",
+    "finishedAt": "2026-10-11T12:25:56.479Z"
+  },
+  {
+    "url": "https://www.betexplorer.com/res/js/libs/stats.js.php?serial=2610021100",
+    "source": "betexplorer-direct",
+    "startedAt": "2026-10-11T12:25:55.311Z",
+    "success": true,
+    "responseFile": "betexplorer-source-script-1.js",
+    "bytes": 100242,
+    "sha256": "9b00933bc7092eb943fa4c7b170af2af12f35dc34770c38e49a7851849ef2ddb",
+    "finishedAt": "2026-10-11T12:25:56.458Z"
+  }
+]

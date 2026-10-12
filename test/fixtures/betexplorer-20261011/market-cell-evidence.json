@@ -1,0 +1,108 @@
+[
+  {
+    "market": "ASIAN",
+    "source": {
+      "name": "betexplorer-default-tor",
+      "region": null,
+      "language": "en",
+      "timezoneVerified": false
+    },
+    "endpoint": "https://www.betexplorer.com/match-odds/0p1XkgIt/0/ah/odds/?lang=en",
+    "observedAt": "2026-10-11T12:12:37.960Z",
+    "rowCount": 162,
+    "headers": [
+      "",
+      "",
+      "",
+      "",
+      "Handicap",
+      "1",
+      "2",
+      "",
+      "",
+      ""
+    ],
+    "rowAttributes": {
+      "data-bid": "44",
+      "data-bookie-id": "44 ",
+      "data-originid": "1",
+      "data-exchange": "1"
+    },
+    "cells": [
+      {
+        "data-bet-url": "/bookmaker/44/http://ads.betfair.com/redirect.aspx?pid=12803&bid=9054",
+        "data-bookmaker-id": "44",
+        "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds ",
+        "data-odd": "14.21",
+        "data-created": "09,10,2026,18,44",
+        "data-pos": "1",
+        "data-bookie": "betfair exchange",
+        "data-bookie-id": "44",
+        "data-oid": "a77uhx4p6e4xcgzs0l61",
+        "data-bid": "44",
+        "data-bt": "5",
+        "data-sc": "2",
+        "data-hcp": "E-5-2-0--4-0"
+      },
+      {
+        "data-bet-url": "/bookmaker/44/http://ads.betfair.com/redirect.aspx?pid=12803&bid=9054",
+        "data-bookmaker-id": "44",
+        "class": "archiveOddsMovement__odds table-main__detail-odds ",
+        "data-odd": "1.01",
+        "data-created": "09,10,2026,18,24",
+        "data-pos": "2",
+        "data-bookie": "betfair exchange",
+        "data-bookie-id": "44"
+      }
+    ],
+    "rawRow": "<tr  data-bid=\"44\" data-bookie-id=\"44 \" data-originid=\"1\" data-exchange=\"1\">\n<td class=\"h-text-left over-s-only h-text-pl10\"><a href=\"/bookmaker/44/http://ads.betfair.com/redirect.aspx?pid=12803&bid=9054\" onclick=\"dataLayer.push({'event-name': 'Betfair Exchange', 'event': 'bookmaker-click', 'event-sport': 'football'});matchDetailsBookmakerClickAnalytics('0p1XkgIt',44); return true;\" target=\"_blank\" class=\"in-bookmaker-logo-link in-bookmaker-logo-link--primary l44\" rel=\"nofollow\" data-bid=\"44\"><input type=\"hidden\" class=\"bookmakersUrl\" value=\"/bookmaker/44/http://ads.betfair.com/redirect.aspx?pid=12803&bid=9054\" data-bid=\"44\" data-opid=\"44\"/>Betfair Exchange</a></td>\n<td class=\"h-text-left under-s-only h-text-pl10\"><a href=\"/bookmaker/44/http://ads.betfair.com/redirect.aspx?pid=12803&bid=9054\" onclick=\"dataLayer.push({'event-name': 'Betfair Exchange', 'event': 'bookmaker-click', 'event-sport': 'football'});matchDetailsBookmakerClickAnalytics('0p1XkgIt',44); return true;\" target=\"_blank\" data-bid=\"44\" rel=\"nofollow\"><span class=\"in-bookmaker-logo l44\" title=\"Betfair Exchange\"></span></a></td>\n<td class=\"h-text-left tablet-desktop-only\"></td>\n<td class=\"h-text-right\"></td>\n<td class=\"table-main__doubleparameter\">-4</td>\n<td data-bet-url=\"/bookmaker/44/http://ads.betfair.com/redirect.aspx?pid=12803&bid=9054\" data-bookmaker-id=\"44\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first js-has-aodds \" data-odd=\"14.21\" data-created=\"09,10,2026,18,44\"\" data-pos=\"1\"\" data-bookie=\"betfair exchange\"data-bookie-id='44' data-oid=\"a77uhx4p6e4xcgzs0l61\" data-bid=\"44\"\" data-bt=\"5\"\" data-sc=\"2\"\" data-hcp=\"E-5-2-0--4-0\"><i class=\"icon icon__decreasing table-main__icon archiveOddsMovement__icon_arrowMovement\"></i> <a href=\"/bookmaker/44/http://ads.betfair.com/redirect.aspx?pid=12803&bid=9054\" target=\"_blank\" class=\"archiveOdds \" onclick=\"oddsComparisonOddsClickAnalytics(44)\"></a>\n<img src=\"/res/images/icon_redirect_gray.svg\" alt=\"Redirect\" class=\"archiveOddsMovement__icon_redirect \"/></td>\n<td data-bet-url=\"/bookmaker/44/http://ads.betfair.com/redirect.aspx?pid=12803&bid=9054\" data-bookmaker-id=\"44\" class=\"archiveOddsMovement__odds table-main__detail-odds \" data-odd=\"1.01\" data-created=\"09,10,2026,18,24\"\" data-pos=\"2\"\" data-bookie=\"betfair exchange\"data-bookie-id='44'><a href=\"/bookmaker/44/http://ads.betfair.com/redirect.aspx?pid=12803&bid=9054\" target=\"_blank\" class=\"archiveOdds \" onclick=\"oddsComparisonOddsClickAnalytics(44)\"></a>\n<img src=\"/res/images/icon_redirect_gray.svg\" alt=\"Redirect\" class=\"archiveOddsMovement__icon_redirect \"/></td>\n</tr>"
+  },
+  {
+    "market": "KG",
+    "source": {
+      "name": "betexplorer-direct",
+      "region": null,
+      "language": "en",
+      "timezoneVerified": false
+    },
+    "endpoint": "https://www.betexplorer.com/match-odds/0p1XkgIt/0/bts/odds/?lang=en",
+    "observedAt": "2026-10-11T12:12:54.670Z",
+    "rowCount": 7,
+    "headers": [
+      "",
+      "",
+      "",
+      "",
+      "Yes",
+      "No"
+    ],
+    "rowAttributes": {
+      "data-bid": "27",
+      "data-bookie-id": "344 ",
+      "data-originid": "1"
+    },
+    "cells": [
+      {
+        "data-bet-url": "/bookmaker/344/https://ic.aff-handler.com/c/48453?sr=2024353",
+        "data-bookmaker-id": "27",
+        "class": "archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first inactive ",
+        "data-odd": "1.91",
+        "data-created": "22,09,2026,09,21",
+        "data-pos": "y",
+        "data-bookie": "888sport",
+        "data-bookie-id": "344"
+      },
+      {
+        "data-bet-url": "/bookmaker/344/https://ic.aff-handler.com/c/48453?sr=2024353",
+        "data-bookmaker-id": "27",
+        "class": "archiveOddsMovement__odds table-main__detail-odds inactive ",
+        "data-odd": "1.80",
+        "data-created": "22,09,2026,09,21",
+        "data-pos": "n",
+        "data-bookie": "888sport",
+        "data-bookie-id": "344"
+      }
+    ],
+    "rawRow": "<tr  data-bid=\"27\" data-bookie-id=\"344 \" data-originid=\"1\">\n<td class=\"h-text-left over-s-only h-text-pl10\"><a href=\"/bookmaker/344/https://ic.aff-handler.com/c/48453?sr=2024353\" onclick=\"dataLayer.push({'event-name': '888sport', 'event': 'bookmaker-click', 'event-sport': 'football'});matchDetailsBookmakerClickAnalytics('0p1XkgIt',27); return true;\" target=\"_blank\" class=\"in-bookmaker-logo-link in-bookmaker-logo-link--primary l27\" rel=\"nofollow\" data-bid=\"344\"><input type=\"hidden\" class=\"bookmakersUrl\" value=\"/bookmaker/344/https://ic.aff-handler.com/c/48453?sr=2024353\" data-bid=\"344\" data-opid=\"27\"/>888sport</a></td>\n<td class=\"h-text-left under-s-only h-text-pl10\"><a href=\"/bookmaker/344/https://ic.aff-handler.com/c/48453?sr=2024353\" onclick=\"dataLayer.push({'event-name': '888sport', 'event': 'bookmaker-click', 'event-sport': 'football'});matchDetailsBookmakerClickAnalytics('0p1XkgIt',27); return true;\" target=\"_blank\" data-bid=\"344\" rel=\"nofollow\"><span class=\"in-bookmaker-logo l27\" title=\"888sport\"></span></a></td>\n<td class=\"h-text-left tablet-desktop-only\"></td>\n<td class=\"h-text-right\"></td>\n<td data-bet-url=\"/bookmaker/344/https://ic.aff-handler.com/c/48453?sr=2024353\" data-bookmaker-id=\"27\" class=\"archiveOddsMovement__odds table-main__detail-odds table-main__detail-odds--first inactive \" data-odd=\"1.91\" data-created=\"22,09,2026,09,21\"\" data-pos=\"y\"\" data-bookie=\"888sport\"data-bookie-id='344'><span style=\"text-decoration: none;\"></span></td>\n<td data-bet-url=\"/bookmaker/344/https://ic.aff-handler.com/c/48453?sr=2024353\" data-bookmaker-id=\"27\" class=\"archiveOddsMovement__odds table-main__detail-odds inactive \" data-odd=\"1.80\" data-created=\"22,09,2026,09,21\"\" data-pos=\"n\"\" data-bookie=\"888sport\"data-bookie-id='344'><span style=\"text-decoration: none;\"></span></td>\n</tr>"
+  }
+]

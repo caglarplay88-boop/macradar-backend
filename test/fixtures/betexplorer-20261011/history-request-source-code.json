@@ -1,0 +1,30 @@
+[
+  {
+    "needle": "odds-movement",
+    "offset": 102182,
+    "start": 101782,
+    "end": 102832,
+    "code": "tion__preloader--short lazyLoadCountryFlags\"></div>'),jQuery.ajax({url:\"/gres/ajax/odds-filter.php\",type:\"GET\",data:\"sport_id=\"+e+\"&from=\"+a+\"&to=\"+s+\"&days=\"+n+\"&lang=\"+t,cache:!1,dataType:\"text\",success:function(e){$(\"#odds-filter\").html(e),fix_after_ajax(\"odds-filter\")}}))}function odds_movements_reload(e,t){var a=$(\"#hoursFilter\").val(),s=$(\"#daysFilter\").val(),n=$(\"#bookiesFilter\").val();$(\"#odds-movements\").html('<div class=\"wrap-section__preloader wrap-section__preloader--short lazyLoadCountryFlags\"></div>'),jQuery.ajax({url:\"/gres/ajax/odds-movements.php\",type:\"GET\",data:\"sport_id=\"+e+\"&hours=\"+a+\"&days=\"+s+\"&bookies=\"+n+\"&lang=\"+t,cache:!1,dataType:\"text\",success:function(e){$(\"#odds-movements\").html(e),fix_after_ajax(\"odds-movements\"),movements_touch_repair()}})}function popular_bets_reload(e,t,a){var s=$(\"#orderBy\").val();$(\"#popular-bets-full\").html('<div class=\"wrap-section__preloader wrap-section__preloader--short lazyLoadCountryFlags\"></div>'),jQuery.ajax({url:\"/gres/ajax/popular-bets.php\",type:\"GET\",data:\"sport_id=\"+e+"
+  },
+  {
+    "needle": "odds-movement",
+    "offset": 102332,
+    "start": 101932,
+    "end": 102982,
+    "code": "\"&days=\"+n+\"&lang=\"+t,cache:!1,dataType:\"text\",success:function(e){$(\"#odds-filter\").html(e),fix_after_ajax(\"odds-filter\")}}))}function odds_movements_reload(e,t){var a=$(\"#hoursFilter\").val(),s=$(\"#daysFilter\").val(),n=$(\"#bookiesFilter\").val();$(\"#odds-movements\").html('<div class=\"wrap-section__preloader wrap-section__preloader--short lazyLoadCountryFlags\"></div>'),jQuery.ajax({url:\"/gres/ajax/odds-movements.php\",type:\"GET\",data:\"sport_id=\"+e+\"&hours=\"+a+\"&days=\"+s+\"&bookies=\"+n+\"&lang=\"+t,cache:!1,dataType:\"text\",success:function(e){$(\"#odds-movements\").html(e),fix_after_ajax(\"odds-movements\"),movements_touch_repair()}})}function popular_bets_reload(e,t,a){var s=$(\"#orderBy\").val();$(\"#popular-bets-full\").html('<div class=\"wrap-section__preloader wrap-section__preloader--short lazyLoadCountryFlags\"></div>'),jQuery.ajax({url:\"/gres/ajax/popular-bets.php\",type:\"GET\",data:\"sport_id=\"+e+\"&full=1&more=\"+(t?1:0)+\"&order_by=\"+s+\"&lang=\"+a+\"&tz=\"+timezone_key,cache:!1,dataType:\"text\",success:function(e){$(\"#popular-bets-full\").html(e),fix"
+  },
+  {
+    "needle": "archive-odds",
+    "offset": 89954,
+    "start": 89654,
+    "end": 90654,
+    "code": "l).append('<tr class=\"archiveOddsModal__tr__left\"><th colspan=\"3\" class=\"archiveOddsModal__th archiveOddsModal__cell archiveOddsModal__cell_full\">'+(t.is(\"[data-opening-odd]\")?loc(\"Closing odds\"):loc(\"Current odds\"))+\"</th></tr>\"),$(l).appendTo($(\"#aodds-table\")),$(l).parent().parent().addClass(\"in-archive-odds__cleanBefforePseudo\"),$(l).parent().parent().addClass(\"in-archive-odds__cleanBorders\"),$(l).find(\"tr\").addClass(\"hidden\"),t.is(\"[data-opening-odd]\")){var o=[],d=my_tz_format($(t).attr(\"data-opening-date\"));o.unshift({date:d.date_noyear+\" \"+d.time,odd:$(t).attr(\"data-opening-odd\"),change:\"0\"}),create_odds_archive_table(t,o,l)}else{const r=$(\"#aodds-table\");r.append('<div class=\"box-aside__section__preloader--fixed\" style=\"background-position: center center;\"></div>'),jQuery.ajax({url:`/archive-odds/${e}/${a}/${s}/${n}/${i}/`,type:\"GET\",dataType:\"json\",success:function(e){$(l).parent().parent().removeClass(\"in-archive-odds__cleanBefforePseudo\"),$(l).parent().parent().removeClass(\""
+  },
+  {
+    "needle": "Full Time",
+    "offset": 38832,
+    "start": 38652,
+    "end": 39012,
+    "code": "box-top_scorers div .stats-table-container\"));$(e).addClass(\"standings__top-scorers_table-container\")});var e=[\"League Standings\",\"Teams Form\",\"Over or Under 2.5 goals\",\"Half Time/Full Time statistics\",\"Top Scorers by team, nationality and position\",\"Overall game results\",\"Home game results\",\"Away game results\"];$(\".wrap-section > .glib-stats-content > .stat"
+  }
+]

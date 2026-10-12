@@ -1,0 +1,68 @@
+[
+  {
+    "event_id": "pjTVIO7M",
+    "state_read_ms": 46,
+    "first_run_started_at": "2026-10-11T19:57:58.781Z",
+    "first_current_at": "2026-10-11T19:58:03.926Z",
+    "first_run_finished_at": "2026-10-11T20:00:43.602Z",
+    "markets": {
+      "1X2": {
+        "current_rows": 18,
+        "opening_selections": 46,
+        "projection_ms": 25,
+        "first_current_at": "2026-10-11T19:58:04.069Z"
+      },
+      "OU": {
+        "current_rows": 153,
+        "opening_selections": 251,
+        "projection_ms": 12,
+        "first_current_at": "2026-10-11T19:58:03.926Z"
+      },
+      "ASIAN": {
+        "current_rows": 116,
+        "opening_selections": 184,
+        "projection_ms": 9,
+        "first_current_at": "2026-10-11T19:58:04.881Z"
+      },
+      "KG": {
+        "current_rows": 17,
+        "opening_selections": 32,
+        "projection_ms": 8,
+        "first_current_at": "2026-10-11T19:58:04.809Z"
+      }
+    }
+  },
+  {
+    "event_id": "r9rkvmPc",
+    "state_read_ms": 2624,
+    "first_run_started_at": "2026-10-11T20:00:58.800Z",
+    "first_current_at": "2026-10-11T20:00:59.829Z",
+    "first_run_finished_at": "2026-10-11T20:05:31.436Z",
+    "markets": {
+      "1X2": {
+        "current_rows": 36,
+        "opening_selections": 98,
+        "projection_ms": 926,
+        "first_current_at": "2026-10-11T20:00:59.829Z"
+      },
+      "OU": {
+        "current_rows": 698,
+        "opening_selections": 1107,
+        "projection_ms": 844,
+        "first_current_at": "2026-10-11T20:00:59.995Z"
+      },
+      "ASIAN": {
+        "current_rows": 515,
+        "opening_selections": 592,
+        "projection_ms": 756,
+        "first_current_at": "2026-10-11T20:01:00.555Z"
+      },
+      "KG": {
+        "current_rows": 51,
+        "opening_selections": 59,
+        "projection_ms": 702,
+        "first_current_at": "2026-10-11T20:01:00.726Z"
+      }
+    }
+  }
+]

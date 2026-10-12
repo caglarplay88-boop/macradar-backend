@@ -1,0 +1,9 @@
+[
+  {
+    "needle": "archive-odds",
+    "offset": 89954,
+    "start": 89654,
+    "end": 90654,
+    "code": "l).append('<tr class=\"archiveOddsModal__tr__left\"><th colspan=\"3\" class=\"archiveOddsModal__th archiveOddsModal__cell archiveOddsModal__cell_full\">'+(t.is(\"[data-opening-odd]\")?loc(\"Closing odds\"):loc(\"Current odds\"))+\"</th></tr>\"),$(l).appendTo($(\"#aodds-table\")),$(l).parent().parent().addClass(\"in-archive-odds__cleanBefforePseudo\"),$(l).parent().parent().addClass(\"in-archive-odds__cleanBorders\"),$(l).find(\"tr\").addClass(\"hidden\"),t.is(\"[data-opening-odd]\")){var o=[],d=my_tz_format($(t).attr(\"data-opening-date\"));o.unshift({date:d.date_noyear+\" \"+d.time,odd:$(t).attr(\"data-opening-odd\"),change:\"0\"}),create_odds_archive_table(t,o,l)}else{const r=$(\"#aodds-table\");r.append('<div class=\"box-aside__section__preloader--fixed\" style=\"background-position: center center;\"></div>'),jQuery.ajax({url:`/archive-odds/${e}/${a}/${s}/${n}/${i}/`,type:\"GET\",dataType:\"json\",success:function(e){$(l).parent().parent().removeClass(\"in-archive-odds__cleanBefforePseudo\"),$(l).parent().parent().removeClass(\""
+  }
+]

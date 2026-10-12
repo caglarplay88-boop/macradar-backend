@@ -1,0 +1,123 @@
+{
+  "root": "/home/ubuntu/macradar-src-test",
+  "folder": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z",
+  "tasks": [
+    {
+      "id": "retry-1X2",
+      "kind": "market",
+      "market": "1X2",
+      "endpoint": "https://www.betexplorer.com/match-odds/0p1XkgIt/0/1x2/odds/?lang=en",
+      "sources": [
+        "betexplorer-direct",
+        "betexplorer-default-tor"
+      ]
+    },
+    {
+      "id": "retry-OU",
+      "kind": "market",
+      "market": "OU",
+      "endpoint": "https://www.betexplorer.com/match-odds/0p1XkgIt/0/ou/odds/?lang=en",
+      "sources": [
+        "betexplorer-direct",
+        "betexplorer-default-tor"
+      ]
+    },
+    {
+      "id": "archive-ASIAN-0",
+      "kind": "archive",
+      "market": "ASIAN",
+      "cell": {
+        "data-bookmaker-id": "909",
+        "data-odd": "13.00",
+        "data-created": "09,10,2026,18,25",
+        "data-pos": "1",
+        "data-bookie": "bets.io",
+        "data-bookie-id": "1087",
+        "data-oid": "a77uhx4p6e4xbnzs0l61",
+        "data-bid": "909",
+        "data-bt": "5",
+        "data-sc": "2",
+        "data-hcp": "E-5-2-0--3.75-0"
+      },
+      "parentEvidence": "archive-parent-ASIAN.html",
+      "sources": [
+        "betexplorer-default-tor"
+      ]
+    },
+    {
+      "id": "archive-ASIAN-1",
+      "kind": "archive",
+      "market": "ASIAN",
+      "cell": {
+        "data-bookmaker-id": "909",
+        "data-odd": "1.03",
+        "data-created": "09,10,2026,18,15",
+        "data-pos": "2",
+        "data-bookie": "bets.io",
+        "data-bookie-id": "1087",
+        "data-oid": "a77uhx4p6e4xbnxs0l63",
+        "data-bid": "909",
+        "data-bt": "5",
+        "data-sc": "2",
+        "data-hcp": "E-5-2-0--3.75-0"
+      },
+      "parentEvidence": "archive-parent-ASIAN.html",
+      "sources": [
+        "betexplorer-default-tor"
+      ]
+    },
+    {
+      "id": "archive-KG-0",
+      "kind": "archive",
+      "market": "KG",
+      "cell": {
+        "data-bookmaker-id": "16",
+        "data-odd": "1.91",
+        "data-created": "09,10,2026,18,10",
+        "data-pos": "y",
+        "data-bookie": "bet365",
+        "data-bookie-id": "11",
+        "data-oid": "a77uhxcdbq8x0x0",
+        "data-bid": "16",
+        "data-bt": "13",
+        "data-sc": "2",
+        "data-hcp": "E-13-2-0-0-0"
+      },
+      "parentEvidence": "archive-parent-KG.html",
+      "sources": [
+        "betexplorer-direct"
+      ]
+    },
+    {
+      "id": "archive-KG-1",
+      "kind": "archive",
+      "market": "KG",
+      "cell": {
+        "data-bookmaker-id": "16",
+        "data-odd": "1.80",
+        "data-created": "09,10,2026,18,10",
+        "data-pos": "n",
+        "data-bookie": "bet365",
+        "data-bookie-id": "11",
+        "data-oid": "a77uhxcdbtcx0x0",
+        "data-bid": "16",
+        "data-bt": "13",
+        "data-sc": "2",
+        "data-hcp": "E-13-2-0-0-0"
+      },
+      "parentEvidence": "archive-parent-KG.html",
+      "sources": [
+        "betexplorer-direct"
+      ]
+    },
+    {
+      "id": "match-page",
+      "kind": "page",
+      "endpoint": "https://www.betexplorer.com/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/",
+      "sources": [
+        "betexplorer-direct",
+        "betexplorer-default-tor"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "root": "/home/ubuntu/macradar-src-test",
+  "folder": "/home/ubuntu/macradar-src-test/artifacts/odds-contract-audit/20261011T120630Z",
+  "tasks": [
+    {
+      "id": "history-1X2-0",
+      "market": "1X2",
+      "endpoint": "https://www.betexplorer.com/archive-odds/a77uhxv464x0xs0l61/16/1/2/E-1-2-0-0-0/",
+      "sourceName": "betexplorer-direct",
+      "timezonePreference": "+0",
+      "cell": {
+        "data-bookmaker-id": "16",
+        "data-odd": "1.53",
+        "data-created": "09,10,2026,18,10",
+        "data-pos": "1",
+        "data-bookie": "bet365",
+        "data-bookie-id": "11",
+        "data-oid": "a77uhxv464x0xs0l61",
+        "data-bid": "16",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "parentEvidence": "archive-parent-1X2.html"
+    },
+    {
+      "id": "history-1X2-1",
+      "market": "1X2",
+      "endpoint": "https://www.betexplorer.com/archive-odds/a77uhxv498x0x0/16/1/2/E-1-2-0-0-0/",
+      "sourceName": "betexplorer-direct",
+      "timezonePreference": "+0",
+      "cell": {
+        "data-bookmaker-id": "16",
+        "data-odd": "3.60",
+        "data-created": "09,10,2026,18,10",
+        "data-pos": "0",
+        "data-bookie": "bet365",
+        "data-bookie-id": "11",
+        "data-oid": "a77uhxv498x0x0",
+        "data-bid": "16",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "parentEvidence": "archive-parent-1X2.html"
+    },
+    {
+      "id": "history-1X2-2",
+      "market": "1X2",
+      "endpoint": "https://www.betexplorer.com/archive-odds/a77uhxv464x0xs0l63/16/1/2/E-1-2-0-0-0/",
+      "sourceName": "betexplorer-direct",
+      "timezonePreference": "+0",
+      "cell": {
+        "data-bookmaker-id": "16",
+        "data-odd": "5.50",
+        "data-created": "09,10,2026,18,10",
+        "data-pos": "2",
+        "data-bookie": "bet365",
+        "data-bookie-id": "11",
+        "data-oid": "a77uhxv464x0xs0l63",
+        "data-bid": "16",
+        "data-bt": "1",
+        "data-sc": "2",
+        "data-hcp": "E-1-2-0-0-0"
+      },
+      "parentEvidence": "archive-parent-1X2.html"
+    },
+    {
+      "id": "history-OU-0",
+      "market": "OU",
+      "endpoint": "https://www.betexplorer.com/archive-odds/a77uhx1tkucx1ix0/16/2/2/E-2-2-0-0.5-0/",
+      "sourceName": "betexplorer-direct",
+      "timezonePreference": "+0",
+      "cell": {
+        "data-bookmaker-id": "16",
+        "data-odd": "1.05",
+        "data-created": "09,10,2026,18,11",
+        "data-pos": "1",
+        "data-bookie": "bet365",
+        "data-bookie-id": "11",
+        "data-oid": "a77uhx1tkucx1ix0",
+        "data-bid": "16",
+        "data-bt": "2",
+        "data-sc": "2",
+        "data-hcp": "E-2-2-0-0.5-0"
+      },
+      "parentEvidence": "archive-parent-OU.html"
+    },
+    {
+      "id": "history-OU-1",
+      "market": "OU",
+      "endpoint": "https://www.betexplorer.com/archive-odds/a77uhx1tl1gx1ix0/16/2/2/E-2-2-0-0.5-0/",
+      "sourceName": "betexplorer-direct",
+      "timezonePreference": "+0",
+      "cell": {
+        "data-bookmaker-id": "16",
+        "data-odd": "11.00",
+        "data-created": "09,10,2026,18,11",
+        "data-pos": "2",
+        "data-bookie": "bet365",
+        "data-bookie-id": "11",
+        "data-oid": "a77uhx1tl1gx1ix0",
+        "data-bid": "16",
+        "data-bt": "2",
+        "data-sc": "2",
+        "data-hcp": "E-2-2-0-0.5-0"
+      },
+      "parentEvidence": "archive-parent-OU.html"
+    },
+    {
+      "id": "timezone-KG-plus0",
+      "market": "KG",
+      "endpoint": "https://www.betexplorer.com/archive-odds/a77uhxcdbq8x0x0/16/13/2/E-13-2-0-0-0/",
+      "sourceName": "betexplorer-direct",
+      "timezonePreference": "+0",
+      "cell": {
+        "data-bookmaker-id": "16",
+        "data-odd": "1.91",
+        "data-created": "09,10,2026,18,10",
+        "data-pos": "y",
+        "data-bookie": "bet365",
+        "data-bookie-id": "11",
+        "data-oid": "a77uhxcdbq8x0x0",
+        "data-bid": "16",
+        "data-bt": "13",
+        "data-sc": "2",
+        "data-hcp": "E-13-2-0-0-0"
+      },
+      "parentEvidence": "archive-parent-KG.html"
+    },
+    {
+      "id": "timezone-KG-plus3",
+      "market": "KG",
+      "endpoint": "https://www.betexplorer.com/archive-odds/a77uhxcdbq8x0x0/16/13/2/E-13-2-0-0-0/",
+      "sourceName": "betexplorer-direct",
+      "timezonePreference": "+3",
+      "cell": {
+        "data-bookmaker-id": "16",
+        "data-odd": "1.91",
+        "data-created": "09,10,2026,18,10",
+        "data-pos": "y",
+        "data-bookie": "bet365",
+        "data-bookie-id": "11",
+        "data-oid": "a77uhxcdbq8x0x0",
+        "data-bid": "16",
+        "data-bt": "13",
+        "data-sc": "2",
+        "data-hcp": "E-13-2-0-0-0"
+      },
+      "parentEvidence": "archive-parent-KG.html"
+    }
+  ]
+}

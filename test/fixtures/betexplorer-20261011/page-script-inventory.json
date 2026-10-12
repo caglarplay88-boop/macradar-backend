@@ -1,0 +1,28 @@
+{
+  "pageUrl": "https://www.betexplorer.com/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/",
+  "scripts": [
+    "https://www.betexplorer.com/res/js/libs/jquery-1.11.3.min.js?serial=2610021100",
+    "https://www.betexplorer.com/res/js/all.min.js?serial=2610021100",
+    "https://www.betexplorer.com/res/js/libs/odds-format.js.php?serial=2610021100",
+    "https://www.betexplorer.com/res/js/libs/stats.js.php?serial=2610021100",
+    "https://www.betexplorer.com/res/js/libs/tooltip.min.js?serial=2610021100",
+    "https://www.betexplorer.com/res/js/libs/sortable.min.js?serial=2610021100",
+    "https://www.betexplorer.com/res/js/libs/instantpage-5.2.0.js"
+  ],
+  "scopeLinks": [
+    {
+      "label": "1X2 Stats",
+      "attributes": {
+        "data-tab": "1x2",
+        "class": "listTabsItemInMobile list-tabs__item__newIn bb current clicked",
+        "href": "/it/football/france/ligue-2/montpellier-grenoble/0p1XkgIt/1x2/"
+      }
+    }
+  ],
+  "timezoneVariables": [
+    [
+      "_use_timezones",
+      "true"
+    ]
+  ]
+}

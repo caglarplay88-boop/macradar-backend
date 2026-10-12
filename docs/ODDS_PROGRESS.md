@@ -305,3 +305,29 @@ erişti. Gelen gerçek çıktılara göre:
 - Küçük ve büyük paket schema/hash/kanıt/performans koruma kontrolleri geçti.
 - Önceki APK ile güncelleme imzası ve ZIP bütünlüğü doğrulandı.
 - Fiziksel APK düğmesinden kart kaydı ve harici okuyucu kabulü henüz yapılmadı.
+
+## ODDS_IMPROVEMENT_TASK — aktif görev
+
+Kod değişikliğinden önce yeni metin eksiksiz kaydedildi. Başlangıç kaynak
+revizyonu a621a34; mevcut APK 1.0.12+112. Önceki 49/33 test bu yeni görevin
+kabulünü kanıtlamıyor. Kanıt olmadan kapanan maddeler yeniden açıldı.
+
+| Madde | Durum | Son kontrol / gerekli kanıt |
+|---|---|---|
+| A Kalıcı görev ve oturum kuralları | açık | Dosyalar yazıldı; Git kaydı ve sunucuya aktarım bekliyor |
+| B Gerçek indirilen ZIP denetimi | açık | Kullanıcı raporu mevcut; orijinal dosya bağımsız okunacak |
+| C Takibe alma / piyasa yükleme | açık | İlk veri, başarılı-boş, hata ve tarih ayrımı eksik |
+| D Eksik şirket açılışları | açık | Locator ve bookmaker/selection gerçek cevaplarla sınanacak |
+| E Açılış kartı ve tekrarlar | açık | 1X2 displayRows yolunda compact sunuma bağlantı eksik olduğu kodda görüldü |
+| F Kaynak zamanı | açık | Saat okunuyor; yıl ve saat dilimi belirsizliği ayrı bildirilmeli |
+| G Kapalı fiyatlar | açık | Rainbet/Stake KG gerçek inactive işareti ve davranışı doğrulanacak |
+| H Dönem / fiyat türü / Asian işareti | açık | Kaynak anlamı kanıtlanmadan genel alan açılmayacak |
+| I İndirmede son tarama sırası | açık | Mevcut bounded export bu yeni sırayı henüz sağlamıyor |
+| J Gruplar ve hesaplar | açık | Gözlem yaşı / hareket zamanı politikası denetlenecek |
+| K Değişimli gerçek arşiv | açık | Birden fazla gerçek değişim örneği ve kaynak kapsamı gerekli |
+| L Eklenti sınırı | açık | Eklenti değiştirilmedi; telefon bayrakları korunacak |
+| M Gerçek uygulama kabulü | açık | Her alt kontrol için fiziksel dosya ve kaynak kanıtı gerekli |
+
+Değişen dosyalar: docs/ODDS_IMPROVEMENT_TASK.md, AGENTS.md,
+docs/ODDS_PROGRESS.md. Uygulama kodu bu kayıt aşamasında değiştirilmedi.
+Sonraki işlem: Git kaydı, gerçek indirilen dosya denetimi ve kaynak denetimi.

@@ -229,3 +229,23 @@ erişti. Gelen gerçek çıktılara göre:
 - Dört piyasanın şirket detayına Yenile eklendi; ilk toplama sonrasında
   gelen açılışlar tekrar okunabilir. Aynı detayda iki yenileme başlatılmaz.
   Eksik kayıt, şirket/çizgi için kaydedilmiş kaynak açılışı yok diye belirtilir.
+
+## Sunucu uygulama ve APK sonucu
+
+- macradar.service yenilendi; ayrı dropping servisi değiştirilmedi.
+- 48 backend testi ve son revizyon mobil testleri geçti; analiz hata sayısı 0.
+- İki gerçek mevcut APK HTTP export akışı, ZIP/schema/manifest/kanıt ve ham kayıt koruma denetimleri geçti.
+- APK 1.0.11+111 derlendi; imza, aynı güncelleme imzası ve ZIP bütünlüğü doğrulandı.
+- Telefon indirme/kurulum/kart indirme ve harici okuyucu kabulü henüz yapılmadı.
+- Teslim kanıtı: artifacts/odds-revision-delivery-20261012/delivery.json
+
+## Telefon indirme revizyonu doğrulaması
+- APK 1.0.11+111 derlendi; imza ve önceki sürümle güncelleme imzası geçti.
+- 29 mobil test ve 48 backend testi geçti.
+- Seçili xnGLmLIO maçında gerçek kaynak yenilemesi ve HTTP paket testi geçti.
+- Büyük paket schema/hash/kanıt ve 83.541 önceki kayıt koruma testi geçti.
+- Kalıcı iş kimliği, aynı işte bağlantı tekrarı ve aşama bildirimi testleri geçti.
+- Download'a native kayıt Kotlin derlemesinden geçti; fiziksel telefon
+  düğmesinden dosya kaydetme kabulü henüz doğrulanmadı.
+- Bwin arşiv bağlantısı olmayan satırlara açılış üretilmedi.
+- Harici okuyucu entegrasyonu henüz yapılmadı.

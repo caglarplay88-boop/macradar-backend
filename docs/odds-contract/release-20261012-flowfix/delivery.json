@@ -1,0 +1,12 @@
+{
+  "apk": "/home/ubuntu/macradar-src-test/artifacts/odds-revision-delivery-20261012/MacRadar-1.0.12.apk",
+  "bytes": 19714871,
+  "sha256": "2fdaca9e7dcc310b5d9b552fc0ceb9994063093c7c65f87aa59f283d3acdac33",
+  "version": "1.0.12+112",
+  "signature": "PASSED",
+  "same_update_signer": true,
+  "zip_integrity": "PASSED",
+  "actual_http_exports": "PASSED",
+  "phone_download": "NOT_PERFORMED",
+  "external_reader_test": "NOT_PERFORMED"
+}

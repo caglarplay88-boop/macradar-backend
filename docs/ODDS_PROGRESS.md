@@ -286,3 +286,22 @@ erişti. Gelen gerçek çıktılara göre:
   mevcut indirme ekranı beklentisi bozuldu; bu anlam tekrar açıkça belirtildi.
 - Testler gevşetilmedi; taraf zamanları/tek kart ve ekranlar arası indirme
   testleri aynı kalıyor. Bütün mobil testler yeniden çalıştırılacak.
+
+## Sunucu uygulama ve APK sonucu
+
+- macradar.service yenilendi; ayrı dropping servisi değiştirilmedi.
+- Son revizyon backend ve mobil testleri geçti; analiz hata sayısı 0.
+- İki gerçek mevcut APK HTTP export akışı, ZIP/schema/manifest/kanıt ve ham kayıt koruma denetimleri geçti.
+- APK 1.0.12+112 derlendi; imza, aynı güncelleme imzası ve ZIP bütünlüğü doğrulandı.
+- Telefon indirme/kurulum/kart indirme ve harici okuyucu kabulü henüz yapılmadı.
+- Teslim kanıtı: artifacts/odds-revision-delivery-20261012/delivery.json
+
+## 1.0.12 doğrulama ve teslim
+- 33 mobil ve 49 backend testi geçti; imzalı APK 1.0.12+112 derlendi.
+- Gerçek HTTP byte ilerlemesi ve ekrandan çıkıp dönünce aynı işin korunması testleri geçti.
+- Açılışlar tek sunum kartında; ayrı taraf zamanları ve ham kayıtlar korunuyor.
+- Gerçek maçta yenileme bekleme sınırı çalıştı: REFRESH_IN_PROGRESS,
+  15000 ms sınır, arka planda aynı toplama işi devam etti.
+- Küçük ve büyük paket schema/hash/kanıt/performans koruma kontrolleri geçti.
+- Önceki APK ile güncelleme imzası ve ZIP bütünlüğü doğrulandı.
+- Fiziksel APK düğmesinden kart kaydı ve harici okuyucu kabulü henüz yapılmadı.

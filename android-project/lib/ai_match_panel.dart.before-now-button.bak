@@ -1,0 +1,608 @@
+part of 'main.dart';
+
+class AiMatchPanel extends StatefulWidget {
+  final String eventId;
+  final Api? api;
+  const AiMatchPanel({super.key, required this.eventId, this.api});
+
+  @override
+  State<AiMatchPanel> createState() => _AiMatchPanelState();
+}
+
+class _AiMatchPanelState extends State<AiMatchPanel> {
+  late final Api _api;
+  bool _loading = true;
+  bool _starting = false;
+  bool _polling = false;
+  bool _enabled = false;
+  String _error = '';
+  String? _selectedId;
+  String? _jobId;
+  Timer? _timer;
+  List<Map<String, dynamic>> _predictions = [];
+  Map<String, dynamic> _job = {};
+
+  String get _storageKey => 'macradar_ai_job_${widget.eventId}';
+  bool get _busy =>
+      _starting || _job['status'] == 'queued' || _job['status'] == 'running';
+
+  @override
+  void initState() {
+    super.initState();
+    _api = widget.api ?? Api();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Map<String, dynamic> _map(dynamic value) =>
+      value is Map ? Map<String, dynamic>.from(value) : {};
+
+  String _time(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    if (date == null) return 'Bilinmiyor';
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(date.day)}.${two(date.month)}.${date.year} '
+        '${two(date.hour)}:${two(date.minute)}';
+  }
+
+  String _number(dynamic value, {bool percent = false}) {
+    if (value is! num || !value.isFinite) return 'Yok';
+    return percent
+        ? '%${(value * 100).toStringAsFixed(1)}'
+        : value.toStringAsFixed(3);
+  }
+
+  Future<void> _load() async {
+    if (mounted)
+      setState(() {
+        _loading = true;
+        _error = '';
+      });
+    try {
+      final status = await _api.get('/api/ai/reports/status');
+      final data = await _api.get(
+        '/api/ai/predictions?eventId=${Uri.encodeComponent(widget.eventId)}',
+      );
+      if (data['eventId'] != widget.eventId) {
+        throw Exception('Tahmin listesi bu maçla eşleşmedi.');
+      }
+      final rows = (data['predictions'] as List? ?? [])
+          .map(_map)
+          .where((row) => row['eventId'] == widget.eventId)
+          .toList();
+      final preferences = await SharedPreferences.getInstance();
+      final savedId = preferences.getString(_storageKey);
+      if (!mounted) return;
+      setState(() {
+        _enabled =
+            status['enabled'] == true && status['qwenConfigured'] == true;
+        _predictions = rows;
+        if (!rows.any((row) => row['predictionId'] == _selectedId)) {
+          _selectedId = rows.isEmpty
+              ? null
+              : rows.first['predictionId']?.toString();
+        }
+        _jobId = savedId ?? _jobId;
+      });
+      if (_jobId != null) {
+        await _poll();
+        if (mounted && _busy) _startPolling();
+      }
+    } catch (error) {
+      if (mounted)
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _startPolling() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
+  }
+
+  Future<void> _poll() async {
+    if (_polling || _jobId == null || !mounted) return;
+    _polling = true;
+    try {
+      final data = await _api.get(
+        '/api/ai/reports/jobs/${Uri.encodeComponent(_jobId!)}',
+      );
+      final report = _map(data['report']);
+      if (report.isNotEmpty &&
+          _map(report['prediction'])['eventId'] != widget.eventId) {
+        throw Exception('Rapor bu maçla eşleşmedi.');
+      }
+      if (!mounted) return;
+      setState(() {
+        _job = data;
+        _error = '';
+      });
+      if (data['status'] == 'completed' || data['status'] == 'failed') {
+        _timer?.cancel();
+      }
+    } catch (error) {
+      if (mounted)
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+    } finally {
+      _polling = false;
+    }
+  }
+
+  Future<void> _start() async {
+    if (_busy || !_enabled || _selectedId == null) return;
+    setState(() {
+      _starting = true;
+      _error = '';
+      _job = {};
+    });
+    try {
+      final data = await _api.post('/api/ai/reports', {
+        'predictionId': _selectedId,
+      });
+      final id = data['jobId']?.toString();
+      if (id == null || id.isEmpty)
+        throw Exception('Analiz işi oluşturulamadı.');
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(_storageKey, id);
+      if (!mounted) return;
+      setState(() {
+        _jobId = id;
+        _job = {'status': data['status'] ?? 'queued', 'progress': []};
+      });
+      _startPolling();
+      await _poll();
+    } catch (error) {
+      if (mounted)
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
+
+  Widget _card(String title, Widget child, {IconData? icon}) => Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    ),
+  );
+
+  String _stageLabel(String stage) {
+    if (stage == 'qwen_report_generation') return 'Yapay zeka analizi';
+    if (stage == 'report_saved') return 'Raporun kaydedilmesi';
+    if (stage.contains('received')) return 'Raporun doğrulanması';
+    if (stage.contains('archive')) return 'Veri arşivi ve kaynaklar';
+    if (stage.contains('prediction')) return 'Kayıtlı tahminin kontrolü';
+    if (stage.contains('input') ||
+        stage.contains('request') ||
+        stage.contains('feature'))
+      return 'Analiz verilerinin hazırlanması';
+    return 'Analiz kontrolü';
+  }
+
+  Widget _progress() {
+    final entries = (_job['progress'] as List? ?? []).map(_map).toList();
+    final status = _job['status'];
+    final title = status == 'completed'
+        ? 'Analiz tamamlandı'
+        : status == 'failed'
+        ? 'Analiz tamamlanamadı'
+        : status == 'queued'
+        ? 'Analiz sırada'
+        : 'Analiz sürüyor';
+    return _card(
+      title,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_busy) ...[
+            const LinearProgressIndicator(),
+            const SizedBox(height: 12),
+            const Text(
+              'Yalnız sunucuda gerçekleşen işlem adımları gösterilir.',
+            ),
+            const SizedBox(height: 10),
+          ],
+          for (final entry in entries)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    entry['status'] == 'completed'
+                        ? Icons.check_circle_outline
+                        : Icons.hourglass_top,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(_stageLabel(entry['stage']?.toString() ?? '')),
+                  ),
+                  Text(
+                    entry['status'] == 'completed' ? 'Tamamlandı' : 'Başladı',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          if (status == 'failed')
+            const Text(
+              'İşlem tamamlanamadı. Bağlantıyı kontrol edip yeniden deneyebilirsin.',
+            ),
+        ],
+      ),
+      icon: Icons.auto_awesome,
+    );
+  }
+
+  String _evidenceLabel(String name) =>
+      {
+        'prediction': 'Sayısal tahmin',
+        'market_features': 'Şirket oranları',
+        'movement_features': 'Oran hareketleri',
+        'coverage_features': 'Veri kapsamı',
+        'freshness_features': 'Veri tazeliği',
+        'performance_features': 'Takım performansı',
+        'anomaly_features': 'Anomali bulguları',
+      }[name] ??
+      name;
+
+  Widget _section(String title, dynamic value) {
+    final section = _map(value);
+    final refs = (section['evidenceRefs'] as List? ?? []).map(
+      (v) => v.toString(),
+    );
+    return _card(
+      title,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SelectableText(section['conclusion']?.toString() ?? 'Bilgi yok'),
+          if (refs.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final ref in refs)
+                  Chip(
+                    label: Text(
+                      _evidenceLabel(ref),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _calculations(Map<String, dynamic> report) {
+    final rows =
+        (_map(report['calculations'])['marketComparisons'] as List? ?? [])
+            .map(_map)
+            .toList();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        title: const Text('Oranlar ve hesaplar'),
+        subtitle: const Text(
+          'Model olasılığı × oran − 1; ölçülmüş kâr değildir.',
+        ),
+        children: [
+          if (rows.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Hesap için yeterli veri yok.'),
+            ),
+          if (rows.isNotEmpty)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: const [
+                  DataColumn(label: Text('Şirket')),
+                  DataColumn(label: Text('Seçim')),
+                  DataColumn(label: Text('Oran')),
+                  DataColumn(label: Text('Model')),
+                  DataColumn(label: Text('Piyasa')),
+                  DataColumn(label: Text('Beklenen değer\nbirim başına')),
+                ],
+                rows: [
+                  for (final row in rows)
+                    DataRow(
+                      cells: [
+                        DataCell(
+                          Text(row['bookmakerKey']?.toString() ?? 'Bilinmiyor'),
+                        ),
+                        DataCell(Text(row['selection']?.toString() ?? '—')),
+                        DataCell(Text(_number(row['decimalOdds']))),
+                        DataCell(
+                          Text(_number(row['modelProbability'], percent: true)),
+                        ),
+                        DataCell(
+                          Text(
+                            _number(
+                              row['marketFairProbability'],
+                              percent: true,
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          Text(_number(row['expectedValuePerUnitStake'])),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          for (final row in rows.where((r) => _map(r['quote']).isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: SelectableText(
+                '${row['bookmakerKey']} · ${row['selection']}\n'
+                'Oran kaynağı: ${_map(row['quote'])['sourceId'] ?? 'Bilinmiyor'}\n'
+                'Gözlem: ${_time(_map(row['quote'])['observedAt'])}\n'
+                'Kullanılabilirlik: ${_time(_map(row['quote'])['availableAt'])}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sources(Map<String, dynamic> report) {
+    final ledger = _map(report['evidenceLedger']);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        title: const Text('Kanıt ve veri kaynakları'),
+        children: [
+          for (final entry in ledger.entries)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _evidenceLabel(entry.key),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    if ((_map(entry.value)['sourceIds'] as List? ?? [])
+                        .isNotEmpty)
+                      SelectableText(
+                        (_map(entry.value)['sourceIds'] as List).join('\n'),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    if (_map(entry.value)['url'] != null)
+                      SelectableText(_map(entry.value)['url'].toString()),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _reportWidgets(Map<String, dynamic> report) {
+    final decision = _map(report['decision']);
+    final prediction = _map(report['prediction']);
+    final assessments = _map(report['assessments']);
+    final action = decision['action'];
+    final label = action == 'ENTER'
+        ? 'Girilir'
+        : action == 'AVOID'
+        ? 'Girilmez'
+        : 'Bekle';
+    final quote = _map(decision['quotedCandidate']);
+    return [
+      _card(
+        label,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (decision['selection'] != null &&
+                decision['selection'] != 'NONE')
+              Text(
+                'Seçim: ${decision['selection']}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            if (quote.isNotEmpty)
+              Text(
+                'Şirket: ${quote['bookmakerKey'] ?? 'Bilinmiyor'} · '
+                'Oran: ${_number(quote['decimalOdds'])}',
+              ),
+            const SizedBox(height: 4),
+            SelectableText(decision['rationale']?.toString() ?? ''),
+          ],
+        ),
+        icon: action == 'ENTER'
+            ? Icons.check_circle_outline
+            : action == 'AVOID'
+            ? Icons.block
+            : Icons.pause_circle_outline,
+      ),
+      _card(
+        'Analiz özeti',
+        SelectableText(report['summary']?.toString() ?? ''),
+      ),
+      _card(
+        'Analizin veri zamanı',
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Veri kesim zamanı: ${_time(prediction['inputCutoff'])}'),
+            Text('Maç başlangıcı: ${_time(prediction['kickoffAt'])}'),
+            const SizedBox(height: 6),
+            const Text(
+              'Gösterilen oranlar veri zamanında gözlenmiştir; '
+              'şu anda oynanabilir oldukları ayrıca doğrulanmalıdır.',
+            ),
+          ],
+        ),
+      ),
+      _section('Piyasa ve oran hareketleri', assessments['market']),
+      _section('Takım performansı', assessments['performance']),
+      _section('Anomali ve olası riskler', assessments['anomalies']),
+      _section('Veri kalitesi', assessments['dataQuality']),
+      _card(
+        'Karşı kanıtlar',
+        SelectableText(report['counterEvidence']?.toString() ?? ''),
+      ),
+      _card(
+        'Sınırlamalar',
+        SelectableText(report['limitations']?.toString() ?? ''),
+      ),
+      _card(
+        'Kararı değiştirecek koşullar',
+        SelectableText(report['changeConditions']?.toString() ?? ''),
+      ),
+      _calculations(report),
+      _sources(report),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final report = _map(_job['report']);
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          _card(
+            'Bu maçın AI analizi',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!_enabled)
+                  const Text(
+                    'Analiz servisi şu anda hazır değil. Yenileyerek tekrar kontrol edebilirsin.',
+                  )
+                else if (_predictions.isEmpty)
+                  const Text(
+                    'Bu maç için henüz analiz kaydı yok. '
+                    'Maça ait oran ve performans verileri kesim zamanında hazırlandığında analiz kaydı oluşur.',
+                  )
+                else ...[
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(_selectedId),
+                    initialValue: _selectedId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Analiz edilecek maç kaydı',
+                    ),
+                    items: [
+                      for (final prediction in _predictions)
+                        DropdownMenuItem(
+                          value: prediction['predictionId']?.toString(),
+                          child: Text(
+                            '${prediction['horizon'] == 'T10' ? 'Maça 10 dk kala' : 'Maça 60 dk kala'}'
+                            ' · ${_time(prediction['inputCutoff'])}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() => _selectedId = value),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'PAS kaydı, maç verilerini analiz etmek içindir; sayısal tahmin üretmez. '
+                    'Sayısal model onayı doğrulanana kadar giriş önerisi verilmez. Rapor başarı garantisi değildir.',
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _enabled && _selectedId != null && !_busy
+                        ? _start
+                        : null,
+                    icon: Icon(
+                      _busy ? Icons.hourglass_top : Icons.auto_awesome,
+                    ),
+                    label: Text(
+                      _busy ? 'Analiz devam ediyor' : 'AI analizini başlat',
+                    ),
+                  ),
+                ),
+                if (_predictions.isEmpty || !_enabled)
+                  TextButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Durumu yenile'),
+                  ),
+              ],
+            ),
+            icon: Icons.auto_awesome,
+          ),
+          if (_error.isNotEmpty)
+            _card(
+              'Bağlantı veya işlem hatası',
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_error),
+                  TextButton(
+                    onPressed: _load,
+                    child: const Text('Tekrar kontrol et'),
+                  ),
+                ],
+              ),
+              icon: Icons.error_outline,
+            ),
+          if (_job.isNotEmpty || _starting) _progress(),
+          if (report.isNotEmpty) ..._reportWidgets(report),
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "56865": {
+    "provider": "FotMob",
+    "id": 56865,
+    "name": "FC Minsk",
+    "aliases": [
+      "FC Minsk"
+    ],
+    "sourceHash": "5fb897d72cc09688a5650d2e5c7535bbe6dc41de8affd36f7efc46c8eb99ca6e",
+    "sourceUrl": "https://www.fotmob.com/api/data/teams?id=56865&ccode3=TUR"
+  },
+  "10072": {
+    "provider": "FotMob",
+    "id": 10072,
+    "name": "Torpedo Zhodino",
+    "aliases": [
+      "Zhodino",
+      "Torpedo Zhodino"
+    ],
+    "sourceHash": "33cd0fa50ca0a031a6f4afe47c17f210e5547bb43b8dcd0597d92200475de4ae",
+    "sourceUrl": "https://www.fotmob.com/api/data/teams?id=10072&ccode3=TUR"
+  }
+}

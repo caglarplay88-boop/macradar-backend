@@ -1,0 +1,33 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {readQuoteHistory,historyIdentityFilters}=require('../../src/oddsContract/quoteReader');
+const {projectQuotes}=require('../../src/oddsContract/quoteCompatibility');
+const state=JSON.parse(fs.readFileSync(path.join(process.argv[2],'raw-parser-ASIAN.json'),'utf8'));
+state.tracking={initialized:true};
+const quote=projectQuotes(state).odds.ASIAN.find(r=>r.handicap_line===null&&Number.isFinite(r.source_line));
+assert(quote,'Fixture must contain a source line without a verified home sign');
+const byId=new Map(state.odds_raw.map(r=>[r.record_id,r]));
+const originalGroup=state.quote_groups.find(g=>g.quote_group_id===quote.quote_group_id);
+const id='other-context-quote';
+const extra=originalGroup.raw_record_ids.map(rid=>({...byId.get(rid),
+ record_id:rid+'-other',quote_group_id:id,source_context_id:'other-context'}));
+state.odds_raw.push(...extra);
+state.quote_groups.push({...originalGroup,quote_group_id:id,raw_record_ids:extra.map(r=>r.record_id)});
+const options={bookmaker:quote.bookmaker_id,sourceLine:quote.source_line,
+ sourceContextId:quote.source_context_id,period:quote.period,priceType:quote.price_type,pageSize:300};
+const found=readQuoteHistory(state,'ASIAN',options).history;
+assert(found.rows.length>0);
+assert(found.rows.every(r=>r.source_line===quote.source_line&&r.handicap_line===null));
+assert(found.rows.every(r=>r.source_context_id===quote.source_context_id&&r.period===quote.period&&r.price_type===quote.price_type));
+assert(found.raw_records.every(r=>r.line===quote.source_line&&r.home_handicap===null&&r.source_context_id===quote.source_context_id));
+assert(!found.rows.some(r=>r.quote_group_id===id));
+assert.equal(found.line_basis,'SOURCE_TABLE_LINE_HOME_SIGN_UNVERIFIED');
+assert.equal(readQuoteHistory(state,'ASIAN',{...options,period:'FULL_TIME_90'}).history.rows.length,0);
+assert.throws(()=>readQuoteHistory(state,'ASIAN',{sourceLine:''}),/INVALID_SOURCE_LINE/);
+assert.throws(()=>readQuoteHistory(state,'ASIAN',{sourceLine:Infinity}),/INVALID_SOURCE_LINE/);
+const filters=historyIdentityFilters(new URL('http://localhost/?source_context_id=ctx&period=unknown&price_type=UNKNOWN'));
+assert.deepEqual(filters,{sourceContextId:'ctx',period:null,priceType:'UNKNOWN'});
+assert.deepEqual(historyIdentityFilters(new URL('http://localhost/')),{});
+const legacy=readQuoteHistory({},'ASIAN',{sourceLine:0.25}).history;
+assert.equal(legacy.rows.length,0);assert(legacy.compatibility_warnings.length);
+console.log('ASIAN_SOURCE_LINE_WITHOUT_HOME_SIGN_AND_CONTEXT_PRICE_PERIOD_ISOLATION: PASSED');

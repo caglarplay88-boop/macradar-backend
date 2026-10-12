@@ -1,12 +1,34 @@
 const http = require('http');
 const crypto = require('crypto');
-const { URL } = require('url');
 const {
-  initDb, upsertMatch, listMatches, setActive, archiveStartedMatch, finishMatch,
-  pool, getTrackingSettings, updateTrackingSettings, getLatestOdds1x2Batch,
-  getPreviousLiveOdds1x2Rows, listOdds1x2History,
-  getPerformanceCache, markPerformancePreparing, savePerformanceCache,
-  failPerformanceCache
+  URL } = require('url');
+const {
+  initDb,
+  upsertMatch,
+  listMatches,
+  setActive,
+  removeTrackedMatch,
+  archiveStartedMatch,
+  finishMatch,
+  pool,
+  getTrackingSettings,
+  updateTrackingSettings,
+  getLatestOdds1x2Batch,
+  getLatestLiveOdds1x2State,
+  listOdds1x2History,
+  getLatestOddsOverUnderBatch,
+  getLatestLiveOddsOverUnderState,
+  listOddsOverUnderHistory,
+  getPerformanceCache,
+  markPerformancePreparing,
+  savePerformanceCache,
+  failPerformanceCache,
+  getLatestOddsAsianBatch,
+  getLatestLiveOddsAsianState,
+  listOddsAsianHistory,
+  getLatestOddsKgBatch,
+  getLatestLiveOddsKgState,
+  listOddsKgHistory
 } = require('./db');
 const { captureInitial1x2 } = require('./odds1x2Capture');
 const {
@@ -14,7 +36,6 @@ const {
   pullOpening1x2WithFailover
 } = require('./odds1x2');
 const { startOdds1x2Worker } = require('./odds1x2Worker');
-const { latestLiveOddsBatch } = require('./odds1x2View');
 const { getBulletin } = require('./bulletin');
 const { parseBetExplorerUrl, currentIsoTurkey, sleep } = require('./util');
 const { buildPerformancePackage } = require('./performance');
@@ -32,7 +53,7 @@ const ODDS_SOURCE_SECRET = String(
 );
 
 const performanceBuilds = new Map();
-const PERFORMANCE_ENGINE_VERSION = 84;
+const PERFORMANCE_ENGINE_VERSION = 85;
 
 function performanceCacheEnvelope(row) {
   return {
@@ -50,7 +71,9 @@ function startPerformanceBuild(eventId, matchRow, names) {
     try {
       const data = await buildPerformancePackage({
         home: { name: names.home },
-        away: { name: names.away }
+        away: { name: names.away },
+        matchUrl: matchRow.url,
+        matchDate: matchRow.match_date
       });
 
       const payload = {
@@ -191,35 +214,184 @@ function oddsHistoryEventFromPath(pathname) {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
-function oddsBatchEnvelope(batch, previousRows = []) {
-  if (!batch) return null;
+function oddsNullableNumber(value) {
+  if (value == null || typeof value === 'boolean') return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
 
-  const previousByKey = new Map(
-    previousRows.map(row => [String(row.bookmaker_key || ''), row])
-  );
+function oddsBatchEnvelope(batch, captureSequenceOverride = null) {
+  if (!batch) return null;
 
   return {
     captured_at: batch.captured_at,
     capture_type: batch.capture_type,
-    capture_sequence: batch.capture_sequence,
+    capture_sequence: captureSequenceOverride != null
+      ? String(captureSequenceOverride)
+      : batch.capture_sequence,
     source_name: batch.source_name,
     source_region: batch.source_region,
-    rows: batch.rows.map(row => {
-      const previous = previousByKey.get(String(row.bookmaker_key || ''));
-
-      return {
-        bookmaker_id: row.bookmaker_id,
-        bookmaker_name: row.bookmaker_name,
-        home_odd: Number(row.home_odd),
-        draw_odd: Number(row.draw_odd),
-        away_odd: Number(row.away_odd),
-        previous_home_odd: previous ? Number(previous.home_odd) : null,
-        previous_draw_odd: previous ? Number(previous.draw_odd) : null,
-        previous_away_odd: previous ? Number(previous.away_odd) : null
-      };
-    })
+    rows: batch.rows.map(row => ({ ...row,
+      captured_at: row.captured_at ?? null,
+      bookmaker_id: row.bookmaker_id,
+      bookmaker_name: row.bookmaker_name,
+      capture_sequence: row.capture_sequence,
+      home_odd: oddsNullableNumber(row.home_odd),
+      draw_odd: oddsNullableNumber(row.draw_odd),
+      away_odd: oddsNullableNumber(row.away_odd),
+      home_closed: (typeof row.home_closed === 'boolean' ? row.home_closed : null),
+      draw_closed: (typeof row.draw_closed === 'boolean' ? row.draw_closed : null),
+      away_closed: (typeof row.away_closed === 'boolean' ? row.away_closed : null)
+    }))
   };
 }
+
+function oddsOverUnderBatchEnvelope(
+  batch,
+  captureSequenceOverride = null
+) {
+  if (!batch) return null;
+
+  return {
+    captured_at: batch.captured_at,
+    capture_type: batch.capture_type,
+    capture_sequence:
+      captureSequenceOverride != null
+        ? String(captureSequenceOverride)
+        : String(batch.capture_sequence),
+
+    source_name: batch.source_name,
+    source_region: batch.source_region,
+
+    rows: batch.rows.map(row => ({ ...row,
+      captured_at: row.captured_at ?? null,
+      bookmaker_id: row.bookmaker_id,
+      bookmaker_key: row.bookmaker_key,
+      bookmaker_name: row.bookmaker_name,
+
+      total_line: oddsNullableNumber(row.total_line),
+
+      under_odd: oddsNullableNumber(row.under_odd),
+      over_odd: oddsNullableNumber(row.over_odd),
+
+      under_closed: (typeof row.under_closed === 'boolean' ? row.under_closed : null),
+      over_closed: (typeof row.over_closed === 'boolean' ? row.over_closed : null),
+
+      capture_sequence:
+        String(row.capture_sequence)
+    }))
+  };
+}
+
+function oddsAsianBatchEnvelope(
+  batch,
+  captureSequenceOverride = null
+) {
+  if (!batch) {
+    return null;
+  }
+
+  return {
+    captured_at:
+      batch.captured_at,
+    capture_type:
+      batch.capture_type,
+    capture_sequence:
+      captureSequenceOverride != null
+        ? String(
+            captureSequenceOverride
+          )
+        : String(
+            batch.capture_sequence
+          ),
+    source_name:
+      batch.source_name,
+    source_region:
+      batch.source_region,
+    rows:
+      batch.rows.map(
+        row => ({ ...row,
+      captured_at: row.captured_at ?? null,
+          bookmaker_id:
+            row.bookmaker_id,
+          bookmaker_key:
+            row.bookmaker_key,
+          bookmaker_name:
+            row.bookmaker_name,
+          handicap_line:
+            oddsNullableNumber(row.handicap_line),
+          home_odd:
+            oddsNullableNumber(row.home_odd),
+          away_odd:
+            oddsNullableNumber(row.away_odd),
+          home_closed:
+            (typeof row.home_closed === 'boolean' ? row.home_closed : null),
+          away_closed:
+            (typeof row.away_closed === 'boolean' ? row.away_closed : null),
+          capture_sequence:
+            String(
+              row.capture_sequence
+            )
+        })
+      )
+  };
+}
+
+function oddsKgBatchEnvelope(
+  batch,
+  captureSequenceOverride = null
+) {
+  if (!batch) {
+    return null;
+  }
+
+  return {
+    captured_at:
+      batch.captured_at,
+    capture_type:
+      batch.capture_type,
+    capture_sequence:
+      captureSequenceOverride != null
+        ? String(
+            captureSequenceOverride
+          )
+        : String(
+            batch.capture_sequence
+          ),
+    source_name:
+      batch.source_name,
+    source_region:
+      batch.source_region,
+    rows:
+      batch.rows.map(
+        row => ({ ...row,
+      captured_at: row.captured_at ?? null,
+          bookmaker_id:
+            row.bookmaker_id,
+          bookmaker_key:
+            row.bookmaker_key,
+          bookmaker_name:
+            row.bookmaker_name,
+          yes_odd:
+            oddsNullableNumber(row.yes_odd),
+          no_odd:
+            oddsNullableNumber(row.no_odd),
+          yes_closed:
+            (typeof row.yes_closed === 'boolean' ? row.yes_closed : null),
+          no_closed:
+            (typeof row.no_closed === 'boolean' ? row.no_closed : null),
+          capture_sequence:
+            String(
+              row.capture_sequence
+            )
+        })
+      )
+  };
+}
+
+
 
 function turkeyKickoffMs(date, time) {
   const dm = String(date || '').match(/(\d{4}-\d{2}-\d{2})/);
@@ -322,10 +494,14 @@ async function enrichActiveSchedules() {
   }
 }
 
-const server = http.createServer(async (req, res) => {
+
+
+const server = http.createServer((req, res) =>
+  require('./oddsContract/quoteReader').withQuoteReadScope(async () => {
   try {
     if (req.method === 'OPTIONS') return json(res, 204, {});
     const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    if (require('./oddsContract/apkDelivery').serveApkDelivery(req, res, u)) return;
 
     if (req.method === 'GET' && u.pathname === '/') {
       return json(res, 200, { service: 'macradar-backend', ok: true });
@@ -406,7 +582,7 @@ const server = http.createServer(async (req, res) => {
         allowed_drops_in_last_hours: [1, 2, 12, 24, 48],
         allowed_matches_for: ['today', 'today_tomorrow', '7d', 'anytime'],
         allowed_bookies_pct: [30, 40, 50, 60, 70],
-        allowed_poll_seconds: [15, 30, 60, 120, 300]
+        allowed_poll_seconds: [5, 15, 30, 60, 120, 300]
       });
     }
 
@@ -447,7 +623,7 @@ const server = http.createServer(async (req, res) => {
       if (![30, 40, 50, 60, 70].includes(next.bookies_pct)) {
         return json(res, 400, { error: 'Gecersiz bookies_pct.' });
       }
-      if (![15, 30, 60, 120, 300].includes(next.poll_seconds)) {
+      if (![5, 15, 30, 60, 120, 300].includes(next.poll_seconds)) {
         return json(res, 400, { error: 'Gecersiz poll_seconds.' });
       }
       if (
@@ -484,35 +660,40 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && u.pathname === '/api/matches') {
       return json(res, 200, { matches: await listMatches() });
     }
+
+    if (req.method === 'GET' && /^\/api\/matches\/[^/]+$/.test(u.pathname)) {
+      const eventId = eventFromPath(u.pathname);
+
+      const match = (await pool.query(
+        `SELECT *
+         FROM matches
+         WHERE event_id=$1`,
+        [eventId]
+      )).rows[0];
+
+      return match
+        ? json(res, 200, match)
+        : json(res, 404, { error: 'Maç bulunamadı.' });
+    }
     if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/performance$/.test(u.pathname)) {
       const eventId = eventFromPath(u.pathname, 'performance');
       const cached = await getPerformanceCache(eventId);
 
+      if (cached?.payload?.evTakimi && cached?.payload?.deplasmanTakimi) {
+        const view = require('./performanceView/verifiedCachedPerformanceView')
+          .buildCachedPerformanceAnalysisView(cached.payload);
+        const sourceVersion = Number(cached.payload?.meta?.engineVersion || 0);
+        return json(res, 200, {
+          ...view,
+          refreshRequired: sourceVersion < PERFORMANCE_ENGINE_VERSION,
+          refreshInProgress: cached.status === 'preparing',
+          performance_cache: performanceCacheEnvelope(cached)
+        });
+      }
+
       if (cached?.status === 'preparing') {
         return json(res, 202, {
           status: 'preparing',
-          performance_cache: performanceCacheEnvelope(cached)
-        });
-      }
-
-      const cachedVersion = Number(
-        cached?.payload?.meta?.engineVersion || 0
-      );
-
-      if (
-        cached?.payload &&
-        cachedVersion < PERFORMANCE_ENGINE_VERSION
-      ) {
-        return json(res, 409, {
-          status: 'stale',
-          error: 'Performance cache is stale. Rebuild required.',
-          performance_cache: performanceCacheEnvelope(cached)
-        });
-      }
-
-      if (cached?.payload) {
-        return json(res, 200, {
-          ...cached.payload,
           performance_cache: performanceCacheEnvelope(cached)
         });
       }
@@ -575,7 +756,196 @@ const server = http.createServer(async (req, res) => {
 
     if (!authorized(req)) return json(res, 401, { error: 'Yetkisiz.' });
 
-    if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/odds\/1x2\/history$/.test(u.pathname)) {
+    // MACRADAR_MATCH_EXPORT_ROUTE
+    const matchExportPath = u.pathname.match(/^\/api\/matches\/([A-Za-z0-9_-]{1,80})\/export$/);
+    if (req.method === 'GET' && matchExportPath) {
+      try {
+        const { buildMatchExport } = require('./matchDataExport');
+        const { getExportJobs, createExportBuilder } =
+          require('./oddsContract/exportCoordinator');
+        const { getContractRuntime } = require('./oddsContract/runtime');
+        const { exportJobReply } = require('./oddsContract/exportApi');
+        const reply = await exportJobReply({
+          pool, jobs: getExportJobs(pool),
+          eventId: matchExportPath[1], url: u
+        });
+        if (reply && !reply.package) {
+          return json(res, reply.status, reply.body);
+        }
+        const exported = reply?.package || await createExportBuilder({
+          pool, runtime: getContractRuntime(), buildPackage: buildMatchExport
+        })(matchExportPath[1]);
+        res.writeHead(200, {
+          'content-type': 'application/zip',
+          'content-disposition': 'attachment; filename="' + exported.filename + '"',
+          'content-length': exported.buffer.length,
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+          'x-export-sha256': crypto.createHash('sha256').update(exported.buffer).digest('hex')
+        });
+        res.end(exported.buffer);
+        return;
+      } catch (error) {
+        return json(res, error.status || 500, {
+          error: error.status === 404
+            ? 'Maç bulunamadı.'
+            : 'Maç dosyası hazırlanamadı.'
+        });
+      }
+    }
+
+
+    
+
+    
+
+
+    
+    if (
+      req.method === 'GET' &&
+      /^\/api\/matches\/[^/]+\/odds\/over-under\/history$/.test(
+        u.pathname
+      )
+    ) {
+      const pathMatch = u.pathname.match(
+        /^\/api\/matches\/([^/]+)\/odds\/over-under\/history$/
+      );
+
+      const eventId = decodeURIComponent(
+        String(pathMatch?.[1] || '')
+      );
+
+      const match = (
+        await pool.query(
+          'SELECT event_id FROM matches WHERE event_id=$1',
+          [eventId]
+        )
+      ).rows[0];
+
+      if (!match) {
+        return json(res, 404, {
+          error: 'Mac bulunamadi.'
+        });
+      }
+
+      const pageRaw = Number.parseInt(
+        u.searchParams.get('page') || '1',
+        10
+      );
+
+      const page = Number.isFinite(pageRaw)
+        ? Math.max(
+            1,
+            Math.min(100000, pageRaw)
+          )
+        : 1;
+
+      const bookmakerRaw = String(
+        u.searchParams.get('bookmaker') || ''
+      ).trim();
+
+      if (bookmakerRaw.length > 160) {
+        return json(res, 400, {
+          error: 'Bookmaker filtresi cok uzun.'
+        });
+      }
+
+      const lineRaw = String(
+        u.searchParams.get('line') || ''
+      ).trim();
+
+      let totalLine = null;
+
+      if (lineRaw) {
+        totalLine = Number(lineRaw);
+
+        if (
+          !Number.isFinite(totalLine) || totalLine < 0
+        ) {
+          return json(res, 400, {
+            error:
+              'Geçersiz Alt/Üst çizgisi.'
+          });
+        }
+      }
+
+      const history =
+        await listOddsOverUnderHistory({
+        ...require('./oddsContract/quoteReader').historyIdentityFilters(u),
+          eventId,
+          bookmaker:
+            bookmakerRaw || null,
+          totalLine,
+          page,
+          pageSize: 50
+        });
+
+      return json(res, 200, {
+        ...history,
+        event_id: eventId,
+        bookmaker_key:
+          history.bookmaker_key,
+        total_line:
+          history.total_line,
+
+        page:
+          history.page,
+        page_size:
+          history.page_size,
+        total_records:
+          history.total_records,
+        total_pages:
+          history.total_pages,
+
+        has_previous:
+          history.has_previous,
+        has_next:
+          history.has_next,
+
+        rows: history.rows.map(row => ({ ...row,
+          id: String(row.id),
+
+          bookmaker_id:
+            row.bookmaker_id,
+          bookmaker_key:
+            row.bookmaker_key,
+          bookmaker_name:
+            row.bookmaker_name,
+
+          market:
+            row.market,
+
+          total_line:
+            oddsNullableNumber(row.total_line),
+
+          under_odd:
+            oddsNullableNumber(row.under_odd),
+          over_odd:
+            oddsNullableNumber(row.over_odd),
+
+          under_closed:
+            (typeof row.under_closed === 'boolean' ? row.under_closed : null),
+          over_closed:
+            (typeof row.over_closed === 'boolean' ? row.over_closed : null),
+
+          captured_at:
+            row.captured_at,
+
+          capture_sequence:
+            String(row.capture_sequence),
+
+          capture_type:
+            row.capture_type,
+
+          source_name:
+            row.source_name,
+          source_region:
+            row.source_region
+        }))
+      });
+    }
+
+if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/odds\/1x2\/history$/.test(u.pathname)) {
       const eventId = oddsHistoryEventFromPath(u.pathname);
       const match = (await pool.query(
         'SELECT event_id FROM matches WHERE event_id=$1',
@@ -601,6 +971,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const history = await listOdds1x2History({
+        ...require('./oddsContract/quoteReader').historyIdentityFilters(u),
         eventId,
         bookmaker: bookmakerRaw || null,
         page,
@@ -608,6 +979,7 @@ const server = http.createServer(async (req, res) => {
       });
 
       return json(res, 200, {
+        ...history,
         event_id: eventId,
         bookmaker_key: history.bookmaker_key,
         page: history.page,
@@ -616,15 +988,18 @@ const server = http.createServer(async (req, res) => {
         total_pages: history.total_pages,
         has_previous: history.has_previous,
         has_next: history.has_next,
-        rows: history.rows.map(row => ({
+        rows: history.rows.map(row => ({ ...row,
           id: String(row.id),
           bookmaker_id: row.bookmaker_id,
           bookmaker_key: row.bookmaker_key,
           bookmaker_name: row.bookmaker_name,
           market: row.market,
-          home_odd: Number(row.home_odd),
-          draw_odd: Number(row.draw_odd),
-          away_odd: Number(row.away_odd),
+          home_odd: oddsNullableNumber(row.home_odd),
+          draw_odd: oddsNullableNumber(row.draw_odd),
+          away_odd: oddsNullableNumber(row.away_odd),
+          home_closed: (typeof row.home_closed === 'boolean' ? row.home_closed : null),
+          draw_closed: (typeof row.draw_closed === 'boolean' ? row.draw_closed : null),
+          away_closed: (typeof row.away_closed === 'boolean' ? row.away_closed : null),
           captured_at: row.captured_at,
           capture_sequence: String(row.capture_sequence),
           capture_type: row.capture_type,
@@ -634,36 +1009,674 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/odds\/1x2$/.test(u.pathname)) {
+    
+    if (
+      req.method === 'GET' &&
+      /^\/api\/matches\/[^/]+\/odds\/over-under$/.test(
+        u.pathname
+      )
+    ) {
+      const pathMatch = u.pathname.match(
+        /^\/api\/matches\/([^/]+)\/odds\/over-under$/
+      );
+
+      const eventId = decodeURIComponent(
+        String(pathMatch?.[1] || '')
+      );
+
+      const match = (
+        await pool.query(
+          `SELECT
+             event_id,
+             url,
+             active,
+             archived,
+             lifecycle,
+             match_date,
+             kickoff_time
+           FROM matches
+           WHERE event_id=$1`,
+          [eventId]
+        )
+      ).rows[0];
+
+      if (!match) {
+        return json(res, 404, {
+          error: 'Maç bulunamadı.'
+        });
+      }
+
+      const settings =
+        await getTrackingSettings(eventId);
+
+      const [
+        opening,
+        liveCurrent
+      ] = await Promise.all([
+        getLatestOddsOverUnderBatch(
+          eventId,
+          'opening'
+        ),
+        getLatestLiveOddsOverUnderState(
+          eventId
+        )
+      ]);
+
+      return json(res, 200, {
+        event_id: eventId,
+
+        match_date:
+          match.match_date || null,
+        kickoff_time:
+          match.kickoff_time || null,
+
+        tracking_enabled:
+          settings?.tracking_enabled === true,
+
+        refresh_minutes:
+          Number(
+            settings?.refresh_minutes || 60
+          ),
+
+        allowed_refresh_minutes:
+          [5, 15, 30, 60, 120],
+        ...require('./oddsContract/trackingStatus').trackingContractStatus(eventId),
+
+        last_checked_at:
+          settings?.last_success_at ||
+          settings?.last_attempt_at ||
+          null,
+
+        source_openings: require('./oddsContract/quoteReader').readRuntimeSourceOpenings(eventId, 'OU'),
+        opening:
+          oddsOverUnderBatchEnvelope(
+            opening
+          ),
+
+        current:
+          oddsOverUnderBatchEnvelope(
+            liveCurrent,
+            settings?.last_success_sequence
+          )
+      });
+    }
+
+
+  if (
+    req.method === 'GET' &&
+    /^\/api\/matches\/[^/]+\/odds\/asian\/history$/.test(
+      u.pathname
+    )
+  ) {
+    const pathMatch =
+      u.pathname.match(
+        /^\/api\/matches\/([^/]+)\/odds\/asian\/history$/
+      );
+
+    const eventId =
+      decodeURIComponent(
+        String(
+          pathMatch?.[1] ||
+          ''
+        )
+      );
+
+    const match = (
+      await pool.query(
+        'SELECT event_id FROM matches WHERE event_id=$1',
+        [eventId]
+      )
+    ).rows[0];
+
+    if (!match) {
+      return json(
+        res,
+        404,
+        {
+          error:
+            'Maç bulunamadı.'
+        }
+      );
+    }
+
+    const pageRaw =
+      Number.parseInt(
+        u.searchParams.get(
+          'page'
+        ) || '1',
+        10
+      );
+
+    const page =
+      Number.isFinite(pageRaw)
+        ? Math.max(
+            1,
+            Math.min(
+              100000,
+              pageRaw
+            )
+          )
+        : 1;
+
+    const bookmakerRaw =
+      String(
+        u.searchParams.get(
+          'bookmaker'
+        ) || ''
+      ).trim();
+
+    if (
+      bookmakerRaw.length > 160
+    ) {
+      return json(
+        res,
+        400,
+        {
+          error:
+            'Bookmaker filtresi cok uzun.'
+        }
+      );
+    }
+
+    const lineRaw =
+      String(
+        u.searchParams.get(
+          'line'
+        ) || ''
+      ).trim();
+
+    let handicapLine = null;
+
+    if (lineRaw) {
+      handicapLine =
+        Number(lineRaw);
+
+      if (
+        !Number.isFinite(
+          handicapLine
+        )
+      ) {
+        return json(
+          res,
+          400,
+          {
+            error:
+              'Geçersiz Asian handicap çizgisi.'
+          }
+        );
+      }
+    }
+
+    const sourceLineRaw=u.searchParams.get('source_line');
+    const sourceLine=sourceLineRaw===null?null:Number(sourceLineRaw.trim());
+    if(sourceLineRaw!==null&&(!sourceLineRaw.trim()||!Number.isFinite(sourceLine)||
+       handicapLine!==null)){
+      return json(res,400,{error:'Geçersiz veya çelişen Asian kaynak çizgisi.'});
+    }
+
+    const history =
+      await listOddsAsianHistory({
+        ...require('./oddsContract/quoteReader').historyIdentityFilters(u),
+        eventId,
+        bookmaker:
+          bookmakerRaw || null,
+        handicapLine,
+        sourceLine,
+        page,
+        pageSize: Number.parseInt(
+          u.searchParams.get('page_size') || '50',
+          10
+        )
+      });
+
+    return json(
+      res,
+      200,
+      {
+        ...history,
+        event_id:
+          eventId,
+        bookmaker_key:
+          history.bookmaker_key,
+        handicap_line:
+          history.handicap_line,
+        page:
+          history.page,
+        page_size:
+          history.page_size,
+        total_records:
+          history.total_records,
+        total_pages:
+          history.total_pages,
+        has_previous:
+          history.has_previous,
+        has_next:
+          history.has_next,
+        rows:
+          history.rows.map(
+            row => ({ ...row,
+              id:
+                String(row.id),
+              bookmaker_id:
+                row.bookmaker_id,
+              bookmaker_key:
+                row.bookmaker_key,
+              bookmaker_name:
+                row.bookmaker_name,
+              market:
+                row.market,
+              handicap_line:
+                oddsNullableNumber(row.handicap_line),
+              home_odd:
+                oddsNullableNumber(row.home_odd),
+              away_odd:
+                oddsNullableNumber(row.away_odd),
+              home_closed:
+                (typeof row.home_closed === 'boolean' ? row.home_closed : null),
+              away_closed:
+                (typeof row.away_closed === 'boolean' ? row.away_closed : null),
+              captured_at:
+                row.captured_at,
+              capture_sequence:
+                String(
+                  row.capture_sequence
+                ),
+              capture_type:
+                row.capture_type,
+              source_name:
+                row.source_name,
+              source_region:
+                row.source_region
+            })
+          )
+      }
+    );
+  }
+
+  if (
+    req.method === 'GET' &&
+    /^\/api\/matches\/[^/]+\/odds\/asian$/.test(
+      u.pathname
+    )
+  ) {
+    const pathMatch =
+      u.pathname.match(
+        /^\/api\/matches\/([^/]+)\/odds\/asian$/
+      );
+
+    const eventId =
+      decodeURIComponent(
+        String(
+          pathMatch?.[1] ||
+          ''
+        )
+      );
+
+    const match = (
+      await pool.query(
+        `SELECT
+           event_id,
+           url,
+           active,
+           archived,
+           lifecycle,
+           match_date,
+           kickoff_time
+         FROM matches
+         WHERE event_id=$1`,
+        [eventId]
+      )
+    ).rows[0];
+
+    if (!match) {
+      return json(
+        res,
+        404,
+        {
+          error:
+            'Maç bulunamadı.'
+        }
+      );
+    }
+
+    const settings =
+      await getTrackingSettings(
+        eventId
+      );
+
+    const [
+      opening,
+      liveCurrent
+    ] = await Promise.all([
+      getLatestOddsAsianBatch(
+        eventId,
+        'opening'
+      ),
+      getLatestLiveOddsAsianState(
+        eventId
+      )
+    ]);
+
+    return json(
+      res,
+      200,
+      {
+        event_id:
+          eventId,
+        match_date:
+          match.match_date ||
+          null,
+        kickoff_time:
+          match.kickoff_time ||
+          null,
+        tracking_enabled:
+          settings?.tracking_enabled === true,
+        refresh_minutes:
+          Number(
+            settings?.refresh_minutes ||
+            60
+          ),
+        allowed_refresh_minutes:
+          [5, 15, 30, 60, 120],
+        ...require('./oddsContract/trackingStatus').trackingContractStatus(eventId),
+        last_checked_at:
+          settings?.last_success_at ||
+          settings?.last_attempt_at ||
+          null,
+        source_openings: require('./oddsContract/quoteReader').readRuntimeSourceOpenings(eventId, 'ASIAN'),
+        opening:
+          oddsAsianBatchEnvelope(
+            opening
+          ),
+        current:
+          oddsAsianBatchEnvelope(
+            liveCurrent,
+            settings?.last_success_sequence
+          )
+      }
+    );
+  }
+
+  if (
+    req.method === 'GET' &&
+    /^\/api\/matches\/[^/]+\/odds\/kg\/history$/.test(
+      u.pathname
+    )
+  ) {
+    const pathMatch =
+      u.pathname.match(
+        /^\/api\/matches\/([^/]+)\/odds\/kg\/history$/
+      );
+
+    const eventId =
+      decodeURIComponent(
+        String(
+          pathMatch?.[1] ||
+          ''
+        )
+      );
+
+    const match = (
+      await pool.query(
+        'SELECT event_id FROM matches WHERE event_id=$1',
+        [eventId]
+      )
+    ).rows[0];
+
+    if (!match) {
+      return json(
+        res,
+        404,
+        {
+          error:
+            'Maç bulunamadı.'
+        }
+      );
+    }
+
+    const pageRaw =
+      Number.parseInt(
+        u.searchParams.get(
+          'page'
+        ) || '1',
+        10
+      );
+
+    const page =
+      Number.isFinite(pageRaw)
+        ? Math.max(
+            1,
+            Math.min(
+              100000,
+              pageRaw
+            )
+          )
+        : 1;
+
+    const bookmakerRaw =
+      String(
+        u.searchParams.get(
+          'bookmaker'
+        ) || ''
+      ).trim();
+
+    if (
+      bookmakerRaw.length > 160
+    ) {
+      return json(
+        res,
+        400,
+        {
+          error:
+            'Bookmaker filtresi cok uzun.'
+        }
+      );
+    }
+
+    const history =
+      await listOddsKgHistory({
+        ...require('./oddsContract/quoteReader').historyIdentityFilters(u),
+        eventId,
+        bookmaker:
+          bookmakerRaw || null,
+        page,
+        pageSize: 50
+      });
+
+    return json(
+      res,
+      200,
+      {
+        ...history,
+        event_id:
+          eventId,
+        bookmaker_key:
+          history.bookmaker_key,
+        page:
+          history.page,
+        page_size:
+          history.page_size,
+        total_records:
+          history.total_records,
+        total_pages:
+          history.total_pages,
+        has_previous:
+          history.has_previous,
+        has_next:
+          history.has_next,
+        rows:
+          history.rows.map(
+            row => ({ ...row,
+              id:
+                String(row.id),
+              bookmaker_id:
+                row.bookmaker_id,
+              bookmaker_key:
+                row.bookmaker_key,
+              bookmaker_name:
+                row.bookmaker_name,
+              market:
+                row.market,
+              yes_odd:
+                oddsNullableNumber(row.yes_odd),
+              no_odd:
+                oddsNullableNumber(row.no_odd),
+              yes_closed:
+                (typeof row.yes_closed === 'boolean' ? row.yes_closed : null),
+              no_closed:
+                (typeof row.no_closed === 'boolean' ? row.no_closed : null),
+              captured_at:
+                row.captured_at,
+              capture_sequence:
+                String(
+                  row.capture_sequence
+                ),
+              capture_type:
+                row.capture_type,
+              source_name:
+                row.source_name,
+              source_region:
+                row.source_region
+            })
+          )
+      }
+    );
+  }
+
+  if (
+    req.method === 'GET' &&
+    /^\/api\/matches\/[^/]+\/odds\/kg$/.test(
+      u.pathname
+    )
+  ) {
+    const pathMatch =
+      u.pathname.match(
+        /^\/api\/matches\/([^/]+)\/odds\/kg$/
+      );
+
+    const eventId =
+      decodeURIComponent(
+        String(
+          pathMatch?.[1] ||
+          ''
+        )
+      );
+
+    const match = (
+      await pool.query(
+        `SELECT
+           event_id,
+           url,
+           active,
+           archived,
+           lifecycle,
+           match_date,
+           kickoff_time
+         FROM matches
+         WHERE event_id=$1`,
+        [eventId]
+      )
+    ).rows[0];
+
+    if (!match) {
+      return json(
+        res,
+        404,
+        {
+          error:
+            'Maç bulunamadı.'
+        }
+      );
+    }
+
+    const settings =
+      await getTrackingSettings(
+        eventId
+      );
+
+    const [
+      opening,
+      liveCurrent
+    ] = await Promise.all([
+      getLatestOddsKgBatch(
+        eventId,
+        'opening'
+      ),
+      getLatestLiveOddsKgState(
+        eventId
+      )
+    ]);
+
+    return json(
+      res,
+      200,
+      {
+        event_id:
+          eventId,
+        match_date:
+          match.match_date ||
+          null,
+        kickoff_time:
+          match.kickoff_time ||
+          null,
+        tracking_enabled:
+          settings?.tracking_enabled === true,
+        refresh_minutes:
+          Number(
+            settings?.refresh_minutes ||
+            60
+          ),
+        allowed_refresh_minutes:
+          [5, 15, 30, 60, 120],
+        ...require('./oddsContract/trackingStatus').trackingContractStatus(eventId),
+        last_checked_at:
+          settings?.last_success_at ||
+          settings?.last_attempt_at ||
+          null,
+        source_openings: require('./oddsContract/quoteReader').readRuntimeSourceOpenings(eventId, 'KG'),
+        opening:
+          oddsKgBatchEnvelope(
+            opening
+          ),
+        current:
+          oddsKgBatchEnvelope(
+            liveCurrent,
+            settings?.last_success_sequence
+          )
+      }
+    );
+  }
+
+if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/odds\/1x2$/.test(u.pathname)) {
       const eventId = oddsEventFromPath(u.pathname);
       const match = (await pool.query(
-        'SELECT event_id,url,active,archived,lifecycle FROM matches WHERE event_id=$1',
+        'SELECT event_id,url,active,archived,lifecycle,match_date,kickoff_time FROM matches WHERE event_id=$1',
         [eventId]
       )).rows[0];
 
       if (!match) return json(res, 404, { error: 'Maç bulunamadı.' });
 
       const settings = await getTrackingSettings(eventId);
-      const [opening, initialCurrent, periodic] = await Promise.all([
+      const [opening, liveCurrent] = await Promise.all([
         getLatestOdds1x2Batch(eventId, 'opening'),
-        getLatestOdds1x2Batch(eventId, 'current'),
-        getLatestOdds1x2Batch(eventId, 'periodic')
+        getLatestLiveOdds1x2State(eventId)
       ]);
-      const liveCurrent = latestLiveOddsBatch(initialCurrent, periodic);
-      const previousLiveRows = liveCurrent
-        ? await getPreviousLiveOdds1x2Rows(
-            eventId,
-            liveCurrent.capture_sequence
-          )
-        : [];
 
       return json(res, 200, {
         event_id: eventId,
+        match_date: match.match_date || null,
+        kickoff_time: match.kickoff_time || null,
         tracking_enabled: settings?.tracking_enabled === true,
         refresh_minutes: Number(settings?.refresh_minutes || 60),
         allowed_refresh_minutes: [5, 15, 30, 60, 120],
+        ...require('./oddsContract/trackingStatus').trackingContractStatus(eventId),
+        last_checked_at: settings?.last_success_at || settings?.last_attempt_at || null,
+        source_openings: require('./oddsContract/quoteReader').readRuntimeSourceOpenings(eventId, '1X2'),
         opening: oddsBatchEnvelope(opening),
-        current: oddsBatchEnvelope(liveCurrent, previousLiveRows)
+        current: oddsBatchEnvelope(
+          liveCurrent,
+          settings?.last_success_sequence
+        )
       });
     }
 
@@ -696,17 +1709,9 @@ const server = http.createServer(async (req, res) => {
         return json(res, 409, { error: 'Bu maç için oran takibi başlatılamaz.' });
       }
 
-      let initialCapture = null;
-      if (enabled) {
-        const [opening, current] = await Promise.all([
-          getLatestOdds1x2Batch(eventId, 'opening'),
-          getLatestOdds1x2Batch(eventId, 'current')
-        ]);
-
-        if (!opening || !current) {
-          initialCapture = await captureInitial1x2(match.url, eventId);
-        }
-      }
+      // Persist tracking first. Source collection belongs to the bounded worker.
+      // An unavailable source opening must not prevent current observations.
+      const initialCapture = null;
 
       const settings = await updateTrackingSettings(eventId, enabled, minutes);
       if (!settings) return json(res, 404, { error: 'Maç bulunamadı.' });
@@ -734,7 +1739,7 @@ const server = http.createServer(async (req, res) => {
       const force = body?.force === true;
 
       const row = (await pool.query(
-        'SELECT event_id,display_name,match_slug,match_date,kickoff_time FROM matches WHERE event_id=$1',
+        'SELECT event_id,display_name,match_slug,match_date,kickoff_time,url FROM matches WHERE event_id=$1',
         [eventId]
       )).rows[0];
 
@@ -807,7 +1812,11 @@ const server = http.createServer(async (req, res) => {
 
       const results = [];
 
-      for (const item of items) {
+      await Promise.all(
+        items.map(async (item, index) => {
+          if (index > 0) {
+            await new Promise(resolve => setTimeout(resolve, index * 500));
+          }
         const raw = typeof item === 'string' ? item : item?.url;
         try {
           const parsed = parseBetExplorerUrl(String(raw));
@@ -838,6 +1847,12 @@ const server = http.createServer(async (req, res) => {
             await archiveStartedMatch(parsed.eventId);
           } else {
             await setActive(parsed.eventId, true);
+
+            // Bülten'den seçildiği anda takip her zaman 60 dk ile başlar.
+            await updateTrackingSettings(parsed.eventId, true, 60);
+
+            // İlk çekimi zamanlanmış işçi yapar.
+            // HTTP yanıtı kaynaklardan oran çekilmesini beklemez.
           }
 
           results.push({
@@ -851,7 +1866,9 @@ const server = http.createServer(async (req, res) => {
         } catch (e) {
           results.push({ url: raw, ok: false, error: e.message });
         }
-      }
+
+        })
+      );
 
       return json(res, 200, {
         results
@@ -860,7 +1877,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'DELETE' && /^\/api\/matches\/[^/]+$/.test(u.pathname)) {
       const eventId = eventFromPath(u.pathname);
-      const m = await setActive(eventId, false);
+      const m = await removeTrackedMatch(eventId);
       return m ? json(res, 200, { ok: true, match: m }) : json(res, 404, { error: 'Maç bulunamadı.' });
     }
 
@@ -869,19 +1886,21 @@ const server = http.createServer(async (req, res) => {
     console.error(e);
     return json(res, 500, { error: e.message || String(e) });
   }
-});
+}));
 
 (async () => {
   if (HTTP_ONLY) {
     console.log('[http-only] initDb/seed skipped.');
   } else {
     await initDb();
+    
   }
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`MacRadar backend ${PORT} portunda.`);
     if (HTTP_ONLY) return;
     setTimeout(() => enrichActiveSchedules(), 1000);
+    require('./oddsContract/collectorProcess').installProcessCollector(require('./oddsContract/runtime').getContractRuntime());
     startOdds1x2Worker();
     // Hafif bülten kontrolü: başlayan maçları kilitler, FIN olunca sonucu arşive yazar.
     setInterval(() => enrichActiveSchedules(), 10 * 60 * 1000);

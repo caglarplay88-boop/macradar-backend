@@ -131,10 +131,16 @@ function scanMatches(obj, target, out, path = 'root', targetId = null) {
     const idMatches =
       Number.isFinite(targetNum) &&
       (homeId === targetNum || awayId === targetNum);
+    const explicitTeamIdentity =
+      Number.isFinite(targetNum) && targetNum > 0 &&
+      Number.isFinite(homeId) && homeId > 0 &&
+      Number.isFinite(awayId) && awayId > 0;
     if (
-      idMatches ||
-      teamNameMatches(home, target) ||
-      teamNameMatches(away, target)
+      explicitTeamIdentity
+        ? idMatches
+        : (idMatches ||
+           (foldName(home) === foldName(target)) ||
+           (foldName(away) === foldName(target)))
     ) {
       const url = normalizeFotMobUrl(obj.pageUrl ?? obj.matchUrl ?? obj.url ?? obj.href ?? '');
       const date = dateValue(obj);
@@ -157,15 +163,7 @@ function scanMatches(obj, target, out, path = 'root', targetId = null) {
   }
 }
 
-function dedupeMatches(rows) {
-  const map = new Map();
-  for (const m of rows) {
-    const day = Number.isFinite(Date.parse(m.date)) ? new Date(m.date).toISOString() : m.date;
-    const key = [m.id || '', day, m.home, m.away, m.homeScore ?? '', m.awayScore ?? '', m.url].join('|');
-    if (!map.has(key)) map.set(key, m);
-  }
-  return [...map.values()];
-}
+const { dedupeMatches } = require('./performanceMatchIdentity');
 
 function isFinished(m, now = Date.now()) {
   const s = String(m.status || '').toLowerCase();
@@ -294,6 +292,21 @@ function findExpectedGoals(obj, path = 'root', out = []) {
     }
   }
   return out;
+}
+
+function matchCompetitionContext(details) {
+  const general = details?.general;
+  if (!general || typeof general !== 'object') return null;
+  const name = typeof general.leagueName === 'string'
+    ? general.leagueName.trim() : null;
+  return {
+    competitionId: general.leagueId ?? null,
+    competitionName: name || null,
+    isFriendly: name ? /friendl/i.test(name) : null,
+    homeTeamId: general.homeTeam?.id ?? null,
+    awayTeamId: general.awayTeam?.id ?? null,
+    source: 'FotMob_match_details'
+  };
 }
 
 async function fetchFotMobMatchDetails(matchId) {
@@ -1458,6 +1471,7 @@ async function buildTeam(
 
   const rows = await mapLimit(finished, 4, async m => {
     const details = await fetchFotMobMatchDetails(m.id);
+    const competition = matchCompetitionContext(details);
     const pair = await getMatchXg(browser, m.url, m.id, details);
     const px = teamPerspective(m, info.name, pair);
     const standard = teamStandardPerspective(
@@ -1481,6 +1495,7 @@ async function buildTeam(
     );
     return {
       ...m,
+      competition,
       ...px,
       ...standard,
       savePercentage,
@@ -1756,6 +1771,7 @@ async function buildTeam(
     duelContext,
     styleContext,
     maclar: rows.map(m => ({
+      competition: m.competition,
       tarih: m.date,
       ev: m.home,
       deplasman: m.away,
@@ -2337,7 +2353,7 @@ async function buildFotMobPerformancePackage({ home, away, matchDate = null }) {
         olusturmaZamani: new Date().toISOString(),
         homeUrl: homeInfo.url,
         awayUrl: awayInfo.url,
-        engineVersion: 83,
+        engineVersion: 85,
       },
       cache: false
     };
@@ -2776,7 +2792,7 @@ async function buildUnderstatPerformancePackage({ home, away, matchDate = null }
         encodeURIComponent(awayResolved.name.replace(/\s+/g, '_')) +
         '/' + awayResolved.season,
       understatSeason: homeResolved.season,
-      engineVersion: 83,
+      engineVersion: 85,
     },
     cache: false,
   };
@@ -3073,7 +3089,7 @@ async function buildBetExplorerPerformancePackage({ home, away, matchUrl, matchD
       olusturmaZamani: new Date().toISOString(),
       homeUrl: homeLink.url,
       awayUrl: awayLink.url,
-      engineVersion: 83
+      engineVersion: 85
     },
     cache: false
   };

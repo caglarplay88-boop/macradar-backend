@@ -14,15 +14,9 @@ const USER_AGENT =
 const DEFAULT_REMOTE_SOURCE_SECRET =
   'ee3a321e49e949c5ac27dc2a5504ba55a59b11eae7ab1f7b5357cd305b6e8968';
 
-const MIN_HEALTHY_BOOKMAKERS = Math.max(
-  1,
-  Math.min(50, Number(process.env.ODDS_MIN_HEALTHY_BOOKMAKERS) || 7)
-);
+const MIN_HEALTHY_BOOKMAKERS = 1;
 
-const MIN_OPENING_BOOKMAKERS = Math.max(
-  1,
-  Math.min(50, Number(process.env.ODDS_MIN_OPENING_BOOKMAKERS) || 7)
-);
+const MIN_OPENING_BOOKMAKERS = 1;
 
 function remoteSourceConfig() {
   const base = String(process.env.ODDS_REMOTE_SOURCE_URL || '')
@@ -180,7 +174,10 @@ async function fetchRemoteValidated(rawUrl, capture) {
       bookmakerName,
       homeOdd,
       drawOdd,
-      awayOdd
+      awayOdd,
+      homeClosed: row?.home_closed === true,
+      drawClosed: row?.draw_closed === true,
+      awayClosed: row?.away_closed === true
     };
 
     if (mode === 'opening') {
@@ -297,7 +294,8 @@ function parse1x2Detailed(html) {
       bt: cellAttr(tag, 'data-bt'),
       sc: cellAttr(tag, 'data-sc'),
       hcp: cellAttr(tag, 'data-hcp'),
-      created: cellAttr(tag, 'data-created')
+      created: cellAttr(tag, 'data-created'),
+      closed: /\bclass\s*=\s*["'][^"']*\binactive\b[^"']*["']/i.test(tag)
     }));
 
     if (cells.some(cell =>
@@ -314,6 +312,9 @@ function parse1x2Detailed(html) {
       homeOdd: cells[0].value,
       drawOdd: cells[1].value,
       awayOdd: cells[2].value,
+      homeClosed: cells[0].closed === true,
+      drawClosed: cells[1].closed === true,
+      awayClosed: cells[2].closed === true,
       cells
     });
     seen.add(key);
@@ -661,3 +662,6 @@ module.exports = {
   pullOpening1x2WithFailover,
   sourceChain
 };
+
+// Existing transport exposed for the versioned odds data contract.
+module.exports._contractTransport = { curlArgs };

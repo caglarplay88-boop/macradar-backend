@@ -2,13 +2,6 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function median(values) {
-  const a = values.map(Number).filter(Number.isFinite).sort((x, y) => x - y);
-  if (!a.length) return null;
-  const m = Math.floor(a.length / 2);
-  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
-}
-
 function parseBetExplorerUrl(raw) {
   const u = new URL(raw);
   if (!/(^|\.)betexplorer\.com$/i.test(u.hostname)) {
@@ -34,4 +27,4 @@ function currentIsoTurkey() {
   return `${o.year}-${o.month}-${o.day}`;
 }
 
-module.exports = { sleep, median, parseBetExplorerUrl, currentIsoTurkey };
+module.exports = { sleep, parseBetExplorerUrl, currentIsoTurkey };

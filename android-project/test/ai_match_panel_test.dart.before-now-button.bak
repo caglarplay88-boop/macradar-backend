@@ -1,0 +1,178 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:macradar/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class FakeAiApi extends Api {
+  bool hasPrediction = false;
+  bool wrongList = false;
+  bool wrongReport = false;
+  bool completed = false;
+  int starts = 0;
+  int polls = 0;
+
+  Map<String, dynamic> report() => {
+    'prediction': {
+      'eventId': wrongReport ? 'OTHER_MATCH' : 'MATCH_A',
+      'inputCutoff': '2026-10-10T10:00:00Z',
+      'kickoffAt': '2026-10-10T11:00:00Z',
+    },
+    'summary': 'Güncel oran geçmişi yetersiz.',
+    'decision': {
+      'action': 'WAIT',
+      'selection': 'NONE',
+      'quotedCandidate': null,
+      'rationale': 'Oran geçmişi tamamlanana kadar bekle.',
+    },
+    'assessments': {
+      for (final name in ['market', 'performance', 'anomalies', 'dataQuality'])
+        name: {'conclusion': 'Bu bölümün kanıtı sınırlı.', 'evidenceRefs': []},
+    },
+    'counterEvidence': 'Karşı kanıt.',
+    'limitations': 'Eksik veri.',
+    'changeConditions': 'Güncel oran geçmişi gerekli.',
+    'calculations': {'marketComparisons': []},
+    'evidenceLedger': {},
+  };
+
+  @override
+  Future<Map<String, dynamic>> get(String path) async {
+    if (path == '/api/ai/reports/status') {
+      return {'enabled': true, 'qwenConfigured': true};
+    }
+    if (path.startsWith('/api/ai/predictions?')) {
+      return {
+        'eventId': wrongList ? 'OTHER_MATCH' : 'MATCH_A',
+        'predictions': hasPrediction
+            ? [
+                {
+                  'predictionId': '11111111-1111-4111-8111-111111111111',
+                  'eventId': 'MATCH_A',
+                  'horizon': 'T60',
+                  'inputCutoff': '2026-10-10T10:00:00Z',
+                },
+              ]
+            : [],
+      };
+    }
+    if (path.startsWith('/api/ai/reports/jobs/')) {
+      polls++;
+      return {
+        'jobId': '22222222-2222-4222-8222-222222222222',
+        'status': completed ? 'completed' : 'running',
+        'progress': [
+          {'stage': 'stored_prediction_verified', 'status': 'completed'},
+          {
+            'stage': 'qwen_report_generation',
+            'status': completed ? 'completed' : 'started',
+          },
+        ],
+        'report': completed ? report() : null,
+      };
+    }
+    throw Exception('Beklenmeyen test isteği');
+  }
+
+  @override
+  Future<Map<String, dynamic>> post(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    if (path != '/api/ai/reports' ||
+        body['predictionId'] != '11111111-1111-4111-8111-111111111111') {
+      throw Exception('Yanlış analiz isteği');
+    }
+    starts++;
+    return {
+      'jobId': '22222222-2222-4222-8222-222222222222',
+      'status': 'queued',
+    };
+  }
+}
+
+Widget testApp(FakeAiApi api) => MaterialApp(
+  home: Scaffold(
+    body: AiMatchPanel(eventId: 'MATCH_A', api: api),
+  ),
+);
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('Tahmin yokken analiz başlamaz', (tester) async {
+    final api = FakeAiApi();
+    await tester.pumpWidget(testApp(api));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('henüz analiz kaydı yok'), findsOneWidget);
+    final button = tester.widget<FilledButton>(find.byType(FilledButton));
+    expect(button.onPressed, isNull);
+    expect(api.starts, 0);
+  });
+
+  testWidgets('Başka maçın tahmin listesi reddedilir', (tester) async {
+    final api = FakeAiApi()..wrongList = true;
+    await tester.pumpWidget(testApp(api));
+    await tester.pumpAndSettle();
+    expect(find.text('Tahmin listesi bu maçla eşleşmedi.'), findsOneWidget);
+    expect(api.starts, 0);
+  });
+
+  testWidgets('Gerçek iş durumundan tamamlanmış rapora geçilir', (
+    tester,
+  ) async {
+    final api = FakeAiApi()..hasPrediction = true;
+    await tester.pumpWidget(testApp(api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(api.starts, 1);
+    expect(find.text('Analiz sürüyor'), findsOneWidget);
+    expect(find.text('Yapay zeka analizi'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
+
+    api.completed = true;
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.text('Analiz tamamlandı'), findsOneWidget);
+    expect(find.text('Bekle'), findsOneWidget);
+    expect(find.text('Güncel oran geçmişi yetersiz.'), findsOneWidget);
+    expect(api.starts, 1);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Başka maça ait rapor gösterilmez', (tester) async {
+    final api = FakeAiApi()
+      ..hasPrediction = true
+      ..completed = true
+      ..wrongReport = true;
+    await tester.pumpWidget(testApp(api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Rapor bu maçla eşleşmedi.'), findsOneWidget);
+    expect(find.text('Güncel oran geçmişi yetersiz.'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Kaydedilmiş devam eden iş yeni iş açmadan bulunur', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'macradar_ai_job_MATCH_A': '22222222-2222-4222-8222-222222222222',
+    });
+    final api = FakeAiApi();
+    await tester.pumpWidget(testApp(api));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Analiz sürüyor'), findsOneWidget);
+    expect(api.polls, greaterThan(0));
+    expect(api.starts, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+}

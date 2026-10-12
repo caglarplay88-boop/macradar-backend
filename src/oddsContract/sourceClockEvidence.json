@@ -1,0 +1,26 @@
+{
+  "kind": "SOURCE_TIME_AND_OPENING_LABEL_EVIDENCE",
+  "source_url": "https://www.betexplorer.com/res/js/all.min.js?serial=2610021100",
+  "source_script_sha256": "6731062940d47c8f1133b527b5cb59e4c4d26b32ff98972d5d1343561b494dd8",
+  "function_text": "function my_tz_format(e,a){arr=e.split(\",\"),obj=new Date(arr[2],parseInt(arr[1],10)-1,parseInt(arr[0],10)+parseInt(a||0,10),parseInt(arr[3],10)+parseInt(timezone_key,10)-1,arr[4],0),d=obj.getDate(),m=obj.getMonth()+1,y=obj.getFullYear(),h=obj.getHours(),i=obj.getMinutes(),t=(h<10?\"0\"+h:h)+\":\"+(i<10?\"0\"+i:i);e=obj;return e.setHours(0,0,0,0,0),ret={date:(d<10?\"0\"+d:d)+\".\"+(m<10?\"0\"+m:m)+\".\"+y,date_noyear:(d<10?\"0\"+d:d)+\".\"+(m<10?\"0\"+m:m)+\".\",time:t,d:d,m:m,y:y,day_changed:d!=parseInt(arr[0],10)+parseInt(a||0,10),obj:obj,day_unix:e.valueOf(),datetime_unix:new Date((m<10?\"0\"+m:m)+\".\"+(d<10?\"0\"+d:d)+\".\"+y+\" \"+t).getTime()}}",
+  "opening_label_function_text": "function create_odds_archive_table(e,t,a){if(t.length){var s,n=$(e).attr(\"data-odd\"),i=$(e).attr(\"data-bookie-id\"),e=my_tz_format($(e).attr(\"data-created\")),o=(o=Math.round(100*(parseFloat(n)-parseFloat(t[0].odd)))/100).toFixed(2).toString();for(s in t.unshift({date:e.date_noyear+\" \"+e.time,odd:n,change:(0<o?\"+\":\"\")+o}),t){s==t.length-1&&$(a).append('<tr class=\"archiveOddsModal__tr__left archiveOddsModal__mt-10\"><th colspan=\"3\" class=\"archiveOddsModal__th archiveOddsModal__cell archiveOddsModal__cell_full\">'+loc(\"Opening odds\")+\"</th></tr>\");var l=$('<tr class=\"archiveOddsModal__tr__left archiveOddsModal__tr__right archiveOddsModal__tr\">');l.append('<td class=\"archiveOddsModal__cell archiveOddsModal__cell_full date\">'+t[s].date+\"</td>\"),l.append('<td class=\"archiveOddsModal__cell archiveOddsModal__cell_small bold\" data-odd=\"'+t[s].odd+'\"></td>'),l.append('<td class=\"archiveOddsModal__cell archiveOddsModal__cell_small change-'+(\"-\"==t[s].change.charAt(0)?\"neg\":\"pos\")+'\"'+(0!=t[s].change?' data-odd=\"'+t[s].change+'\"':\"\")+\"></td>\"),$(a).append(l)}}else $(a).append('<tr><td colspan=\"3\" class=\"archiveOddsModal__cell aodds-nodata\">'+loc(\"No current odds found.\")+\"</td></tr>\");format_odds(a,!0),getBookmakerUrl(i)}",
+  "controlled_test": [
+    {
+      "utcPreferenceRow": {
+        "date": "22.09. 07:19",
+        "odd": "1.83",
+        "change": "0"
+      },
+      "turkeyPreferenceRow": {
+        "date": "22.09. 10:19",
+        "odd": "1.83",
+        "change": "0"
+      },
+      "differenceMinutes": 180.0
+    }
+  ],
+  "cell_time_rule": "SOURCE_COMMA_DATE_FIXED_UTC_PLUS_1",
+  "archive_clock_preference": "+0",
+  "archive_year_verified": false,
+  "opening_is_absolute_first_guaranteed": false
+}

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -177,8 +178,39 @@ void main() {
           headers:{'x-export-sha256':hash});
       },
     );
-    expect(messages.any((m)=>m.contains('açılışlar toplanıyor')),true);
+    expect(messages.any((m)=>m.contains('açılışlar kontrol ediliyor')),true);
     expect(messages.any((m)=>m.contains('ZIP paketi hazırlanıyor')),true);
+  });
+
+  test('Gerçek HTTP akışında ilerleme alınan byte ve Content-Length üzerinden ölçülür', () async {
+    final server=await HttpServer.bind(InternetAddress.loopbackIPv4,0);
+    addTearDown(()=>server.close(force:true));
+    final bytes=List<int>.filled(131072,0);
+    bytes.setRange(0,4,[0x50,0x4b,0x03,0x04]);
+    final samples=<List<int>>[];
+    server.listen((request) async {
+      if(request.uri.queryParameters.containsKey('prepare')) {
+        request.response.headers.contentType=ContentType.json;
+        request.response.write(jsonEncode({...state('READY'),'bytes':bytes.length}));
+      } else {
+        request.response.headers.set('x-export-sha256',hash);
+        request.response.contentLength=bytes.length;
+        request.response.bufferOutput=false;
+        request.response.add(bytes.sublist(0,65536));
+        await request.response.flush();
+        await Future<void>.delayed(const Duration(milliseconds:30));
+        request.response.add(bytes.sublist(65536));
+      }
+      await request.response.close();
+    });
+    final response=await downloadPreparedMatchPackage(
+      baseUrl:'http://127.0.0.1:${server.port}',eventId:'event123',headers:{},
+      onDownloadProgress:(received,total)=>samples.add([received,total]),
+    );
+    expect(response.bodyBytes.length,bytes.length);
+    expect(samples.last,[bytes.length,bytes.length]);
+    expect(samples.any((s)=>s[0]>0 && s[0]<s[1]),true);
+    expect(samples.every((s)=>s[1]==bytes.length),true);
   });
 
 }

@@ -249,3 +249,30 @@ erişti. Gelen gerçek çıktılara göre:
   düğmesinden dosya kaydetme kabulü henüz doğrulanmadı.
 - Bwin arşiv bağlantısı olmayan satırlara açılış üretilmedi.
 - Harici okuyucu entegrasyonu henüz yapılmadı.
+
+## Yeniden açılan telefon akışı — 2026-10-12
+
+- Kullanıcı 1.0.11'de ekrandan çıkınca indirme görünümünün kaybolmasını,
+  sayaç/spinner ile uzun kaynak beklemesini ve ilk fiyatların geç görünmesini
+  bildirdi. Fiziksel telefon kabulü tamamlanmış sayılmıyor.
+- Yeni MatchExportSession ekrandan bağımsızdır; tekrar açılan maç devam eden
+  işi ve alınan byte ilerlemesini gösterir. SharedPreferences iş kimliği de
+  süreç yeniden açıldığında aynı sunucu işinin sürdürülmesi için korunur.
+- Dosya HTTP akışı Content-Length/alınan byte ile ölçülür. Hazırlama sırasında
+  sahte yüzde veya dolan çubuk yok; kayıt bitmeden yüzde indirme başarısı sayılmaz.
+- Export güncel tarama ve geçmiş uzlaştırmasını ortak toplayıcıda dener;
+  15 saniyelik bekleme sınırında eldeki kayıtlarla paketlenir. Devam eden
+  yenileme REFRESH_IN_PROGRESS ve EXPORT_REFRESH_WAIT_LIMIT olarak bildirilir;
+  toplama aynı kuyrukta devam eder. Kesim/ham veri ve tek seferlik takip temizliği
+  korunur, ikinci toplayıcı yok.
+- Takip başlatıldığında merkezi worker kuyruğu hemen uyandırılır. İlk fiyat
+  gelene kadar mobil kontrol 2 saniye, fiyatlar geldikten sonra 15 saniyedir;
+  bu ekran sorgulamasıdır, kaynak toplama takvimini değiştirmez.
+- Açılışlar aynı kimlik/bağlam/çizgi içinde tek sunum kartında gösterilir;
+  ayrı kaynak taraf zamanları ve raw_record_ids korunur. Bu kart eşzamanlı
+  fiyat grubu değildir; ham veri ve grafik girdileri ayrı taraflar olarak kalır.
+- APK 1.0.12+112. Bulutta 49 backend test dosyası geçti. Yeni Flutter testleri
+  gerçek HTTP byte akışı, ekranı kapatıp açma ve ayrı açılış zamanları içindir;
+  Flutter/Android derleme ve bu APK'dan fiziksel kayıt henüz çalıştırılmadı.
+- Sonraki işlem: mobil test/analyze, gerçek seçili maçta bekleme sınırı ve
+  export/schema kontrolü, imzalı APK ve telefondaki kart dosyası kabulü.

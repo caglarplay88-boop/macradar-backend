@@ -120,7 +120,7 @@ progress = root / "docs/ODDS_PROGRESS.md"
 with progress.open("a") as stream:
     stream.write("\n## Sunucu uygulama ve APK sonucu\n\n")
     stream.write("- macradar.service yenilendi; ayrı dropping servisi değiştirilmedi.\n")
-    stream.write("- 48 backend testi ve son revizyon mobil testleri geçti; analiz hata sayısı 0.\n")
+    stream.write("- Son revizyon backend ve mobil testleri geçti; analiz hata sayısı 0.\n")
     stream.write("- İki gerçek mevcut APK HTTP export akışı, ZIP/schema/manifest/kanıt ve ham kayıt koruma denetimleri geçti.\n")
     stream.write(f"- APK {version_name}+{version_code} derlendi; imza, aynı güncelleme imzası ve ZIP bütünlüğü doğrulandı.\n")
     stream.write("- Telefon indirme/kurulum/kart indirme ve harici okuyucu kabulü henüz yapılmadı.\n")

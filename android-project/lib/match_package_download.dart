@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -14,15 +15,39 @@ Future<http.Response> downloadPreparedMatchPackage({
   Future<String?> Function()? readPendingJob,
   Future<void> Function(String?)? savePendingJob,
   void Function(String)? onProgress,
+  void Function(int, int)? onDownloadProgress,
 }) async {
   if (!RegExp(r'^[A-Za-z0-9_-]{1,80}$').hasMatch(eventId)) {
     throw Exception('Geçersiz maç kimliği.');
   }
-  final get =
-      request ??
-      (Uri uri, Map<String, String> h) =>
-          http.get(uri, headers: h).timeout(Duration(
-            minutes: uri.queryParameters.containsKey("status") || uri.queryParameters.containsKey("prepare") ? 1 : 5));
+  Future<http.Response> streamedGet(Uri uri, Map<String, String> h) async {
+    if (uri.queryParameters.containsKey('status') || uri.queryParameters.containsKey('prepare')) {
+      return http.get(uri, headers: h).timeout(const Duration(seconds: 60));
+    }
+    final client = http.Client();
+    try {
+      final outgoing = http.Request('GET', uri)..headers.addAll(h);
+      final response = await client.send(outgoing).timeout(const Duration(seconds: 60));
+      final total = response.contentLength ?? 0;
+      if (total > 128 * 1024 * 1024) throw Exception('Paket telefon boyut sınırını aşıyor.');
+      final builder = BytesBuilder(copy: false);
+      var received = 0;
+      var reported = 0;
+      onDownloadProgress?.call(0, total);
+      await for (final chunk in response.stream.timeout(const Duration(minutes: 5))) {
+        received += chunk.length;
+        if (received > 128 * 1024 * 1024) throw Exception('Paket telefon boyut sınırını aşıyor.');
+        builder.add(chunk);
+        if (received - reported >= 65536 || received == total) {
+          reported = received;
+          onDownloadProgress?.call(received, total);
+        }
+      }
+      onDownloadProgress?.call(received, total);
+      return http.Response.bytes(builder.takeBytes(), response.statusCode, headers: response.headers);
+    } finally { client.close(); }
+  }
+  final get = request ?? streamedGet;
   final pause = wait ?? (Duration duration) => Future<void>.delayed(duration);
   final now = clock ?? DateTime.now;
   final endpoint = Uri.parse(
@@ -114,13 +139,12 @@ Future<http.Response> downloadPreparedMatchPackage({
     if (status != 'QUEUED' && status != 'RUNNING') {
       throw Exception('Paket hazırlama durumu geçersiz.');
     }
-    final elapsed = now().difference(started).inSeconds;
     final phase = state['phase'];
     onProgress?.call(status == 'QUEUED'
-        ? 'Toplama sırası bekleniyor… ($elapsed sn)'
+        ? 'Paket hazırlama sırası bekleniyor…'
         : phase == 'BUILDING_PACKAGE'
-            ? 'Veriler toplandı; ZIP paketi hazırlanıyor… ($elapsed sn)'
-            : 'Kaynak fiyatları ve erişilebilir açılışlar toplanıyor… ($elapsed sn)\nİlk toplama birkaç dakika sürebilir.');
+            ? 'Veriler alındı; ZIP paketi hazırlanıyor…'
+            : 'Kaynak fiyatları ve erişilebilir açılışlar kontrol ediliyor…');
     if (now().difference(started) >= maximumWait) {
       throw TimeoutException('Paket hazırlama bekleme süresi doldu.');
     }

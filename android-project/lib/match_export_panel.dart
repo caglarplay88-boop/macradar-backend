@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'match_export_session.dart';
 import 'package:http/http.dart' as http;
 
 class MatchExportPanel extends StatefulWidget {
@@ -8,6 +8,7 @@ class MatchExportPanel extends StatefulWidget {
   final Future<http.Response> Function() downloadPackage;
   final Future<http.Response> Function(void Function(String))? downloadPackageWithProgress;
   final Future<void> Function()? onPackageSaved;
+  final Future<http.Response> Function(void Function(String), void Function(int, int))? downloadPackageWithTransfer;
   const MatchExportPanel({
     super.key,
     required this.eventId,
@@ -15,125 +16,41 @@ class MatchExportPanel extends StatefulWidget {
     required this.downloadPackage,
     this.downloadPackageWithProgress,
     this.onPackageSaved,
+    this.downloadPackageWithTransfer,
   });
+
+  static bool hasActiveJob(String eventId) => MatchExportSession.isRunning(eventId);
 
   @override
   State<MatchExportPanel> createState() => _MatchExportPanelState();
 }
 
 class _MatchExportPanelState extends State<MatchExportPanel> {
-  static const _files = MethodChannel('com.macradar.macradar/match_files');
-  bool _busy = false;
-  String? _savedUri;
-  String _message = '';
-  String _dataMessage = '';
-  String _saveMessage = 'Maç dosyası seçtiğin klasöre kaydedildi.';
-
-  void _progress(String message) {
-    if (mounted) setState(() => _message = message);
+  late final MatchExportSession _session;
+  bool get _busy => _session.busy;
+  String get _message => _session.message;
+  @override
+  void initState() {
+    super.initState();
+    _session = MatchExportSession.forEvent(widget.eventId);
+    _session.addListener(_changed);
   }
-
-  String _collectionMessage(http.Response response) {
-    final raw = response.headers['x-odds-last-success-at'];
-    final date = raw == null ? null : DateTime.tryParse(raw);
-    final parts = <String>[];
-    if (response.headers['x-odds-refresh-success'] != 'true') {
-      parts.add('Son yenileme başarılı olmadı; kayıtlı veri indirildi.');
-    }
-    if (date == null) {
-      parts.add('Son başarılı tarama zamanı bulunmuyor.');
-    } else {
-      final turkey = date.toUtc().add(const Duration(hours: 3));
-      String two(int value) => value.toString().padLeft(2, '0');
-      parts.add(
-        'Son başarılı tarama: ${two(turkey.day)}.${two(turkey.month)}.'
-        '${turkey.year} ${two(turkey.hour)}:${two(turkey.minute)} (Türkiye).',
-      );
-    }
-    if (response.headers['x-odds-source-verified'] != 'true') {
-      parts.add('Kaynağın doğrulanamayan alanları dosyada işaretlidir.');
-    }
-    return parts.join('\n');
-  }
-
-  Future<void> _export({required bool share}) async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _message = 'Maç dosyası hazırlanıyor…';
-    });
-    try {
-      String? uri = share ? _savedUri : null;
-      if (uri == null) {
-        final response = widget.downloadPackageWithProgress == null
-            ? await widget.downloadPackage()
-            : await widget.downloadPackageWithProgress!(_progress);
-        if (response.statusCode != 200) {
-          throw Exception(
-            'Maç dosyası alınamadı (HTTP ${response.statusCode}).',
-          );
-        }
-        final bytes = response.bodyBytes;
-        if (bytes.length < 4 ||
-            bytes.length > 128 * 1024 * 1024 ||
-            bytes[0] != 0x50 ||
-            bytes[1] != 0x4b ||
-            bytes[2] != 0x03 ||
-            bytes[3] != 0x04) {
-          throw Exception('İndirilen dosya geçerli bir ZIP paketi değil.');
-        }
-        final expectedHash = response.headers['x-export-sha256'];
-        if (expectedHash == null ||
-            !RegExp(r'^[a-f0-9]{64}$').hasMatch(expectedHash)) {
-          throw Exception('Dosya bütünlük bilgisi eksik.');
-        }
-        _progress('Paket indirildi; telefona kaydediliyor…');
-        final result = await _files.invokeMapMethod<String, dynamic>(
-          'savePackage',
-          {
-            'bytes': bytes,
-            'sha256': expectedHash,
-            'filename':
-                'MacRadar-${widget.eventId}-${DateTime.now().microsecondsSinceEpoch}.zip',
-          },
-        );
-        uri = result?['uri'] as String?;
-        if (uri == null) {
-          if (mounted) setState(() => _message = 'Kaydetme iptal edildi.');
-          return;
-        }
-        _savedUri = uri;
-        if (result?['directory'] == 'Download') {
-          _saveMessage = 'Maç dosyası Download klasörüne kaydedildi.\n${result?["filename"] ?? ""}';
-        }
-        _dataMessage = _collectionMessage(response);
-        try { await widget.onPackageSaved?.call(); } catch (_) { }
+  void _changed() { if (mounted) setState(() {}); }
+  @override
+  void dispose() { _session.removeListener(_changed); super.dispose(); }
+  Future<void> _export({required bool share}) => _session.start(
+    share: share,
+    onPackageSaved: widget.onPackageSaved,
+    download: (progress, bytes) {
+      if (widget.downloadPackageWithTransfer != null) {
+        return widget.downloadPackageWithTransfer!(progress, bytes);
       }
-      if (share) {
-        await _files.invokeMethod<void>('sharePackage', {'uri': uri});
+      if (widget.downloadPackageWithProgress != null) {
+        return widget.downloadPackageWithProgress!(progress);
       }
-      if (mounted) {
-        setState(
-          () => _message = [
-            share
-                ? 'Dosya hazır. Açılan menüden paylaşabilirsin.'
-                : _saveMessage,
-            _dataMessage,
-          ].where((part) => part.isNotEmpty).join('\n'),
-        );
-      }
-    } on PlatformException catch (error) {
-      if (mounted) {
-        setState(
-          () => _message = error.message ?? 'Dosya işlemi tamamlanamadı.',
-        );
-      }
-    } catch (error) {
-      if (mounted) setState(() => _message = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+      return widget.downloadPackage();
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -201,7 +118,8 @@ class _MatchExportPanelState extends State<MatchExportPanel> {
                 ),
                 if (_busy) ...[
                   const SizedBox(height: 16),
-                  const LinearProgressIndicator(),
+                  LinearProgressIndicator(value: _session.phase == "save" ? 1 : _session.downloadFraction),
+                  if (_session.phase == "prepare") const Padding(padding: EdgeInsets.only(top: 8), child: Text("Paket hazırlanıyor. Dosya aktarımı başladığında yüzde gösterilecek.")),
                 ],
                 if (_message.isNotEmpty) ...[
                   const SizedBox(height: 14),

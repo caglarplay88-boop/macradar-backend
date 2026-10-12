@@ -10,6 +10,7 @@ function safeCode(error){
 }
 function createExportBuilder({pool,runtime,buildPackage,
  readStateInPackage=false,
+ refreshWaitMs=15000,
  clock=()=>new Date().toISOString()}){
  if(!pool||!runtime||typeof buildPackage!=='function'){
   throw Error('EXPORT_COORDINATOR_CONFIGURATION_INVALID');
@@ -30,18 +31,37 @@ function createExportBuilder({pool,runtime,buildPackage,
    history_reconciliation_requested:true,success:false
   };
   onProgress('COLLECTING');
-  try{
-   result=await runtime.collectTrackedMatch(job,{
-    reason:'export',forceHistory:true
-   });
-   // A simultaneous periodic job can be shared by the match queue.
-   // Request reconciliation afterwards if that shared job did not do it.
-   if(result&&!result.skipped&&
-      result.run?.history_reconciliation_requested===false){
-    result=await runtime.collectTrackedMatch(job,{
-     reason:'export',forceHistory:true
-    });
+  let refreshPending=false;
+  const cleanup=async()=>{
+   if(!oneShot)return;
+   const latest=(await pool.query(
+    'SELECT tracking_enabled FROM odds_tracking_settings WHERE event_id=$1',[eventId]
+   )).rows[0];
+   if(latest?.tracking_enabled!==true)await runtime.setTracking(job,false);
+  };
+  const collection=(async()=>{
+   let collected=await runtime.collectTrackedMatch(job,{reason:'export',forceHistory:true});
+   if(collected&&!collected.skipped&&collected.run?.history_reconciliation_requested===false){
+    collected=await runtime.collectTrackedMatch(job,{reason:'export',forceHistory:true});
    }
+   return {result:collected};
+  })().catch(error=>({error}));
+  let timer;
+  try{
+   const outcome=await Promise.race([collection,new Promise(resolve=>{
+    timer=setTimeout(()=>resolve({pending:true}),refreshWaitMs);
+   })]);
+   if(outcome.pending){
+    refreshPending=true;
+    refresh={...refresh,finished_at:clock(),success:false,
+     outcome:'REFRESH_IN_PROGRESS',error:'EXPORT_REFRESH_WAIT_LIMIT',
+     refresh_wait_limit_ms:refreshWaitMs,background_collection_continues:true,
+     history_reconciliation_performed:false};
+    // Collection keeps its original queue slot; no second collector is created.
+    collection.then(cleanup).catch(error=>console.error('[odds-export] cleanup:',safeCode(error)));
+   }else{
+   if(outcome.error)throw outcome.error;
+   result=outcome.result;
    refresh={
     ...refresh,finished_at:clock(),
     success:result?.success===true&&!result?.skipped,
@@ -54,20 +74,13 @@ function createExportBuilder({pool,runtime,buildPackage,
     error:result?.success===true?null:
      (result?.reason||'PARTIAL_OR_FAILED_COLLECTION')
    };
+   }
   }catch(error){
    refresh={...refresh,finished_at:clock(),error:safeCode(error),
     outcome:'COLLECTION_FAILED',success:false};
   }finally{
-   if(oneShot){
-    // Do not undo a tracking start that happened during preparation.
-    const latest=(await pool.query(
-     'SELECT tracking_enabled FROM odds_tracking_settings WHERE event_id=$1',
-     [eventId]
-    )).rows[0];
-    if(latest?.tracking_enabled!==true){
-     await runtime.setTracking(job,false);
-    }
-   }
+   clearTimeout(timer);
+   if(!refreshPending)await cleanup();
   }
   onProgress('BUILDING_PACKAGE');
   return buildPackage(pool,eventId,{

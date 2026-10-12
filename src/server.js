@@ -1714,6 +1714,10 @@ if (req.method === 'GET' && /^\/api\/matches\/[^/]+\/odds\/1x2$/.test(u.pathname
 
       const settings = await updateTrackingSettings(eventId, enabled, minutes);
       if (!settings) return json(res, 404, { error: 'Maç bulunamadı.' });
+      if (enabled) {
+        require('./odds1x2Worker').runOddsWorkerTick({waitForJobs:false})
+          .catch(error => console.error('[odds-worker] tracking wake failed:', error.message));
+      }
 
       return json(res, 200, {
         ok: true,

@@ -217,7 +217,7 @@ class Api {
     throw last ?? Exception('Bağlantı kurulamadı.');
   }
 
-  Future<http.Response> downloadMatchPackage(String eventId, {void Function(String)? onProgress}) async {
+  Future<http.Response> downloadMatchPackage(String eventId, {void Function(String)? onProgress, void Function(int, int)? onDownloadProgress}) async {
     final preferences = await SharedPreferences.getInstance();
     final pendingKey = 'match_export_job_${baseUrl}_$eventId';
     return downloadPreparedMatchPackage(
@@ -230,6 +230,7 @@ class Api {
         else { await preferences.setString(pendingKey, id); }
       },
       onProgress: onProgress,
+      onDownloadProgress: onDownloadProgress,
     );
   }
 
@@ -2490,6 +2491,7 @@ class _MatchDetailState extends State<MatchDetail> {
   final Set<double?> _ouExpandedLines = <double?>{};
   final Set<String> _asianExpandedLines = <String>{};
   Timer? _oddsRefreshTimer;
+  DateTime? _lastOddsAutoPoll;
   Map<String, dynamic> _matchData = <String, dynamic>{};
   bool _matchLoading = true;
   bool _trackingBusy = false;
@@ -2499,10 +2501,16 @@ class _MatchDetailState extends State<MatchDetail> {
   @override
   void initState() {
     super.initState();
+    _showExport = MatchExportPanel.hasActiveJob(widget.eventId);
+    _showOdds = !_showExport;
     _loadMatchInfo();
     _loadOdds1x2();
-    _oddsRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    _oddsRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (mounted && _showOdds && !_showExport) {
+        final now = DateTime.now();
+        if (_oddsRows.isNotEmpty && _lastOddsAutoPoll != null &&
+            now.difference(_lastOddsAutoPoll!) < const Duration(seconds: 15)) return;
+        _lastOddsAutoPoll = now;
         _loadActiveOdds(silent: true);
       }
     });
@@ -3311,6 +3319,7 @@ class _MatchDetailState extends State<MatchDetail> {
             _effectiveRefreshMinutes();
         _trackingBusy = false;
       });
+      await _loadActiveOdds(silent: true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _trackingBusy = false);
@@ -4850,6 +4859,7 @@ class _MatchDetailState extends State<MatchDetail> {
                         api.downloadMatchPackage(widget.eventId),
                     downloadPackageWithProgress: (progress) => api.downloadMatchPackage(widget.eventId, onProgress: progress),
                     onPackageSaved: () => api.matchPackageSaved(widget.eventId),
+                    downloadPackageWithTransfer: (progress, bytes) => api.downloadMatchPackage(widget.eventId, onProgress: progress, onDownloadProgress: bytes),
                   )
                 : _showOdds
                 ? Column(
@@ -5334,7 +5344,7 @@ class _BookmakerOverUnderDetailState extends State<BookmakerOverUnderDetail> {
             flex: 14,
             child: Text(
               isOpening ? _sourceOpeningLabel(row, time) : time,
-              maxLines: isOpening ? 3 : 1,
+              maxLines: isOpening ? 6 : 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 11,
@@ -5415,7 +5425,7 @@ class _BookmakerOverUnderDetailState extends State<BookmakerOverUnderDetail> {
       );
     }
 
-    final rows = <Map<String, dynamic>>[..._history, ..._openingRows];
+    final rows = <Map<String, dynamic>>[..._history, ...compactSourceOpeningCards(_openingRows)];
     if (_openingRows.isEmpty) {
       rows.add(<String, dynamic>{'_opening_missing': true});
     }
@@ -5978,7 +5988,7 @@ class _BookmakerAsianDetailState extends State<BookmakerAsianDetail> {
             flex: 14,
             child: Text(
               isOpening ? _sourceOpeningLabel(row, time) : time,
-              maxLines: isOpening ? 3 : 1,
+              maxLines: isOpening ? 6 : 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 11,
@@ -6059,7 +6069,7 @@ class _BookmakerAsianDetailState extends State<BookmakerAsianDetail> {
       );
     }
 
-    final rows = <Map<String, dynamic>>[..._history, ..._openingRows];
+    final rows = <Map<String, dynamic>>[..._history, ...compactSourceOpeningCards(_openingRows)];
     if (_openingRows.isEmpty) {
       rows.add(<String, dynamic>{'_opening_missing': true});
     }
@@ -6582,7 +6592,7 @@ class _BookmakerKgDetailState extends State<BookmakerKgDetail> {
             flex: 14,
             child: Text(
               isOpening ? _sourceOpeningLabel(row, time) : time,
-              maxLines: isOpening ? 3 : 1,
+              maxLines: isOpening ? 6 : 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 11,
@@ -6674,7 +6684,7 @@ class _BookmakerKgDetailState extends State<BookmakerKgDetail> {
       );
     }
 
-    final rows = <Map<String, dynamic>>[..._history, ..._openingRows];
+    final rows = <Map<String, dynamic>>[..._history, ...compactSourceOpeningCards(_openingRows)];
     if (_openingRows.isEmpty) {
       rows.add(<String, dynamic>{'_opening_missing': true});
     }
@@ -7101,7 +7111,7 @@ class _BookmakerOddsDetailState extends State<BookmakerOddsDetail> {
               Expanded(
                 child: Text(
                   isOpening ? _sourceOpeningLabel(row, _time(row)) : _time(row),
-                  maxLines: isOpening ? 3 : 1,
+                  maxLines: isOpening ? 6 : 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,

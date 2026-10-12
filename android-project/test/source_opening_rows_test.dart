@@ -64,4 +64,33 @@ void main() {
       {...record('1X2', 'HOME', 'c'), 'record_origin': 'scraper_observation'}
     ]), '1X2'), isEmpty);
   });
+  test('Açılış kartı tarafları bir arada gösterir, zamanları ve ham kayıtları değiştirmez', () {
+    final home = record('1X2','HOME','compact-home');
+    final away = {...record('1X2','AWAY','compact-away'),
+      'source_timestamp':'2026-10-10T09:00:00Z'};
+    final sides = sourceOpeningDisplayRows(live([home,away]),'1X2')!;
+    final cards = compactSourceOpeningCards(sides);
+    expect(cards,hasLength(1));
+    expect(cards.single['home_odd'],2.2);
+    expect(cards.single['away_odd'],2.2);
+    expect(cards.single['draw_odd'],isNull);
+    expect(cards.single['captured_at'],isNull);
+    expect(cards.single['quote_group_id'],isNull);
+    expect(cards.single['_source_opening_selections_grouped'],false);
+    expect(cards.single['raw_record_ids'],['compact-home','compact-away']);
+    final label=sourceOpeningDisplayLabel(cards.single,'ignored');
+    expect(label,contains('11:00'));
+    expect(label,contains('12:00'));
+    expect(sides[0]['captured_at'],home['source_timestamp']);
+    expect(sides[1]['captured_at'],away['source_timestamp']);
+  });
+  test('Açılış kartları farklı bağlamları ve çizgileri birleştirmez', () {
+    final sides=sourceOpeningDisplayRows(live([
+      {...record('OU','UNDER','compact-u'), 'line':2.5},
+      {...record('OU','OVER','compact-o'), 'line':2.75},
+      {...record('OU','OVER','compact-other'), 'line':2.5, 'source_context_id':'other'},
+    ]),'OU')!;
+    expect(compactSourceOpeningCards(sides),hasLength(3));
+  });
+
 }

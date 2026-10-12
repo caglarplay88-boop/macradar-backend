@@ -28,7 +28,7 @@
       "source": "docs/ODDS_PROGRESS.md",
       "target": "docs/ODDS_PROGRESS.md",
       "base_sha256": "9d0aaac176cb702a2e1b7982df515c97a1fd82929365ae593766a0292f1791bf",
-      "new_sha256": "508c18ad989d127e763eb612a1a7cee329560b38f140f30b311a0971393430d7"
+      "new_sha256": "9b2982ec3933c0601415b94955a2cffd84da2e058816e26aae4b403fb445e4a5"
     },
     {
       "project": "backend",
@@ -39,13 +39,6 @@
     },
     {
       "project": "backend",
-      "source": "scripts/apply-odds-revision.py",
-      "target": "scripts/apply-odds-revision.py",
-      "base_sha256": null,
-      "new_sha256": "70742cd99b4970aeabd791c50b77af84d3f8c0f0681d2ba2b1f76d3ef13c66d4"
-    },
-    {
-      "project": "backend",
       "source": "scripts/test-odds-contract.js",
       "target": "scripts/test-odds-contract.js",
       "base_sha256": null,
@@ -53,10 +46,17 @@
     },
     {
       "project": "backend",
+      "source": "scripts/validate-odds-http.py",
+      "target": "scripts/validate-odds-http.py",
+      "base_sha256": null,
+      "new_sha256": "9da2f9233f2a6503afcda52008053a5bb33ae15d7d149f1d234f92a827139935"
+    },
+    {
+      "project": "backend",
       "source": "src/matchDataExport.js",
       "target": "src/matchDataExport.js",
       "base_sha256": "4fdb50e004c9a65aa0197ce03cd7ac942db6019bde3ef880d7c0df576565a57a",
-      "new_sha256": "0cd57fc578cce645d842a224ccbb64e9e1e18ff46ed1dbc72e3f9274dda3d28d"
+      "new_sha256": "023ad12059d34ced455bebe94e7d14733b8e889ba1ab7f816942feb2ebbc9466"
     },
     {
       "project": "backend",
@@ -1058,6 +1058,13 @@
       "target": "test/oddsContract/exportProcess.test.cjs",
       "base_sha256": null,
       "new_sha256": "1f5d1f5d482d1157315ea3a49e0a986c605c57a14dd8478d26e10e1fc634a82b"
+    },
+    {
+      "project": "backend",
+      "source": "test/oddsContract/historyApiFields.test.cjs",
+      "target": "test/oddsContract/historyApiFields.test.cjs",
+      "base_sha256": "43b313b88855c3cf64c55fb75802849207a977084e0672ad5849d046791f6596",
+      "new_sha256": "3a11e38064be108133a2c47e4870f49a28b0d65b236429a8ae51e7fa3ff2a25e"
     },
     {
       "project": "backend",

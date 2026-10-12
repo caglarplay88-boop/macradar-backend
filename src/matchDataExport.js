@@ -167,13 +167,16 @@ async function buildMatchExport(pool,eventId,options={}){
     row.source_context_id||['LEGACY',row.source_name??null,row.source_region??null],
     row.period??null,row.price_type??null,
     market.key==='ASIAN'&&row.handicap_line===null?
-     row.quote_group_id??null:null
+     row.source_line??row.quote_group_id??null:null
    ]);
    if(!groups.has(key)) groups.set(key,[]);
    groups.get(key).push(row);
   }
   for(const rows of groups.values()){
-   const title=`${market.key} · ${rows[0].bookmaker_name||rows[0].bookmaker_key}${market.line?' · '+rows[0][market.line]:''}`;
+   const lineTitle=market.key==='ASIAN'&&rows[0].handicap_line===null?
+    'kaynak çizgisi '+rows[0].source_line+' (takım işareti doğrulanmadı)':
+    market.line?rows[0][market.line]:null;
+   const title=`${market.key} · ${rows[0].bookmaker_name||rows[0].bookmaker_key}${market.line?' · '+lineTitle:''}`;
    const svg=chart(market,rows,title);
    if(!svg) continue;
    const name=`charts/chart-${String(graphs.length+1).padStart(4,'0')}.svg`;
@@ -202,6 +205,7 @@ async function buildMatchExport(pool,eventId,options={}){
  <p>Paket: ${escape(time(exportedAt))} · Saat dilimi: Türkiye</p>
  <p>Tüm kayıtlar match-data.json içindedir. Çizgiler kapalı oranlarda kesilir; büyük noktalar kaynak açılışıdır.
  Kaynak açılış tarihi ile uygulamanın oranı çektiği tarih ayrı kayıt türleridir.
+ Grafik bağlantıları gözlemler arasındaki fiyatın kesintisiz aynı kaldığını kanıtlamaz.
  Paket oluşturulması, tüm verilerin kaynakla doğrulandığı anlamına gelmez.</p>
  ${warnings.map(w=>'<p>'+escape(w)+'</p>').join('')}
  <h2>Oran grafikleri</h2>${graphs.map(g=>'<section>'+g.svg+'</section>').join('')}

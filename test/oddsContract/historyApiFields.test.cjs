@@ -66,4 +66,11 @@ const base={bookmaker_id:'b',total_line:2.5,source_context_id:'c',
 const market={key:'OU',line:'total_line'};
 assert.notEqual(key(base,market),key({...base,source_context_id:'other'},market));
 assert.notEqual(key(base,market),key({...base,price_type:'EXCHANGE_BACK'},market));
+const asianMarket={key:'ASIAN',line:'handicap_line'};
+const unresolved={bookmaker_id:'b',handicap_line:null,source_line:-0.75,
+ source_context_id:'c',period:null,price_type:'UNKNOWN',quote_group_id:'first-scan'};
+assert.equal(key(unresolved,asianMarket),key({...unresolved,quote_group_id:'second-scan'},asianMarket));
+assert.notEqual(key(unresolved,asianMarket),key({...unresolved,source_line:-1.25},asianMarket));
+assert.notEqual(key(unresolved,asianMarket),key({...unresolved,source_context_id:'other'},asianMarket));
+assert.equal(unresolved.handicap_line,null);
 console.log('DORT_GECMIS_API_NULL_HAM_ALANLAR_VE_GRAFIK_BAGLAM_AYRIMI: GECTI');

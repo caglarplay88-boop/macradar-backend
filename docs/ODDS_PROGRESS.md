@@ -60,6 +60,26 @@ Eski parsera yeni yama eklenmiyor; kaynakta kanıtlanmayan alanlar açılmıyor.
 - Sonraki işlem: sunucuda Node/Flutter doğrulaması; temel dosya hash'leri
   eşleşiyorsa yedekleme ve uygulama; gerçek HTTP/kaynak turu ve APK teslimi.
 
+### Sunucu ön doğrulaması
+
+Kullanıcının gerçek Termux çıktısı: revizyon `15940cd`, 48 backend test
+dosyası ve 26 Flutter testi geçti. Flutter analyze 254 uyarı/bilgi, sıfır
+hata. Çalışan uygulama henüz bu aşamada değiştirilmedi.
+
+Sonrasında paket grafik anahtarı için hedefli regresyon ve gerçek paket
+fonksiyonu testi tekrar geçti: doğrulanmamış Asian ev işareti null korunurken
+aynı kaynak çizgisinin farklı tarama kayıtları aynı grafikte kalıyor. Farklı
+çizgi ve bağlamlar ayrılıyor. Her taramada ayrı grafik üretip paket boyutunu
+gereksiz büyütme giderildi; ham kayıtlar kesilmiyor.
+
+Gerçek HTTP protokol denetimi `scripts/validate-odds-http.py` eklendi.
+Bu bir test istemcisidir; kartı elle oluşturmaz, mevcut APK düğmesinin
+hazırlama/sorgulama/indirme rotasını kullanır. Telefon testi yerine sayılmaz.
+
+MacRadar Analiz get_methods/list_matches erişimi bu oturumda çalıştı:
+v0.2.0, odds-only; yüklenmiş maç listesi boş. Dosya yükleme aracı bu bağlantıda
+sunulmuyor. Yeni paket gerçek okuyucuda henüz sınanmadı; entegrasyon NOT_RUN.
+
 ## Tamamlanan işler ve kanıtlar
 
 - Kullanıcının tam görev sözleşmesi kod değişikliğinden önce

@@ -185,3 +185,24 @@ erişti. Gelen gerçek çıktılara göre:
   kaydetme sınırı birlikte 128 MiB oldu; ZIP/hash denetimleri korunuyor.
 - Mobil testler bu son değişiklikten sonra yeniden çalıştırılacak. Telefon
   kart indirme ve harici okuyucu kabulü hâlen yapılmadı.
+
+## Sunucu uygulama ve APK sonucu
+
+- macradar.service yenilendi; ayrı dropping servisi değiştirilmedi.
+- 48 backend testi ve 26 mobil test geçti; analiz hata sayısı 0.
+- İki gerçek mevcut APK HTTP export akışı, ZIP/schema/manifest/kanıt ve ham kayıt koruma denetimleri geçti.
+- APK 1.0.10+110 derlendi; imza, aynı güncelleme imzası ve ZIP bütünlüğü doğrulandı.
+- Telefon indirme/kurulum/kart indirme ve harici okuyucu kabulü henüz yapılmadı.
+- Teslim kanıtı: artifacts/odds-revision-delivery-20261012/delivery.json
+
+## Doğrulanmış APK teslimi
+- APK 1.0.10+110: 19.714.871 byte; imza ve eski APK ile güncelleme imzası geçti.
+- SHA256: 6e9de42f40eadf8af38ae81a0aff087b42fcc04de2aba17e8ddcfde4ccfa7059
+- 48 backend ve son revizyondaki 26 mobil test geçti.
+- İki gerçek HTTP paketinde schema, manifest, kanıt ve performans koruma geçti.
+- Büyük maçta önceki 83.541 ham kayıt korundu; paket yaklaşık 72 MB.
+- Sunucu açılmış paket sınırı 1 GiB; Dart/native indirme sınırı 128 MiB.
+- Gerçek ara geçmiş kaydı 0; kaynakta bulunmayan geçmiş üretilmedi.
+- Kaynak dönem/Asian işareti/durum/fiyat türü belirsizlikleri korunuyor.
+- Telefon APK indirme kontrolü sonraki adım; kurulum ve APK düğmesinden kart
+  indirme kabulü ile harici okuyucu entegrasyonu henüz yapılmadı.

@@ -1,0 +1,37 @@
+{
+  "event_id": "GxLyDAQb",
+  "job_id": "1f236c60-6c5f-409c-9c14-743f8a238809",
+  "actual_existing_apk_http_protocol": true,
+  "repeated_prepare_same_active_job": true,
+  "schema": "PASSED",
+  "zip_and_manifest_hashes": "PASSED",
+  "embedded_evidence_links": "PASSED",
+  "previous_raw_ids_preserved": 83541,
+  "performance_sections_preserved": true,
+  "raw_market_counts": {
+    "1X2": 8700,
+    "OU": 44285,
+    "ASIAN": 42202,
+    "KG": 3771
+  },
+  "bytes": 72065207,
+  "sha256": "1f530477cc396d40085fea9ea74d0c51e1e08c2b418d3c5aadcbcf8d66e3fa7d",
+  "maximum_health_latency_seconds": 0.012473515002056956,
+  "collection_status_headers": "PASSED",
+  "source_history_records": 0,
+  "export_refresh": {
+    "requested_at": "2026-10-12T18:55:27.832Z",
+    "reason": "export",
+    "current_scan_requested": true,
+    "history_reconciliation_requested": true,
+    "success": false,
+    "finished_at": "2026-10-12T18:55:42.083Z",
+    "skipped": true,
+    "outcome": "PRE_MATCH_ENDED",
+    "run_id": null,
+    "history_reconciliation_performed": false,
+    "error": "PRE_MATCH_ENDED"
+  },
+  "phone_download_and_install": "NOT_PERFORMED",
+  "external_macradar_reader_test": "NOT_PERFORMED"
+}

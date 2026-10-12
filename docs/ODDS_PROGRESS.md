@@ -5,6 +5,61 @@
 2026-10-12 — Aşama 1: sözleşmeyi kalıcı kaydetme ve güncel kaynak erişimini
 doğrulama. Aşama 3 gerçek kaynak doğrulaması tamamlanmadı; parser yazılmadı.
 
+Güncelleme: Güncel kaynak ve kayıtlı gerçek yanıtlar alındı. Aktif işlem:
+mevcut yeni `oddsContract` mimarisinin denetimi, büyük maç dışa aktarımının
+HTTP sürecinden ayrılması ve kullanıcıya indirme verisinin saatini gösterme.
+Eski parsera yeni yama eklenmiyor; kaynakta kanıtlanmayan alanlar açılmıyor.
+
+## Bu oturumun güncel doğrulaması
+
+- Güncel kaynak dalı `codex/macradar-current-source-20261012`,
+  kaynak snapshot HEAD `ffb327e`, gerçek kanıt ekleme HEAD `ba8cdd7`.
+- Sunucuda görev kayıtları 2026-10-12 tarihinde `9d0f782` kaydıyla,
+  diğer 232 değişiklik commit'e alınmadan kalıcı kaydedildi.
+- 95 kaynak/audit dosyası ve mevcut şema `test/fixtures/betexplorer-20261011`
+  ve `docs/odds-contract` içine alındı. Tarihî audit raporları güncel test
+  başarısı sayılmıyor.
+- Kayıtlı gerçek dört piyasa cevabı geçici bir klasöre kopyalandı.
+  `currentParser.test.cjs` önce çalıştırıldı; diğer testlerin her biri gerçek
+  fixture klasörü argümanıyla ayrı Node sürecinde çalıştırıldı.
+- Bu oturumda 47 test dosyasının 45'i geçti. `exportJobs.test.cjs`
+  taşınmamış eski ZIP'e; `scheduledIdentity.test.cjs` sunucuya özgü mutlak
+  response klasörüne bağlı olduğu için çalışamadı. Bunlar geçti sayılmadı.
+- Kayıtlı yanıtlar: Montpellier–Grenoble / `0p1XkgIt`, 1X2 30, OU 153,
+  ASIAN 322 ve KG 14 ham fiyat hücresi. Kaynak arşiv örnekleri tek satırlı.
+  Gerçek ara geçmiş gözlenmiş sayılmıyor.
+- Kaynak ödeme dönemi, Asian ev işareti, inactive durum anlamı, sportsbook
+  sınıflandırması ve exchange back/lay hâlen kanıtlanmış değil.
+- `diskExportZip.js` var fakat mevcut paket oluşturma yolu kullanmıyor.
+  JSON ve ZIP üretimi HTTP sürecinde yapılıyor; yeni export iş sınırı
+  içinde ayrı süreç ve diskten paketleme uygulanacak.
+- İndirme ekranına son başarılı tarama saati ve yenileme sonucu aktarılacak.
+  Telefon kabulü ve harici okuyucu entegrasyonu henüz yapılmadı.
+
+## Yeni dışa aktarım revizyonu
+
+- Bu oturumda 48 backend test dosyası geçti. Gerçek yanıt tekrarları ve
+  birim senaryoları ayrı nitelikte; telefon kabulü yerine sayılmıyor.
+- Yeni süreç testi, paket işi CPU kullanırken ana event loop'un çalıştığını,
+  timeout/hata ve geçici dosya temizliğini doğruluyor.
+- scheduledIdentity testi özgün yanıt SHA256'sı denetlenen taşınabilir
+  gerçek planlanmış maç fixture'ına bağlandı.
+- Paket oluşturma ortak toplayıcının turu bitince ayrı Node sürecinde
+  yapılıyor. Ham state IPC üzerinden taşınmıyor; paket okuyucusu collection
+  state'ini veya yarım tur kurtarma kayıtlarını değiştirmiyor.
+- match-data.json diskten akışla yazılıyor; manifest dosyanın byte/hash
+  değerlerini kullanıyor. ZIP diskten hazırlanıyor. Boyut sınırı aşılırsa
+  kayıtlar kesilmeden hata veriliyor.
+- Hazırlama/sorgulama ve doğrudan export aynı üretim builder'ını kullanıyor.
+- Paket yanıtı son başarılı tarama zamanı ve yenileme sonucunu mobil indirme
+  ekranına taşıyor. Başarısız yenileme kayıtlı veri olarak gösteriliyor.
+- Mobil sürüm 1.0.10+110. Yeni mobil widget testi yazıldı; bu oturumun Flutter
+  test/analyze ve gerçek APK derlemesi henüz çalıştırılmadı.
+- Kaynakta kanıtlanmayan dönem, Asian ev işareti, durum ve fiyat türü
+  null/UNKNOWN kalıyor. Eksik arşiv yılı veya ara geçmiş üretilmiyor.
+- Sonraki işlem: sunucuda Node/Flutter doğrulaması; temel dosya hash'leri
+  eşleşiyorsa yedekleme ve uygulama; gerçek HTTP/kaynak turu ve APK teslimi.
+
 ## Tamamlanan işler ve kanıtlar
 
 - Kullanıcının tam görev sözleşmesi kod değişikliğinden önce

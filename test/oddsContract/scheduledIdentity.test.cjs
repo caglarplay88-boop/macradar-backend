@@ -5,19 +5,10 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {parseMatchIdentity}=require('../../src/oddsContract/matchIdentity');
 const audit=process.argv[2];
-const pointer=JSON.parse(fs.readFileSync(path.join(audit,'latest-single-store-real-source.json'),'utf8'));
-const folder=pointer.directory;
-assert(folder,'GERCEK_TEST_KLASORU_YOK');
-const responses=path.join(folder,'runtime/responses');
-let html,meta;
-for(const file of fs.readdirSync(responses).filter(x=>x.endsWith('.json'))){
- const candidate=JSON.parse(fs.readFileSync(path.join(responses,file),'utf8'));
- if(candidate.success&&candidate.source_url.includes('/atalanta-venezia/')){
-  meta=candidate;
-  html=fs.readFileSync(path.join(responses,file.replace(/\.json$/,'.response')),'utf8');
-  break;
- }
-}
+const html=fs.readFileSync(path.join(audit,'scheduled-match-page.html'),'utf8');
+const meta=JSON.parse(fs.readFileSync(path.join(audit,'scheduled-match-capture.json'),'utf8'));
+assert.equal(require('node:crypto').createHash('sha256').update(html).digest('hex'),
+ meta.response_sha256,'CAPTURED_RESPONSE_HASH_MISMATCH');
 assert(html,'GERCEK_MAC_SAYFASI_YOK');
 const options={eventId:'GxLyDAQb',sourceUrl:meta.source_url,
  observedAt:meta.observed_at,clockRuleVerified:true};

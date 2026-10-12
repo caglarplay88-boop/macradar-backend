@@ -20,7 +20,7 @@ function serveApkDelivery(req,res,url,{
     metadata.signature_verified!==true)return deny(404);
  res.writeHead(200,{
   'content-type':'application/vnd.android.package-archive',
-  'content-disposition':'attachment; filename="MacRadar-1.0.9.apk"',
+  'content-disposition':'attachment; filename="MacRadar.apk"',
   'content-length':stat.size,'cache-control':'no-store',
   'x-content-type-options':'nosniff','x-apk-sha256':metadata.sha256
  });

@@ -6,6 +6,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "test:odds": "node scripts/test-odds-contract.js",
     "postinstall": "npx puppeteer browsers install chrome"
   },
   "engines": {

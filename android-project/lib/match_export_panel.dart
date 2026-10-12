@@ -22,6 +22,30 @@ class _MatchExportPanelState extends State<MatchExportPanel> {
   bool _busy = false;
   String? _savedUri;
   String _message = '';
+  String _dataMessage = '';
+
+  String _collectionMessage(http.Response response) {
+    final raw = response.headers['x-odds-last-success-at'];
+    final date = raw == null ? null : DateTime.tryParse(raw);
+    final parts = <String>[];
+    if (response.headers['x-odds-refresh-success'] != 'true') {
+      parts.add('Son yenileme başarılı olmadı; kayıtlı veri indirildi.');
+    }
+    if (date == null) {
+      parts.add('Son başarılı tarama zamanı bulunmuyor.');
+    } else {
+      final turkey = date.toUtc().add(const Duration(hours: 3));
+      String two(int value) => value.toString().padLeft(2, '0');
+      parts.add(
+        'Son başarılı tarama: ${two(turkey.day)}.${two(turkey.month)}.'
+        '${turkey.year} ${two(turkey.hour)}:${two(turkey.minute)} (Türkiye).',
+      );
+    }
+    if (response.headers['x-odds-source-verified'] != 'true') {
+      parts.add('Kaynağın doğrulanamayan alanları dosyada işaretlidir.');
+    }
+    return parts.join('\n');
+  }
 
   Future<void> _export({required bool share}) async {
     if (_busy) return;
@@ -67,15 +91,19 @@ class _MatchExportPanelState extends State<MatchExportPanel> {
           return;
         }
         _savedUri = uri;
+        _dataMessage = _collectionMessage(response);
       }
       if (share) {
         await _files.invokeMethod<void>('sharePackage', {'uri': uri});
       }
       if (mounted) {
         setState(
-          () => _message = share
-              ? 'Dosya hazır. Açılan menüden paylaşabilirsin.'
-              : 'Maç dosyası seçtiğin klasöre kaydedildi.',
+          () => _message = [
+            share
+                ? 'Dosya hazır. Açılan menüden paylaşabilirsin.'
+                : 'Maç dosyası seçtiğin klasöre kaydedildi.',
+            _dataMessage,
+          ].where((part) => part.isNotEmpty).join('\n'),
         );
       }
     } on PlatformException catch (error) {
@@ -125,9 +153,10 @@ class _MatchExportPanelState extends State<MatchExportPanel> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Tüm bahis şirketlerinin 1X2, Alt/Üst, Asian ve KG oran geçmişi, '
-                  'açılış tarihleri, grafikler ve kayıtlı takım performansları '
-                  'tek ZIP dosyasında indirilir.',
+                  'Erişilebilen 1X2, Alt/Üst, Asian ve KG fiyatları, kaynak '
+                  'açılışları ve geçmiş kayıtları, grafikler ve kayıtlı takım '
+                  'performansları tek ZIP dosyasında indirilir. Geçmişin '
+                  'kapsamı ve eksik kaynak alanları dosyada belirtilir.',
                 ),
                 const SizedBox(height: 12),
                 const Text(

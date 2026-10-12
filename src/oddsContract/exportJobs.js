@@ -46,7 +46,8 @@ class ExportJobs{
    requested_at:job.requested_at,started_at:job.started_at||null,
    finished_at:job.finished_at||null,error:job.error||null,
    interruption_reason:job.interruption_reason||null,
-   filename:job.filename||null,bytes:job.bytes??null,sha256:job.sha256||null
+   filename:job.filename||null,bytes:job.bytes??null,sha256:job.sha256||null,
+   collection_status:job.collection_status||null
   };
  }
  status(id,eventId){
@@ -91,6 +92,7 @@ class ExportJobs{
     this.write({...running,status:'READY',phase:'READY',
      finished_at:this.clock(),filename:result.filename,
      bytes:result.buffer.length,
+     collection_status:result.collectionStatus||null,
      sha256:crypto.createHash('sha256').update(result.buffer).digest('hex')});
    }catch(error){
     const code=String(error.code||error.message||'EXPORT_JOB_FAILED');
@@ -110,7 +112,7 @@ class ExportJobs{
   if(buffer.length!==job.bytes||sha256!==job.sha256){
    throw Error('EXPORT_PACKAGE_INTEGRITY_FAILED');
   }
-  return {filename:job.filename,buffer,sha256};
+  return {filename:job.filename,buffer,sha256,collectionStatus:job.collection_status||null};
  }
 }
 module.exports={ExportJobs};

@@ -2,6 +2,10 @@
 'use strict';
 const zlib = require('zlib');
 const crypto = require('crypto');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const {writeJsonFile,diskZip} = require('./oddsContract/diskExportZip');
 const {buildCachedPerformanceAnalysisView} = require('./performanceView/verifiedCachedPerformanceView');
 const markets = [
  {key:'1X2',table:'odds_1x2_snapshots',line:null,
@@ -177,8 +181,10 @@ async function buildMatchExport(pool,eventId,options={}){
    files.push({name,data:svg});
   }
  }
- const json=JSON.stringify(data);
- files.unshift({name:'match-data.json',data:json});
+ const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'macradar-package-'));
+ try {
+ const jsonFile=await writeJsonFile(data,path.join(temporary,'match-data.json'),maxUncompressedBytes);
+ files.unshift({name:'match-data.json',...jsonFile});
  files.push({name:'performance.json',data:JSON.stringify({
   exportedAt,performance,performanceRaw:raw,cache:data.performanceCache,warnings},null,2)});
  const rows=performance?['evTakimi','deplasmanTakimi'].map(side=>{
@@ -200,12 +206,22 @@ async function buildMatchExport(pool,eventId,options={}){
  ${warnings.map(w=>'<p>'+escape(w)+'</p>').join('')}
  <h2>Oran grafikleri</h2>${graphs.map(g=>'<section>'+g.svg+'</section>').join('')}
  <h2>Performans</h2>${rows}</html>`});
+ const collectionStatus={
+  exported_at:data.exportedAt,analysis_cutoff:data.collection.analysis_cutoff,
+  last_successful_scan_at:data.collection.last_successful_scan?.finished_at??null,
+  refresh_success:options.exportRefresh?.success??null,
+  refresh_outcome:options.exportRefresh?.outcome??'NOT_REQUESTED',
+  source_and_scope_verified:data.collection.data_freshness.verified_current===true
+ };
  const manifest={formatVersion:1,eventId:id,match:match.display_name,exportedAt,
+  collection:collectionStatus,
   rowCounts:Object.fromEntries(markets.map(m=>[m.key,data.odds[m.key].length])),
   chartCount:graphs.length,performancePresent:!!performance,warnings,
-  files:files.map(f=>({name:f.name,bytes:Buffer.byteLength(f.data),
-   sha256:crypto.createHash('sha256').update(f.data).digest('hex')}))};
+  files:files.map(f=>({name:f.name,bytes:f.filePath?f.bytes:Buffer.byteLength(f.data),
+   sha256:f.filePath?f.sha256:crypto.createHash('sha256').update(f.data).digest('hex')}))};
  files.push({name:'manifest.json',data:JSON.stringify(manifest,null,2)});
- return {buffer:zip(files,{maxUncompressedBytes}),filename:`MacRadar-${id}-${Date.now()}.zip`,manifest};
+ return {buffer:await diskZip(files,{directory:temporary,maxUncompressedBytes}),
+  filename:`MacRadar-${id}-${Date.now()}.zip`,manifest,collectionStatus};
+ } finally {fs.rmSync(temporary,{recursive:true,force:true});}
 }
 module.exports={buildMatchExport,chart,zip};

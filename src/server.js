@@ -760,10 +760,8 @@ const server = http.createServer((req, res) =>
     const matchExportPath = u.pathname.match(/^\/api\/matches\/([A-Za-z0-9_-]{1,80})\/export$/);
     if (req.method === 'GET' && matchExportPath) {
       try {
-        const { buildMatchExport } = require('./matchDataExport');
-        const { getExportJobs, createExportBuilder } =
+        const { getExportJobs, createProductionExportBuilder } =
           require('./oddsContract/exportCoordinator');
-        const { getContractRuntime } = require('./oddsContract/runtime');
         const { exportJobReply } = require('./oddsContract/exportApi');
         const reply = await exportJobReply({
           pool, jobs: getExportJobs(pool),
@@ -772,16 +770,17 @@ const server = http.createServer((req, res) =>
         if (reply && !reply.package) {
           return json(res, reply.status, reply.body);
         }
-        const exported = reply?.package || await createExportBuilder({
-          pool, runtime: getContractRuntime(), buildPackage: buildMatchExport
-        })(matchExportPath[1]);
+        const exported = reply?.package || await createProductionExportBuilder(pool)(matchExportPath[1]);
         res.writeHead(200, {
           'content-type': 'application/zip',
           'content-disposition': 'attachment; filename="' + exported.filename + '"',
           'content-length': exported.buffer.length,
           'cache-control': 'no-store',
           'x-content-type-options': 'nosniff',
-          'x-export-sha256': crypto.createHash('sha256').update(exported.buffer).digest('hex')
+          'x-export-sha256': crypto.createHash('sha256').update(exported.buffer).digest('hex'),
+          'x-odds-last-success-at': exported.collectionStatus?.last_successful_scan_at || '',
+          'x-odds-refresh-success': exported.collectionStatus?.refresh_success===true?'true':'false',
+          'x-odds-source-verified': exported.collectionStatus?.source_and_scope_verified===true?'true':'false'
         });
         res.end(exported.buffer);
         return;

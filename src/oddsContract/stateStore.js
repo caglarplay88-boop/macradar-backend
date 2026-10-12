@@ -3,13 +3,13 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const clone=value=>JSON.parse(JSON.stringify(value));
 class StateStore {
- constructor(directory){
+ constructor(directory,{recoverInterruptedRuns=true}={}){
   if(typeof directory!=='string'||!path.isAbsolute(directory)){
    throw Error('STATE_DIRECTORY_REQUIRES_ABSOLUTE_PATH');
   }
   this.directory=directory;
   fs.mkdirSync(directory,{recursive:true,mode:0o700});
-  this.recoverInterruptedRuns();
+  if(recoverInterruptedRuns) this.recoverInterruptedRuns();
  }
  file(eventId){
   if(!/^[A-Za-z0-9_-]{1,80}$/.test(String(eventId))){

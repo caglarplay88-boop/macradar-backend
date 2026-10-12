@@ -9,6 +9,7 @@ function safeCode(error){
  return /^[A-Z0-9_]{1,100}$/.test(value)?value:'EXPORT_REFRESH_FAILED';
 }
 function createExportBuilder({pool,runtime,buildPackage,
+ readStateInPackage=false,
  clock=()=>new Date().toISOString()}){
  if(!pool||!runtime||typeof buildPackage!=='function'){
   throw Error('EXPORT_COORDINATOR_CONFIGURATION_INVALID');
@@ -70,7 +71,7 @@ function createExportBuilder({pool,runtime,buildPackage,
   }
   onProgress('BUILDING_PACKAGE');
   return buildPackage(pool,eventId,{
-   state:runtime.readState(eventId),settings:runtime.settings,
+   ...(readStateInPackage?{}:{state:runtime.readState(eventId)}),settings:runtime.settings,
    analysisCutoff:clock(),analysisMode:'strict_as_of',
    exportRefresh:refresh
   });
@@ -78,19 +79,24 @@ function createExportBuilder({pool,runtime,buildPackage,
 }
 let singleton=null;
 let singletonPool=null;
+function createProductionExportBuilder(pool){
+ const runtime=getContractRuntime();
+ const {processPackageBuilder}=require('./exportProcess');
+ return createExportBuilder({pool,runtime,readStateInPackage:true,
+  buildPackage:processPackageBuilder({directory:runtime.directory})});
+}
 function getExportJobs(pool){
  if(singleton){
   if(pool!==singletonPool) throw Error('EXPORT_POOL_MISMATCH');
   return singleton;
  }
  const runtime=getContractRuntime();
- const {buildMatchExport}=require('../matchDataExport');
  singleton=new ExportJobs({
   directory:path.join(runtime.directory,'export-jobs'),
   concurrency:runtime.settings.scheduling.maxConcurrentMatches,
-  build:createExportBuilder({pool,runtime,buildPackage:buildMatchExport})
+  build:createProductionExportBuilder(pool)
  });
  singletonPool=pool;
  return singleton;
 }
-module.exports={createExportBuilder,getExportJobs};
+module.exports={createExportBuilder,createProductionExportBuilder,getExportJobs};

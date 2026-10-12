@@ -1,0 +1,1070 @@
+{
+  "base_source_revision": "3527bf839ff81b2a0051834fb393589216069933",
+  "policy": "PRECHECK_ALL_FILES_AND_BACK_UP_BEFORE_ATOMIC_REPLACEMENT",
+  "files": [
+    {
+      "project": "android",
+      "source": "android-project/lib/match_export_panel.dart",
+      "target": "lib/match_export_panel.dart",
+      "base_sha256": "f4786d89b91acfb4d3c8209985c9c15a3d0bda3c3605f22a814d5f4b88b2d8c1",
+      "new_sha256": "6fa075a9089a806d0d2ce6c21d58116e4978d605b1106ed577e15a1d63c79b02"
+    },
+    {
+      "project": "android",
+      "source": "android-project/pubspec.yaml",
+      "target": "pubspec.yaml",
+      "base_sha256": "b9abba6a2d75eab4d823735e83402f658eed58fd10e2cde9a6e7f288770b96e3",
+      "new_sha256": "8ca8dd64bcb7bbf817c49c4c24aba27e47bd220f241300f30414f22fd703c52e"
+    },
+    {
+      "project": "android",
+      "source": "android-project/test/match_export_panel_test.dart",
+      "target": "test/match_export_panel_test.dart",
+      "base_sha256": null,
+      "new_sha256": "95763ccfaa1dc06e243bb756defa8346b21696473f2f7f224d11ab791ac28de6"
+    },
+    {
+      "project": "backend",
+      "source": "docs/ODDS_PROGRESS.md",
+      "target": "docs/ODDS_PROGRESS.md",
+      "base_sha256": "9d0aaac176cb702a2e1b7982df515c97a1fd82929365ae593766a0292f1791bf",
+      "new_sha256": "508c18ad989d127e763eb612a1a7cee329560b38f140f30b311a0971393430d7"
+    },
+    {
+      "project": "backend",
+      "source": "package.json",
+      "target": "package.json",
+      "base_sha256": "db432e609c8b6caab91faf3e8e928c5dbc330960343a56345ea1c62f44f799f9",
+      "new_sha256": "d03060a83d05e89dbb57d9dd7640bc6b78afc6327060e8314548e4087a62f02c"
+    },
+    {
+      "project": "backend",
+      "source": "scripts/apply-odds-revision.py",
+      "target": "scripts/apply-odds-revision.py",
+      "base_sha256": null,
+      "new_sha256": "70742cd99b4970aeabd791c50b77af84d3f8c0f0681d2ba2b1f76d3ef13c66d4"
+    },
+    {
+      "project": "backend",
+      "source": "scripts/test-odds-contract.js",
+      "target": "scripts/test-odds-contract.js",
+      "base_sha256": null,
+      "new_sha256": "e2911e456ce8a1d95bd96004d127c8e38bc5ae0c633606d2ea4276ea51b78c4b"
+    },
+    {
+      "project": "backend",
+      "source": "src/matchDataExport.js",
+      "target": "src/matchDataExport.js",
+      "base_sha256": "4fdb50e004c9a65aa0197ce03cd7ac942db6019bde3ef880d7c0df576565a57a",
+      "new_sha256": "0cd57fc578cce645d842a224ccbb64e9e1e18ff46ed1dbc72e3f9274dda3d28d"
+    },
+    {
+      "project": "backend",
+      "source": "src/oddsContract/apkDelivery.js",
+      "target": "src/oddsContract/apkDelivery.js",
+      "base_sha256": "eee4c7cfbb0fc2587a756371703dc0dc1d0c3b6644cc7b4429f4ec41fc3be97a",
+      "new_sha256": "920b0a367748bc1bd00e4f815cd71c270bd683edbfe41523d92291ef38a4d20e"
+    },
+    {
+      "project": "backend",
+      "source": "src/oddsContract/exportCoordinator.js",
+      "target": "src/oddsContract/exportCoordinator.js",
+      "base_sha256": "ac9d9550b3d9cc2893974f1992580e2183eae947775f0c75b602f5270f7a4640",
+      "new_sha256": "f24c90aa3e2d8bfed208bef428c26c5190eeef3620b10fd821f4bf44744741dd"
+    },
+    {
+      "project": "backend",
+      "source": "src/oddsContract/exportJobs.js",
+      "target": "src/oddsContract/exportJobs.js",
+      "base_sha256": "4830768007338de5f66ff7c9f6aa14be55b466ca043ea5d7e90736f65c937148",
+      "new_sha256": "581e7d0f044779a4a81d0f9f30baa9e31706ba8ad3a03277e0d2b422ceac5877"
+    },
+    {
+      "project": "backend",
+      "source": "src/oddsContract/exportProcess.js",
+      "target": "src/oddsContract/exportProcess.js",
+      "base_sha256": null,
+      "new_sha256": "55557f85cedc619a359a35827c408a6938a0d3a5dc34dc6620318a5cabc27d37"
+    },
+    {
+      "project": "backend",
+      "source": "src/oddsContract/exportProcessWorker.js",
+      "target": "src/oddsContract/exportProcessWorker.js",
+      "base_sha256": null,
+      "new_sha256": "9d5cce426914867f83d9c10c99964b58f6870ee6ad733c82d5afde3aa931c8ec"
+    },
+    {
+      "project": "backend",
+      "source": "src/oddsContract/stateStore.js",
+      "target": "src/oddsContract/stateStore.js",
+      "base_sha256": "230d0a56745143d52fd30b20ba2bd8307e991ac406a453eef489a8021a294887",
+      "new_sha256": "18a165da94ac3dbc08753235cbdc0e5d0c7e8e4034414cc56616e008894cc552"
+    },
+    {
+      "project": "backend",
+      "source": "src/server.js",
+      "target": "src/server.js",
+      "base_sha256": "700fe6e08c29894030f0390dd8e58a8997a20e85aa793649a1b51c747c838027",
+      "new_sha256": "eb86a72c08bca2a3d66fe61614feebb12805eb7a620deb23104d7dabecee0fd0"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/ASIAN-source-response.json",
+      "target": "test/fixtures/betexplorer-20261011/ASIAN-source-response.json",
+      "base_sha256": null,
+      "new_sha256": "73715d0e015ee6c1ffc36a1bad64d936cbfbe65be3ea2b9b2c58ca51b326762f"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/KG-source-response.json",
+      "target": "test/fixtures/betexplorer-20261011/KG-source-response.json",
+      "base_sha256": null,
+      "new_sha256": "2d488a18982faa838ea011d6df47a38ed766bd451cd3c6876f446df4c1c9073c"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/actual-source-semantics.json",
+      "target": "test/fixtures/betexplorer-20261011/actual-source-semantics.json",
+      "base_sha256": null,
+      "new_sha256": "55ffaae88e7285585bdd5bde0e660ce9fd7be2dfd5b513eec71ee476cacd36e0"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/apk-mobile-repair-release.json",
+      "target": "test/fixtures/betexplorer-20261011/apk-mobile-repair-release.json",
+      "base_sha256": null,
+      "new_sha256": "bb82c2806c64232f652041da5fcd0a4f360a2407b3ac6e172bd409b4fb9a682c"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-ASIAN-0.json",
+      "target": "test/fixtures/betexplorer-20261011/archive-ASIAN-0.json",
+      "base_sha256": null,
+      "new_sha256": "bc55f2fce631f17b040abb0f8729783f4d5f7c903066ed1596e785a27a9295df"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-ASIAN-1.json",
+      "target": "test/fixtures/betexplorer-20261011/archive-ASIAN-1.json",
+      "base_sha256": null,
+      "new_sha256": "d4f03ce4493bb0a8b09d14685b8036ba5165ad0152ac601d90e3de102c754d32"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-KG-0.json",
+      "target": "test/fixtures/betexplorer-20261011/archive-KG-0.json",
+      "base_sha256": null,
+      "new_sha256": "d54a151bbf62527d5e30118aa0224268314504f9258233dc09cd1c5e076c6894"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-KG-1.json",
+      "target": "test/fixtures/betexplorer-20261011/archive-KG-1.json",
+      "base_sha256": null,
+      "new_sha256": "d54a151bbf62527d5e30118aa0224268314504f9258233dc09cd1c5e076c6894"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-parent-1X2.html",
+      "target": "test/fixtures/betexplorer-20261011/archive-parent-1X2.html",
+      "base_sha256": null,
+      "new_sha256": "4c86c430ddf0383106a4850b12c08ed6cf507c97aa4405eb75d0a333c4384b7e"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-parent-ASIAN.html",
+      "target": "test/fixtures/betexplorer-20261011/archive-parent-ASIAN.html",
+      "base_sha256": null,
+      "new_sha256": "3f94708d1642e821fa8f59ff383ef297e28153e797f8d5005e11aecb72950fc7"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-parent-KG.html",
+      "target": "test/fixtures/betexplorer-20261011/archive-parent-KG.html",
+      "base_sha256": null,
+      "new_sha256": "ef5e49b761670f2016ee65d57f8c16673cb8c4d10bae1f38e8d814cdfb39e0a7"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-parent-OU.html",
+      "target": "test/fixtures/betexplorer-20261011/archive-parent-OU.html",
+      "base_sha256": null,
+      "new_sha256": "2d86a4149bf6fdf55a950fd2fd9a6a9837269a0aca0419ce7412984115febd4d"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-time-config.json",
+      "target": "test/fixtures/betexplorer-20261011/archive-time-config.json",
+      "base_sha256": null,
+      "new_sha256": "705b35aeae1a890609be3d43c2917b8c5eccc2179ae380469ba87012f24fae72"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-time-job.json",
+      "target": "test/fixtures/betexplorer-20261011/archive-time-job.json",
+      "base_sha256": null,
+      "new_sha256": "52f2658c7bae3bb3b71851ec4d425723ebeb050f61a4dab8460d0a074e2c6f68"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/archive-time-results.json",
+      "target": "test/fixtures/betexplorer-20261011/archive-time-results.json",
+      "base_sha256": null,
+      "new_sha256": "139c3f5d0466407854de982ec23b4dc7176032e7884255b0759ee36f1e0dde25"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/asian-parser-code.json",
+      "target": "test/fixtures/betexplorer-20261011/asian-parser-code.json",
+      "base_sha256": null,
+      "new_sha256": "635049c67a6bcbc3ad4077571be13083a71d449e9d83fbde21e7e7658a084c95"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/cell-archive-request-code.json",
+      "target": "test/fixtures/betexplorer-20261011/cell-archive-request-code.json",
+      "base_sha256": null,
+      "new_sha256": "1f8f9ca623e2b4d7f611b5a240706d0f3b408140a854e396d38a44ab90bc50fb"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/collection-export-code-inspection.json",
+      "target": "test/fixtures/betexplorer-20261011/collection-export-code-inspection.json",
+      "base_sha256": null,
+      "new_sha256": "9eacb5beee64b982123488adc4acb489e859934e8afb0908ab4e4c5571181f03"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/future-match-candidates.json",
+      "target": "test/fixtures/betexplorer-20261011/future-match-candidates.json",
+      "base_sha256": null,
+      "new_sha256": "ee9ea06cbf1ec95285dd339ceabb9a055aa25c1d50f98c958b1162896dbc68d6"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/history-1X2-0-response.json",
+      "target": "test/fixtures/betexplorer-20261011/history-1X2-0-response.json",
+      "base_sha256": null,
+      "new_sha256": "6b1bd63c8a29a0a5da560a1697f5aee499c403b7461bf67595cb09acae4d950e"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/history-1X2-1-response.json",
+      "target": "test/fixtures/betexplorer-20261011/history-1X2-1-response.json",
+      "base_sha256": null,
+      "new_sha256": "b62620426a9d1e68215d5491b22633cffd2d75fa33adc54770debc855cd4137b"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/history-1X2-2-response.json",
+      "target": "test/fixtures/betexplorer-20261011/history-1X2-2-response.json",
+      "base_sha256": null,
+      "new_sha256": "786cad00d10fe86d744ff70935cf915150f50d842e42947058a1b592115aa598"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/history-OU-0-response.json",
+      "target": "test/fixtures/betexplorer-20261011/history-OU-0-response.json",
+      "base_sha256": null,
+      "new_sha256": "ab10301389506202ddcb24d035c9e8f016cd42862ae0d1281eca5cbff53f01ef"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/history-OU-1-response.json",
+      "target": "test/fixtures/betexplorer-20261011/history-OU-1-response.json",
+      "base_sha256": null,
+      "new_sha256": "76b766701c26c68b6f30b2d3df5a7b45ea5cfa5ffce1629144933c19d773cf1b"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/history-request-source-code.json",
+      "target": "test/fixtures/betexplorer-20261011/history-request-source-code.json",
+      "base_sha256": null,
+      "new_sha256": "6545eaace44df9de751ad0debab385ce19bacf771ccc1e36a0a8cd533676536b"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/initial-code-findings.json",
+      "target": "test/fixtures/betexplorer-20261011/initial-code-findings.json",
+      "base_sha256": null,
+      "new_sha256": "b4c3cd292ed8565548f0c9aa4c172660d91f8b73fc3f5353922fbe80d7980df1"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/inventory.json",
+      "target": "test/fixtures/betexplorer-20261011/inventory.json",
+      "base_sha256": null,
+      "new_sha256": "4551a359e181562af4bf9891acd5ac35cf68f01a1d15716bbc81649ab5c0b2c9"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/item2-export-source-transfer.json",
+      "target": "test/fixtures/betexplorer-20261011/item2-export-source-transfer.json",
+      "base_sha256": null,
+      "new_sha256": "e39eb405635e950a09453d997eb35da39850526fa8a679143fa4edc833ec8a28"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/item2-match-export-transfer.json",
+      "target": "test/fixtures/betexplorer-20261011/item2-match-export-transfer.json",
+      "base_sha256": null,
+      "new_sha256": "d021254a74e82e62b4b97911de5727f93812e76b1a642e02a11ba4ec01c13da6"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/item2-period-constraints-and-tests.json",
+      "target": "test/fixtures/betexplorer-20261011/item2-period-constraints-and-tests.json",
+      "base_sha256": null,
+      "new_sha256": "270470ce3d2068e66fc0ef917824498921d21d9d90c24ca5e03a9a73a55cf9ba"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/item2-recent-matches.json",
+      "target": "test/fixtures/betexplorer-20261011/item2-recent-matches.json",
+      "base_sha256": null,
+      "new_sha256": "cb1714060a5d63570db20ea46b15632c90c708b3c30a83326e4d7546de32f9af"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/item2-state-store-transfer.json",
+      "target": "test/fixtures/betexplorer-20261011/item2-state-store-transfer.json",
+      "base_sha256": null,
+      "new_sha256": "116e49ed755fe429ea153a59dbcda35bbc7d295259ec8e79f8d2c71d15243794"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-asian-page-evidence.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-asian-page-evidence.json",
+      "base_sha256": null,
+      "new_sha256": "80e0b20364bf1c4f94e3bff2b0c3e01dbd08a9f3301dc939f1b3f982dcc60d87"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-bounded-real-history.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-bounded-real-history.json",
+      "base_sha256": null,
+      "new_sha256": "9a4ee5edccd7d1fa59f9c7091e210231fa6b63382f01ccd3723ff65ff8cbfad8"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-diverse-bookmaker-history.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-diverse-bookmaker-history.json",
+      "base_sha256": null,
+      "new_sha256": "1648ee6fce1844fed49670f163d2f619d15e7885300d89521c3e398216738b71"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-dynamic-scope-evidence.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-dynamic-scope-evidence.json",
+      "base_sha256": null,
+      "new_sha256": "87f6637ae874f710cbd9915651a72cc2da19c40016d46aa3884a420522879e36"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-history-candidate-discovery.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-history-candidate-discovery.json",
+      "base_sha256": null,
+      "new_sha256": "e8a913b7f3d5179c83c1c2f381f31a1c6c625f8aa566067200d1538805316b98"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-live-mobile-repair.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-live-mobile-repair.json",
+      "base_sha256": null,
+      "new_sha256": "3a698c6ac630016329c9ac3ec93c3517da05a91cd3b7ca3617a3999d77cfe0b7"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-match-screen-export-validation.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-match-screen-export-validation.json",
+      "base_sha256": null,
+      "new_sha256": "7a210c38330d1993c8cb63838774f14057a35a1f556950221e5c8f598ace4b9f"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-post-identity-real-source.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-post-identity-real-source.json",
+      "base_sha256": null,
+      "new_sha256": "8126b7ab6fdd60489d047c1c574e30823d958e17e20549bd6162a15159964082"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-real-database-export.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-real-database-export.json",
+      "base_sha256": null,
+      "new_sha256": "33012c76e82e880b5bbb3412b065d9a14b0c39a3c3e27efe2cba3f9e0c01f1fb"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-real-export-diagnosis.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-real-export-diagnosis.json",
+      "base_sha256": null,
+      "new_sha256": "fa1273294164ea5ecf3791d377bb5c431dcd3df3c4a956743b9dd0905f1bb513"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-runtime-real-source.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-runtime-real-source.json",
+      "base_sha256": null,
+      "new_sha256": "64948a4b068badbb828da64238c00aaf6f6a7fc2525c2085545f875705dc2a2e"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-single-store-real-source.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-single-store-real-source.json",
+      "base_sha256": null,
+      "new_sha256": "6fe40b49d4bff30d0d6e8e81acb4550a4b10f13f78de7af28492e05738cd551f"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/latest-source-betting-tabs.json",
+      "target": "test/fixtures/betexplorer-20261011/latest-source-betting-tabs.json",
+      "base_sha256": null,
+      "new_sha256": "7e363e63281ec26b455dfb13f7c8ed431e6bf16b35c58bc8359590249387dbfd"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/legacy-export-baseline.json",
+      "target": "test/fixtures/betexplorer-20261011/legacy-export-baseline.json",
+      "base_sha256": null,
+      "new_sha256": "235e3772fa61b5d1693e41a5678341c209f1f84f7be74243cba2b4dbb6bde54d"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/legacy-time-evidence.json",
+      "target": "test/fixtures/betexplorer-20261011/legacy-time-evidence.json",
+      "base_sha256": null,
+      "new_sha256": "64af637f06fffeab7334aea1ca8378e6e8d0768658a96e1ec7dc9f5b6be2d6a6"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/line-cell-source-evidence.json",
+      "target": "test/fixtures/betexplorer-20261011/line-cell-source-evidence.json",
+      "base_sha256": null,
+      "new_sha256": "a4165f6be42d5a0dc046aa3755e1df30b223a859fa39a79a73e2d5baf32bd195"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/live-opening-api-mobile-code.json",
+      "target": "test/fixtures/betexplorer-20261011/live-opening-api-mobile-code.json",
+      "base_sha256": null,
+      "new_sha256": "ac03ec4b992a6203db795e2f79e823ef0b089cd216ac04617fcbf5b06897634e"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/live-reader-timing.json",
+      "target": "test/fixtures/betexplorer-20261011/live-reader-timing.json",
+      "base_sha256": null,
+      "new_sha256": "ffd649844eb72a9fde6fbcae087be8f739512d052abf0dd68205713aa0205093"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/market-cell-evidence.json",
+      "target": "test/fixtures/betexplorer-20261011/market-cell-evidence.json",
+      "base_sha256": null,
+      "new_sha256": "4af1688799da555430dad3d374044712f3ba9353cdfbeb131046ad1c46881f30"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/market-source-config.json",
+      "target": "test/fixtures/betexplorer-20261011/market-source-config.json",
+      "base_sha256": null,
+      "new_sha256": "09c86910067b9c616d1ade13a9e8f68c2bcbe37310af40d2def129357c0318f4"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/market-source-job.json",
+      "target": "test/fixtures/betexplorer-20261011/market-source-job.json",
+      "base_sha256": null,
+      "new_sha256": "aed11184bb56af9be38568202b8e507012b743a8fe7c80d3c20e248b4e3bb91f"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/market-source-results.json",
+      "target": "test/fixtures/betexplorer-20261011/market-source-results.json",
+      "base_sha256": null,
+      "new_sha256": "e315239643c13d083d6f588fe9499e287b1ab0d7809db4b02a55382c9c0fba44"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/match-identity-source-snippets.json",
+      "target": "test/fixtures/betexplorer-20261011/match-identity-source-snippets.json",
+      "base_sha256": null,
+      "new_sha256": "c7a5baeba4ad8abd1c959f5e8846cd892304df4c4a18189c8e3380bd1e63b1c1"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/match-page.html",
+      "target": "test/fixtures/betexplorer-20261011/match-page.html",
+      "base_sha256": null,
+      "new_sha256": "b1807aa181281049765b94dd3dbd2cbe91ba39003203ddda19a73ab87c8dd576"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/module-test-results.json",
+      "target": "test/fixtures/betexplorer-20261011/module-test-results.json",
+      "base_sha256": null,
+      "new_sha256": "dd448d2a9f175bf14beba98307e2b6c9ba716396f35c6a1ca656ae66a3f65497"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/opening-integration-patch-context.json",
+      "target": "test/fixtures/betexplorer-20261011/opening-integration-patch-context.json",
+      "base_sha256": null,
+      "new_sha256": "aa7721cae9a6b2c849ee320a1d3663000c8edaffbf40749755f1b6181d945de1"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/opening-reader-final-patch-context.json",
+      "target": "test/fixtures/betexplorer-20261011/opening-reader-final-patch-context.json",
+      "base_sha256": null,
+      "new_sha256": "9c8c34e8bfc98da5365fa2eb934d032671b3bc8b9c0b711404bccebcfc3d25f5"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/opening-reader-path-code.json",
+      "target": "test/fixtures/betexplorer-20261011/opening-reader-path-code.json",
+      "base_sha256": null,
+      "new_sha256": "fbe8a8c63f112a6d4864574c6065973ddd49219ec0e11617cd1ebdbb170bfef1"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/page-scope-search.json",
+      "target": "test/fixtures/betexplorer-20261011/page-scope-search.json",
+      "base_sha256": null,
+      "new_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/page-script-inventory.json",
+      "target": "test/fixtures/betexplorer-20261011/page-script-inventory.json",
+      "base_sha256": null,
+      "new_sha256": "3769179c7b6a72bf1d03f40052578bf698c358e1940ce40a2856ee696c4b1486"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/period-page-evidence.json",
+      "target": "test/fixtures/betexplorer-20261011/period-page-evidence.json",
+      "base_sha256": null,
+      "new_sha256": "29ba6a35ebe88ccecca997975eaeba8c4eed0df6d69e4fe79b0749d32805e8f7"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/periodic-capture-integration.json",
+      "target": "test/fixtures/betexplorer-20261011/periodic-capture-integration.json",
+      "base_sha256": null,
+      "new_sha256": "af48ffaacfdcfb69dde4b316fdbf1dca8a00044aa937d776c1ff47a2b8c2e516"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/raw-parser-1X2.json",
+      "target": "test/fixtures/betexplorer-20261011/raw-parser-1X2.json",
+      "base_sha256": null,
+      "new_sha256": "bc4812088c4856ba22dd5f94fd4b5e8a1567c30f52aafaba494f5a87927ec651"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/raw-parser-ASIAN.json",
+      "target": "test/fixtures/betexplorer-20261011/raw-parser-ASIAN.json",
+      "base_sha256": null,
+      "new_sha256": "3973feda163f89b6cf51c8a9184988aaa293418a77fd4a37e95f368c40f4c749"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/raw-parser-KG.json",
+      "target": "test/fixtures/betexplorer-20261011/raw-parser-KG.json",
+      "base_sha256": null,
+      "new_sha256": "c49b6a3cbdbc86a7de712766ea40c4a684ac6ec24a54f874e46d6d284b400bb9"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/raw-parser-OU.json",
+      "target": "test/fixtures/betexplorer-20261011/raw-parser-OU.json",
+      "base_sha256": null,
+      "new_sha256": "20680c45435702f154ddbab49868439ee2b236331a662d1ba4c0c5e6358c6fd8"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/raw-store-export-size-diagnosis.json",
+      "target": "test/fixtures/betexplorer-20261011/raw-store-export-size-diagnosis.json",
+      "base_sha256": null,
+      "new_sha256": "b7cc3a7ef1ada58f3ebb930488acbb038b83ea90455a4e39d072975c0e550bcd"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/remaining-parser-code.json",
+      "target": "test/fixtures/betexplorer-20261011/remaining-parser-code.json",
+      "base_sha256": null,
+      "new_sha256": "23d7849db242f38e891f5789571da4ff00880de0afd2513b792a21f4512c8ecc"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/retry-1X2.json",
+      "target": "test/fixtures/betexplorer-20261011/retry-1X2.json",
+      "base_sha256": null,
+      "new_sha256": "d6671104e443e88a0e3d254d0062be602ef6e5a981af67fb74abbc877e033952"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/retry-OU.json",
+      "target": "test/fixtures/betexplorer-20261011/retry-OU.json",
+      "base_sha256": null,
+      "new_sha256": "48d83fbf73719650f4867ec9b537338f330a80854a5689729db596527c953b21"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/scheduled-match-capture.json",
+      "target": "test/fixtures/betexplorer-20261011/scheduled-match-capture.json",
+      "base_sha256": null,
+      "new_sha256": "c165d178e2cdffc578f0db040e0d31c6462781781dd766e35074ddbbee320cfd"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/scheduled-match-page.html",
+      "target": "test/fixtures/betexplorer-20261011/scheduled-match-page.html",
+      "base_sha256": null,
+      "new_sha256": "3d888fe71af17c6064512bfaff37c0e98cc4e94bc51fa0f15b652d6e33a3fa02"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/server-contract-integration-points.json",
+      "target": "test/fixtures/betexplorer-20261011/server-contract-integration-points.json",
+      "base_sha256": null,
+      "new_sha256": "dc3f366a547202af3a5d7c22ffce69c29acab7b5c0216602bb046908b2474337"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/asian-page-evidence-20261011T172045Z/asian-page.html",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/asian-page-evidence-20261011T172045Z/asian-page.html",
+      "base_sha256": null,
+      "new_sha256": "2f1ef9b9e650ca8462688cea584147bd3e7f48c6b4ec79bb1696afa6be6060e2"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/asian-page-evidence-20261011T172045Z/responses/4f4617bc-8b74-4014-b320-b52e4152f854.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/asian-page-evidence-20261011T172045Z/responses/4f4617bc-8b74-4014-b320-b52e4152f854.json",
+      "base_sha256": null,
+      "new_sha256": "7d7633319a039cc1a1713e26d4ab128fbeb55d1d62ecd36fa9ff6fc4b3497408"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/asian-page-evidence-20261011T172045Z/result.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/asian-page-evidence-20261011T172045Z/result.json",
+      "base_sha256": null,
+      "new_sha256": "90da535e8c892728b6ebfd98122368a80cfcf7157bebf5ff9f894a8ba6ea7ccb"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/234f482a-03f9-421e-ac5f-ca5f392ac3c4.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/234f482a-03f9-421e-ac5f-ca5f392ac3c4.json",
+      "base_sha256": null,
+      "new_sha256": "be1aa895b3b3355b098ecf2ac42cc20e40c0a655e51b6eb2081818abc7271391"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/51340a61-d4cb-485b-b337-bdeb1fb280ba.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/51340a61-d4cb-485b-b337-bdeb1fb280ba.json",
+      "base_sha256": null,
+      "new_sha256": "d6133f898ae4138c8f3e57b214356b7ba2d21a1803e1172a5790ee3eadd3733c"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/6fbde400-e928-4b0e-a294-c3cc89a183fe.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/6fbde400-e928-4b0e-a294-c3cc89a183fe.json",
+      "base_sha256": null,
+      "new_sha256": "d78baf480d423c32a05b71a3f901b28ca2664d46d992925b5dfcfb232a8b00fa"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/847bd36f-16f4-451e-bea9-66f5c7f7f34b.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/847bd36f-16f4-451e-bea9-66f5c7f7f34b.json",
+      "base_sha256": null,
+      "new_sha256": "1c4d9d7811d25c5fca4d0914a41585455945df12757da27dbda00fb248528331"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/85f38362-b231-48cb-8208-8d2e3d7bf3c8.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/85f38362-b231-48cb-8208-8d2e3d7bf3c8.json",
+      "base_sha256": null,
+      "new_sha256": "ea600ada8b3365739f733f55f1353546f4b0fe29cc32f5b467f001371ccbcc5c"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/96cb9590-0670-4592-b57a-ee69da2ed284.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/96cb9590-0670-4592-b57a-ee69da2ed284.json",
+      "base_sha256": null,
+      "new_sha256": "13c45c47d357fc051b84d84fa8eb4242487e1e7c23ea295d29076fa0f2687c31"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/b380a306-d300-471d-b345-c0f1c3da6ff9.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/b380a306-d300-471d-b345-c0f1c3da6ff9.json",
+      "base_sha256": null,
+      "new_sha256": "bf5cd09c3d35a3ddacef17cee12c57fdf845425fd009733e88c93afe56ad353f"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/beb1fd24-9a9e-4259-bc88-0125c78fa2d1.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/beb1fd24-9a9e-4259-bc88-0125c78fa2d1.json",
+      "base_sha256": null,
+      "new_sha256": "b7e2eba8d9c51ec6fdbf2382bea761de0d20e9a0f5d86088193e4404ce44c9f1"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/bfbc2567-b876-499b-8644-5d03dcd76e5a.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/bfbc2567-b876-499b-8644-5d03dcd76e5a.json",
+      "base_sha256": null,
+      "new_sha256": "a50619f4f18e54c51cdf5a7fb0e51feb2345c201fd6b4dfd671375b113ec7cff"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/cafa7bb4-9a37-4b2b-9085-ff582aaf24e1.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/responses/cafa7bb4-9a37-4b2b-9085-ff582aaf24e1.json",
+      "base_sha256": null,
+      "new_sha256": "d496b04e253ad2ca0a5f5b33984f62acabd1e663192bf2ba0d8e2afa6473d67e"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/result.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/bounded-real-history-20261011T182405Z/result.json",
+      "base_sha256": null,
+      "new_sha256": "6dc617659fc3f24f6d53fbc680dd414216633b10a59e628df23e1f70c6a8598d"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/0f8a17e8-4990-4f69-a55e-caf52d8dca65.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/0f8a17e8-4990-4f69-a55e-caf52d8dca65.json",
+      "base_sha256": null,
+      "new_sha256": "4cedeee2f7011ff620c1896051a0ba7af24d7ba4d54f3f94793ec3768bd8d2e5"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/123a134d-6271-42c9-b27e-0a5d12ef6812.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/123a134d-6271-42c9-b27e-0a5d12ef6812.json",
+      "base_sha256": null,
+      "new_sha256": "fd37c5eca5421195d3aca1b78fcf74531c013c3a0b10f7bf157abc04e782010d"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/49578b30-94bf-4875-b8f7-d60c01f1bc1f.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/49578b30-94bf-4875-b8f7-d60c01f1bc1f.json",
+      "base_sha256": null,
+      "new_sha256": "0cc7bc11ae859a0746a17bbdec2db077a6c1aceffc9de48a23b4e5a14a5ef4f6"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/52050188-9add-44b7-8231-4e44a658dff1.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/52050188-9add-44b7-8231-4e44a658dff1.json",
+      "base_sha256": null,
+      "new_sha256": "af2770d3c9fd9291fe0b05f6a4546406b75d23a293253e739fe78c2cd74ffc35"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/532f9139-e1c9-4f96-95ff-f3006e43c55f.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/532f9139-e1c9-4f96-95ff-f3006e43c55f.json",
+      "base_sha256": null,
+      "new_sha256": "cd09b0b043503cc56329c46093ae7fea177eb0b87a02455d6d939be244bca3e3"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/5e25e410-d4a8-41f2-8268-341c352691e6.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/5e25e410-d4a8-41f2-8268-341c352691e6.json",
+      "base_sha256": null,
+      "new_sha256": "58c4c4efcf8667cd8b09dc9c9859585e57379f1c15f7b0bfd786c270bf77fa85"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/881e2181-9fd6-4161-aec1-d4e30df71cc9.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/881e2181-9fd6-4161-aec1-d4e30df71cc9.json",
+      "base_sha256": null,
+      "new_sha256": "12538c5c4048be03dc4918dfe253940f62b479e7679643fa227a358346f278aa"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/8b431003-e3a0-4fb6-b537-1ff3e688d692.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/8b431003-e3a0-4fb6-b537-1ff3e688d692.json",
+      "base_sha256": null,
+      "new_sha256": "7d99032de579f65835aad577e3d4fc7e04e3499874e95009eec37bbb5e36f6f6"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/9da68f5f-b41c-4c62-b65e-d659885919cd.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/9da68f5f-b41c-4c62-b65e-d659885919cd.json",
+      "base_sha256": null,
+      "new_sha256": "41fe9c4b1246cedb85618157b8f39e7cc9525904d4046bcb6b1b6e3db9503472"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/b2e67d85-63ab-43be-83d2-c841c253c2d3.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/b2e67d85-63ab-43be-83d2-c841c253c2d3.json",
+      "base_sha256": null,
+      "new_sha256": "10b1ee6385520de0946c637e6c1a115a9a4e9d8f424850dcc20c69183dde9c3b"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/d89aba99-478a-4d1f-967c-81b24d8dba7e.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/d89aba99-478a-4d1f-967c-81b24d8dba7e.json",
+      "base_sha256": null,
+      "new_sha256": "9c8d32e7a145bf57d4e1c0ac724e14ccabf6b38074daa4fb9e24250472c2cdf8"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/dbc47247-f351-41d2-b0aa-564ddce83a6c.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/dbc47247-f351-41d2-b0aa-564ddce83a6c.json",
+      "base_sha256": null,
+      "new_sha256": "aacc0ec562f9c6a4f061e770572fa4ed6c0915e514779a7f219027760640257a"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/e98b0119-4b75-467a-a690-4ab5e9c7792b.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/e98b0119-4b75-467a-a690-4ab5e9c7792b.json",
+      "base_sha256": null,
+      "new_sha256": "28d2f0b4bd2baaf4fd61622344a595ee9be86427825e073cfb769c812359ffb7"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/f8019806-492d-4b6c-8d33-a86da570b4a4.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/f8019806-492d-4b6c-8d33-a86da570b4a4.json",
+      "base_sha256": null,
+      "new_sha256": "8ef9bb31baa588a6b0b08148f58f488bec26821d001c5c165082f87f9e073b3e"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/fe4d4544-f10a-45f6-941f-bf0cbd3c69c9.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/responses/fe4d4544-f10a-45f6-941f-bf0cbd3c69c9.json",
+      "base_sha256": null,
+      "new_sha256": "69d946387f6e745c28729b436f3526e031bb1dbae0bffb35aab8365a9a13b3d8"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/result.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/diverse-bookmaker-history-20261011T182731Z/result.json",
+      "base_sha256": null,
+      "new_sha256": "9d4a752e6162c4212e340d76b7938e3779c0552c10870f647a338bcc2911b4f5"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/responses/04ccf794-420e-4323-8ae4-759b6500c5b2.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/responses/04ccf794-420e-4323-8ae4-759b6500c5b2.json",
+      "base_sha256": null,
+      "new_sha256": "de307359edf6d3e3130eec3c85e2f612e9fc91d2a88fcdd48d0230f9f69b4adf"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/responses/0f1af071-6b09-4277-80e5-78ff6e9fdaf2.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/responses/0f1af071-6b09-4277-80e5-78ff6e9fdaf2.json",
+      "base_sha256": null,
+      "new_sha256": "c7bf938898b834a7e63060cf1de91c3b946d388fe4abb7ed53d93c7eeee8f697"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/responses/33d27386-ac0f-42f7-82b2-1f70f66cb780.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/responses/33d27386-ac0f-42f7-82b2-1f70f66cb780.json",
+      "base_sha256": null,
+      "new_sha256": "58500ce8c9ee8b970b6c39e6072994da055fce55d5dd202ab14dc420f059aff0"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/responses/c600f0e6-1f7e-4ee9-8aa3-b94a09d5a550.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/responses/c600f0e6-1f7e-4ee9-8aa3-b94a09d5a550.json",
+      "base_sha256": null,
+      "new_sha256": "af2b9fa0cdbc883e1f2083cadd120dc8c871eb96a5f5f9dbaab4753432a40233"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/result.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/dynamic-scope-evidence-20261011T183032Z/result.json",
+      "base_sha256": null,
+      "new_sha256": "9db63b200200d69aba20755f11c5b3339055a16844ba81cc89d8c6cda4993e44"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/source-betting-tabs-20261011T183146Z/responses/a3e0d96a-b257-466e-82e3-69a83b9ea90c.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/source-betting-tabs-20261011T183146Z/responses/a3e0d96a-b257-466e-82e3-69a83b9ea90c.json",
+      "base_sha256": null,
+      "new_sha256": "7e1aa582eadb48b6496f6f2e1cbe40dfbc9741d522e6715757492096c34d1810"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-audit/source-betting-tabs-20261011T183146Z/result.json",
+      "target": "test/fixtures/betexplorer-20261011/source-audit/source-betting-tabs-20261011T183146Z/result.json",
+      "base_sha256": null,
+      "new_sha256": "2e96ee42beb31269154bdb74547c6888abf3f57901d1e76c60b9e484ae2edb7b"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-cell-coverage.json",
+      "target": "test/fixtures/betexplorer-20261011/source-cell-coverage.json",
+      "base_sha256": null,
+      "new_sha256": "6c97897603da69ff5a2ef66d060e08285fcb703bba3dd6a0df73c209606d38cd"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-detail-config.json",
+      "target": "test/fixtures/betexplorer-20261011/source-detail-config.json",
+      "base_sha256": null,
+      "new_sha256": "43c010731e8fa740ed0cd98536ce9987934ba1ed8ab034820ac3ea0479ad0573"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-detail-job.json",
+      "target": "test/fixtures/betexplorer-20261011/source-detail-job.json",
+      "base_sha256": null,
+      "new_sha256": "90dd8e23a6cc44e287e363ed2d03575d4134754ea5c55a90f9ba5ecf73eb7b26"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-detail-results.json",
+      "target": "test/fixtures/betexplorer-20261011/source-detail-results.json",
+      "base_sha256": null,
+      "new_sha256": "0121bcfe04c277a431b925c8a5d0836e632a98e32630b7299d94b49c87d94cdc"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-js-config.json",
+      "target": "test/fixtures/betexplorer-20261011/source-js-config.json",
+      "base_sha256": null,
+      "new_sha256": "da0721c03e91131d32123769c5f551dbc8019f959cb22f289f4c28f2619a3ed4"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-js-results.json",
+      "target": "test/fixtures/betexplorer-20261011/source-js-results.json",
+      "base_sha256": null,
+      "new_sha256": "7281ba9393fcd17bc81e1016c278949d100e2e42f17a5d79e6e4c0b0272277c6"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-js-semantic-snippets.json",
+      "target": "test/fixtures/betexplorer-20261011/source-js-semantic-snippets.json",
+      "base_sha256": null,
+      "new_sha256": "b404e3655b977f103388a3847a6c0ff8eb2bc44e7fa45d9b9a15ef8eb6e774b9"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-market-scope-functions.json",
+      "target": "test/fixtures/betexplorer-20261011/source-market-scope-functions.json",
+      "base_sha256": null,
+      "new_sha256": "12b3543a0c7738a66d264000e66332573cb6aa633fbb3a2d969052e0a9b2b281"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-period-initialization.json",
+      "target": "test/fixtures/betexplorer-20261011/source-period-initialization.json",
+      "base_sha256": null,
+      "new_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-time-opening-functions.json",
+      "target": "test/fixtures/betexplorer-20261011/source-time-opening-functions.json",
+      "base_sha256": null,
+      "new_sha256": "77ba271b1057b934a72fc0af88488bed752ac2c0f16b7ce2f0e7f7b0b1624484"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-transport.json",
+      "target": "test/fixtures/betexplorer-20261011/source-transport.json",
+      "base_sha256": null,
+      "new_sha256": "4bf949f47b08a7e0a1c114e2838d2204e45b63a156b98eb78e55efbcbfbbe912"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/source-verification-status.json",
+      "target": "test/fixtures/betexplorer-20261011/source-verification-status.json",
+      "base_sha256": null,
+      "new_sha256": "e63c2129ace23c0ce918cf56d12562f53bc11cf75e1a657f68c94ec7398c7a57"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/sports-event-source-evidence.json",
+      "target": "test/fixtures/betexplorer-20261011/sports-event-source-evidence.json",
+      "base_sha256": null,
+      "new_sha256": "a030feef4307b1209bf2000d09161fa4b62078a8cd134e8eb2560698a71c5f7c"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/timezone-KG-plus0-response.json",
+      "target": "test/fixtures/betexplorer-20261011/timezone-KG-plus0-response.json",
+      "base_sha256": null,
+      "new_sha256": "25c97c11598774d6fb64d798788718dd7b8b689ceed57e788f0b5c5b7929d734"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/timezone-KG-plus3-response.json",
+      "target": "test/fixtures/betexplorer-20261011/timezone-KG-plus3-response.json",
+      "base_sha256": null,
+      "new_sha256": "293cb54d6bb4a29227b386eb98acdfac80a1cca119d72e1a1b828cd67567d25d"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/timezone-comparison.json",
+      "target": "test/fixtures/betexplorer-20261011/timezone-comparison.json",
+      "base_sha256": null,
+      "new_sha256": "5ba0f97528a04a662b150d920e6e1c0da9ab171c46e5e8659a0b3d9b0ef6170f"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/tracking-db-functions.json",
+      "target": "test/fixtures/betexplorer-20261011/tracking-db-functions.json",
+      "base_sha256": null,
+      "new_sha256": "e4ccd87bf80e36642fb5bc5396a7626be606f631750280b9988fedef1f8ba85f"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/tracking-db-integration-full.json",
+      "target": "test/fixtures/betexplorer-20261011/tracking-db-integration-full.json",
+      "base_sha256": null,
+      "new_sha256": "815f12637aa58eef416daaf86dafda5bf9f87ac51505a525f68d378b5b1a237e"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/tracking-settings-server-calls.json",
+      "target": "test/fixtures/betexplorer-20261011/tracking-settings-server-calls.json",
+      "base_sha256": null,
+      "new_sha256": "893df728285872c167b3c1689af570b2916dff3a19ae62b596e241718a8e01cd"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/upcoming-match-candidates.json",
+      "target": "test/fixtures/betexplorer-20261011/upcoming-match-candidates.json",
+      "base_sha256": null,
+      "new_sha256": "9d107a1b1235ae4c54402d9340d3c8acecab4dce9ab4bd73b2c5f15f7929b9c7"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/verified-content-loader-functions.json",
+      "target": "test/fixtures/betexplorer-20261011/verified-content-loader-functions.json",
+      "base_sha256": null,
+      "new_sha256": "33d5ee90bfe57cee12418f08a7a16d4e283a09c10eb0c26fb3b43a5e7c14600f"
+    },
+    {
+      "project": "backend",
+      "source": "test/fixtures/betexplorer-20261011/worker-scheduling-clues.json",
+      "target": "test/fixtures/betexplorer-20261011/worker-scheduling-clues.json",
+      "base_sha256": null,
+      "new_sha256": "dc014076ca310c7b62d7661a5e837efe195161c5ced1dcb544b5d898f9d4969c"
+    },
+    {
+      "project": "backend",
+      "source": "test/oddsContract/exportJobs.test.cjs",
+      "target": "test/oddsContract/exportJobs.test.cjs",
+      "base_sha256": "e5fe83dac0da89efd74038c61bfb0fc448e24f41513ba043c76197bf9b6bef30",
+      "new_sha256": "91a74ef42347cbb334aa9da0dd0927208ec610e3560e7d7e740be88cd240c8a3"
+    },
+    {
+      "project": "backend",
+      "source": "test/oddsContract/exportProcess.test.cjs",
+      "target": "test/oddsContract/exportProcess.test.cjs",
+      "base_sha256": null,
+      "new_sha256": "1f5d1f5d482d1157315ea3a49e0a986c605c57a14dd8478d26e10e1fc634a82b"
+    },
+    {
+      "project": "backend",
+      "source": "test/oddsContract/scheduledIdentity.test.cjs",
+      "target": "test/oddsContract/scheduledIdentity.test.cjs",
+      "base_sha256": "1a4961b8cbff74edacbc641643c2efe8e7548c1d28bf86b11ff4a730a58f48eb",
+      "new_sha256": "056fec1d32cc1228115dd7f751945c570684fa46c34f2437a5892ed2183144fc"
+    }
+  ]
+}

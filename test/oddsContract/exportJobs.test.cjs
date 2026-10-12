@@ -6,8 +6,11 @@ const path=require('node:path');
 const os=require('node:os');
 const {ExportJobs}=require('../../src/oddsContract/exportJobs');
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'macradar-export-jobs-'));
-const original=fs.readFileSync(path.join(__dirname,
- '../../artifacts/match_exports/app-export-test-20261011T073059Z/MacRadar-0p1XkgIt-1791703861588.zip'));
+// Queue and byte-integrity test only. Real source package validation is in
+// packageIntegration.test.cjs; do not depend on a private server archive path.
+const original=require('../../src/matchDataExport').zip([
+ {name:'test-only.txt',data:'EXPORT_QUEUE_UNIT_TEST'}
+]);
 let calls=0,active=0,peak=0;
 const jobs=new ExportJobs({directory,concurrency:2,build:async(id,{onProgress})=>{
  calls++;active++;peak=Math.max(peak,active);
@@ -16,7 +19,8 @@ const jobs=new ExportJobs({directory,concurrency:2,build:async(id,{onProgress})=
  onProgress('BUILDING_PACKAGE');
  active--;
  if(id==='failed') throw Error('EXPECTED_SOURCE_FAILURE');
- return {filename:'MacRadar-test.zip',buffer:original};
+ return {filename:'MacRadar-test.zip',buffer:original,
+  collectionStatus:{last_successful_scan_at:'2026-10-11T12:00:00Z',refresh_success:false}};
 }});
 const wait=async(job)=>{
  for(let i=0;i<100;i++){
@@ -37,6 +41,9 @@ const wait=async(job)=>{
   assert.equal(calls,3);assert(peak<=2);
   assert.equal(jobs.status(first.job_id,'other'),null);
   assert.deepEqual(jobs.ready(first.job_id,'event').buffer,original);
+  assert.equal(jobs.ready(first.job_id,'event').collectionStatus.refresh_success,false);
+  assert.equal(jobs.status(first.job_id,'event').collection_status.last_successful_scan_at,
+   '2026-10-11T12:00:00Z');
   const restarted=new ExportJobs({directory,build:async()=>{
    throw Error('SHOULD_NOT_BUILD_READY_JOB');
   }});
@@ -56,6 +63,6 @@ const wait=async(job)=>{
   assert.equal(recovered.status(interruptedId,'interrupted').status,'INTERRUPTED');
   assert.equal(recovered.status(interruptedId,'interrupted').interruption_reason,'BACKEND_RESTART');
   console.log('TEKRAR_INDIRME_TEK_IS_KUYRUK_SINIRI_VE_KALICI_DURUM: GECTI');
-  console.log('GERCEK_ZIP_BYTE_KORUMA_HASH_BOZULMA_VE_YENIDEN_BASLATMA: GECTI');
+  console.log('BIRIM_TEST_ZIP_BYTE_KORUMA_HASH_BOZULMA_VE_YENIDEN_BASLATMA: GECTI');
  }finally{fs.rmSync(directory,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});
